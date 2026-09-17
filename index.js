@@ -144,7 +144,7 @@ export { CHILDREN_ERROR_EVENT } from './pins/children-loader.js';
 export { DEFAULT_OFFLOAD_MARGIN } from './engine/offload.js';
 
 /* ---- everyday: component authoring ---- */
-export { CLS, PRESERVE_TYPE } from './pins/traits/display-templates.js';
+export { CLS, HTML_KEY, PRESERVE_TYPE } from './pins/traits/display-templates.js';
 
 /**
  * The component-authoring surface: the writes a `{ build, update }` template
