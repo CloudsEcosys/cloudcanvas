@@ -282,7 +282,7 @@ export class ConnectableTrait extends PinTrait {
         const p2 = targetPin.getGlobalBounds();
         items.push({
           key: `${sourcePin.id}->${targetId}`,
-          d: connectorPathData(p1.centerX, p1.centerY, p2.centerX, p2.centerY),
+          d: connectorPathData(p1, p2),
           stroke: safeColor(connTrait.stroke, 'var(--cc-connector, rgba(56, 189, 248, 0.6))'),
           strokeWidth: safeNumber(connTrait.strokeWidth || 2, 2),
           dashed: connTrait.dashed

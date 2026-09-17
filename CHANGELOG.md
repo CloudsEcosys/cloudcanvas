@@ -355,6 +355,15 @@ records the migration surface, not the commit history.
 
 ### Changed
 
+- **Live connectors route edge-to-edge instead of centre-to-centre.**
+  `connectorPathData` gains a second call form: passing two Pin global-bounds objects
+  (`{minX,maxX,minY,maxY,centerX,centerY}`) instead of four numbers routes the curve out of
+  the box face nearest the target - horizontal or vertical dominance chosen by the larger
+  centre delta, control points pushed 40% of the gap (min 40px) - so a connector meets each
+  node's border rather than diving through it. `ConnectableTrait` now feeds bounds directly.
+  *Migration*: none - additive; the four-number form is unchanged and still draws the
+  centre-to-centre curve.
+
 - **A missing `container` throws instead of mounting nothing.**
   `createCanvasSession({ container: null })` (or `undefined`, `''`, a non-element)
   used to succeed silently and render nothing - the session existed, `hostElement` was

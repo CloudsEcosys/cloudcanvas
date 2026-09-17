@@ -2028,12 +2028,66 @@ var CloudCanvas = (() => {
 </div>`.trim();
   }
   function connectorPathData(fromX, fromY, toX, toY) {
+    if (typeof fromX === "object" && typeof fromY === "object") {
+      return boundsConnectorPathData(fromX, fromY);
+    }
     const x1 = safeNumber(fromX, 0);
     const y1 = safeNumber(fromY, 0);
     const x2 = safeNumber(toX, 0);
     const y2 = safeNumber(toY, 0);
     const dx = (x2 - x1) * 0.5;
     return `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
+  }
+  function boundsConnectorPathData(p1, p2) {
+    const dx = p2.centerX - p1.centerX;
+    const dy = p2.centerY - p1.centerY;
+    let x1, y1, x2, y2, cx1, cy1, cx2, cy2;
+    if (Math.abs(dx) >= Math.abs(dy)) {
+      if (dx >= 0) {
+        x1 = p1.maxX;
+        y1 = p1.centerY;
+        x2 = p2.minX;
+        y2 = p2.centerY;
+        const offset = Math.max(40, dx * 0.4);
+        cx1 = x1 + offset;
+        cy1 = y1;
+        cx2 = x2 - offset;
+        cy2 = y2;
+      } else {
+        x1 = p1.minX;
+        y1 = p1.centerY;
+        x2 = p2.maxX;
+        y2 = p2.centerY;
+        const offset = Math.max(40, -dx * 0.4);
+        cx1 = x1 - offset;
+        cy1 = y1;
+        cx2 = x2 + offset;
+        cy2 = y2;
+      }
+    } else {
+      if (dy >= 0) {
+        x1 = p1.centerX;
+        y1 = p1.maxY;
+        x2 = p2.centerX;
+        y2 = p2.minY;
+        const offset = Math.max(40, dy * 0.4);
+        cx1 = x1;
+        cy1 = y1 + offset;
+        cx2 = x2;
+        cy2 = y2 - offset;
+      } else {
+        x1 = p1.centerX;
+        y1 = p1.minY;
+        x2 = p2.centerX;
+        y2 = p2.maxY;
+        const offset = Math.max(40, -dy * 0.4);
+        cx1 = x1;
+        cy1 = y1 - offset;
+        cx2 = x2;
+        cy2 = y2 + offset;
+      }
+    }
+    return `M ${x1.toFixed(1)} ${y1.toFixed(1)} C ${cx1.toFixed(1)} ${cy1.toFixed(1)}, ${cx2.toFixed(1)} ${cy2.toFixed(1)}, ${x2.toFixed(1)} ${y2.toFixed(1)}`;
   }
   function createConnectorPathSVG(fromX, fromY, toX, toY, options = {}) {
     const stroke = safeColor(options.stroke, "var(--cc-connector, rgba(56, 189, 248, 0.6))");
@@ -4243,7 +4297,7 @@ var CloudCanvas = (() => {
           const p2 = targetPin.getGlobalBounds();
           items.push({
             key: `${sourcePin.id}->${targetId}`,
-            d: connectorPathData(p1.centerX, p1.centerY, p2.centerX, p2.centerY),
+            d: connectorPathData(p1, p2),
             stroke: safeColor(connTrait.stroke, "var(--cc-connector, rgba(56, 189, 248, 0.6))"),
             strokeWidth: safeNumber(connTrait.strokeWidth || 2, 2),
             dashed: connTrait.dashed

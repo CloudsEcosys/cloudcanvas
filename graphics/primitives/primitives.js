@@ -185,9 +185,20 @@ export function createGradientMeterSVG(val, min = 0, max = 100, options = {}) {
  * attribute) differs. Coordinates are coerced through {@link safeNumber} so a
  * `NaN` centre degrades to `0` rather than writing the literal `NaN` into a path.
  *
+ * Called two ways. The four-number form takes explicit endpoints and draws a
+ * horizontal-tangent curve between them. The two-object form takes the global
+ * bounds of each Pin (`{minX,maxX,minY,maxY,centerX,centerY}`) and routes
+ * edge-to-edge: it leaves and enters each box on the face nearest the other,
+ * choosing horizontal or vertical dominance from the larger centre delta, so the
+ * curve meets each node's border rather than diving through its centre.
+ *
  * @returns {string} an SVG path `d` (`M x1 y1 C ...`)
  */
 export function connectorPathData(fromX, fromY, toX, toY) {
+  if (typeof fromX === 'object' && typeof fromY === 'object') {
+    return boundsConnectorPathData(fromX, fromY);
+  }
+
   const x1 = safeNumber(fromX, 0);
   const y1 = safeNumber(fromY, 0);
   const x2 = safeNumber(toX, 0);
@@ -196,6 +207,58 @@ export function connectorPathData(fromX, fromY, toX, toY) {
 
   // Smooth bezier curve between pins
   return `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
+}
+
+/**
+ * The `d` of an edge-to-edge connector between two Pin bounding boxes.
+ *
+ * The larger centre delta picks the axis: a wider horizontal gap leaves the
+ * right/left faces, a wider vertical gap the bottom/top faces, so the curve
+ * always exits toward its target. Control points push out along that axis by
+ * 40% of the gap (floored at 40px) to keep a gentle S even when the boxes nearly
+ * touch. Output is rounded to one decimal, matching the string-generator path.
+ *
+ * @param {{minX:number,maxX:number,minY:number,maxY:number,centerX:number,centerY:number}} p1
+ * @param {{minX:number,maxX:number,minY:number,maxY:number,centerX:number,centerY:number}} p2
+ * @returns {string} an SVG path `d` (`M x1 y1 C ...`)
+ */
+function boundsConnectorPathData(p1, p2) {
+  const dx = p2.centerX - p1.centerX;
+  const dy = p2.centerY - p1.centerY;
+
+  let x1, y1, x2, y2, cx1, cy1, cx2, cy2;
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    // Horizontal dominant routing
+    if (dx >= 0) {
+      x1 = p1.maxX; y1 = p1.centerY;
+      x2 = p2.minX; y2 = p2.centerY;
+      const offset = Math.max(40, dx * 0.4);
+      cx1 = x1 + offset; cy1 = y1;
+      cx2 = x2 - offset; cy2 = y2;
+    } else {
+      x1 = p1.minX; y1 = p1.centerY;
+      x2 = p2.maxX; y2 = p2.centerY;
+      const offset = Math.max(40, -dx * 0.4);
+      cx1 = x1 - offset; cy1 = y1;
+      cx2 = x2 + offset; cy2 = y2;
+    }
+  } else {
+    // Vertical dominant routing
+    if (dy >= 0) {
+      x1 = p1.centerX; y1 = p1.maxY;
+      x2 = p2.centerX; y2 = p2.minY;
+      const offset = Math.max(40, dy * 0.4);
+      cx1 = x1; cy1 = y1 + offset;
+      cx2 = x2; cy2 = y2 - offset;
+    } else {
+      x1 = p1.centerX; y1 = p1.minY;
+      x2 = p2.centerX; y2 = p2.maxY;
+      const offset = Math.max(40, -dy * 0.4);
+      cx1 = x1; cy1 = y1 - offset;
+      cx2 = x2; cy2 = y2 + offset;
+    }
+  }
+  return `M ${x1.toFixed(1)} ${y1.toFixed(1)} C ${cx1.toFixed(1)} ${cy1.toFixed(1)}, ${cx2.toFixed(1)} ${cy2.toFixed(1)}, ${x2.toFixed(1)} ${y2.toFixed(1)}`;
 }
 
 /**
