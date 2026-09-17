@@ -103,7 +103,8 @@ export {
   ActionRegistry,
   actionRegistry,
   registerBuiltinActions,
-  PARAM_CONTROLS
+  PARAM_CONTROLS,
+  showClientToast
 } from './pins/reaction-actions.js';
 export {
   ReactionStore,
@@ -152,6 +153,11 @@ export { CLS, PRESERVE_TYPE } from './pins/traits/display-templates.js';
  */
 export { defineComponent } from './pins/traits/define-component.js';
 export {
+  definePrototype,
+  createReactiveState,
+  compileBlueprint
+} from './pins/traits.js';
+export {
   KEY_ATTR,
   makeElement,
   makeTextNode,
@@ -161,6 +167,17 @@ export {
   setText,
   setVisible
 } from './pins/traits/template-kit.js';
+
+/* ---- everyday: group & subtree operations ---- */
+export {
+  serializeGroup,
+  saveGroup,
+  loadGroup,
+  listGroupKeys,
+  deleteGroup,
+  instantiateGroup,
+  GROUP_STORAGE_PREFIX
+} from './pins/group.js';
 
 /* ---- everyday: theming and the style discipline gate ---- */
 export {

@@ -39,3 +39,5 @@ export {
   ScopeTrait
 } from './traits/graph.js';
 export { TraitRegistry, traitRegistry, mergeOptions } from './traits/registry.js';
+export { definePrototype, createReactiveState } from './traits/prototype.js';
+export { compileBlueprint } from './traits/blueprint-compiler.js';

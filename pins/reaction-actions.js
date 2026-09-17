@@ -236,6 +236,68 @@ function runToggleVisibility(target, params) {
   return next;
 }
 
+/** Display a client-side notification toast. */
+export function showClientToast(session, message, variant = 'info') {
+  if (typeof document === 'undefined') return;
+  const host = (session && session.hostElement) || document.body;
+  let container = host.querySelector('.cloudcanvas-toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.className = 'cloudcanvas-toast-container';
+    container.style.cssText = [
+      'position: absolute',
+      'bottom: 24px',
+      'right: 24px',
+      'display: flex',
+      'flex-direction: column',
+      'gap: 10px',
+      'z-index: 9999',
+      'pointer-events: none',
+      'max-width: 360px'
+    ].join('; ');
+    host.appendChild(container);
+  }
+
+  const toast = document.createElement('div');
+  toast.className = `cloudcanvas-toast cloudcanvas-toast-${variant}`;
+  const borderCol = variant === 'success' ? '#22c55e' : variant === 'warning' ? '#eab308' : '#3b82f6';
+  toast.style.cssText = [
+    'background: rgba(15, 23, 42, 0.92)',
+    'color: #f8fafc',
+    'padding: 12px 18px',
+    'border-radius: 8px',
+    'font-family: system-ui, -apple-system, sans-serif',
+    'font-size: 13px',
+    'line-height: 1.4',
+    `border-left: 4px solid ${borderCol}`,
+    'border: 1px solid rgba(255, 255, 255, 0.12)',
+    'box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)',
+    'backdrop-filter: blur(12px)',
+    'transform: translateY(10px)',
+    'opacity: 0',
+    'transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+    'pointer-events: auto'
+  ].join('; ');
+  toast.textContent = message;
+
+  container.appendChild(toast);
+  if (typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(() => {
+      toast.style.transform = 'translateY(0)';
+      toast.style.opacity = '1';
+    });
+  } else {
+    toast.style.transform = 'translateY(0)';
+    toast.style.opacity = '1';
+  }
+
+  setTimeout(() => {
+    toast.style.transform = 'translateY(-10px)';
+    toast.style.opacity = '0';
+    setTimeout(() => toast.remove(), 300);
+  }, 2800);
+}
+
 /**
  * The default action set. Small on purpose: four real actions over four real
  * Pin surfaces, each declaring exactly the parameters its `run` reads.
@@ -276,6 +338,67 @@ export function registerBuiltinActions(registry) {
       const session = target && target.session;
       if (!session) return null;
       return session.focus(target, { promote: Boolean(params.promote) });
+    }
+  });
+
+  registry.register('increment-counter', {
+    label: 'Increment counter',
+    params: [
+      { key: 'key', label: 'Content key', control: 'text', placeholder: 'count' },
+      { key: 'step', label: 'Step', control: 'number', required: false }
+    ],
+    run: (target, params) => {
+      const key = params.key || 'count';
+      const step = Number.isFinite(params.step) ? params.step : 1;
+      const current = Number(target.getContent(key)) || 0;
+      const next = current + step;
+      target.setContent(key, next);
+      if (target.contents && target.contents.has('title')) {
+        const title = target.contents.get('title');
+        if (typeof title === 'string' && title.includes(':')) {
+          const parts = title.split(':');
+          target.setContent('title', `${parts[0].trim()}: ${next}`);
+        }
+      }
+      return next;
+    }
+  });
+
+  registry.register('notify', {
+    label: 'Show notification',
+    params: [
+      { key: 'message', label: 'Message', control: 'text', placeholder: 'Action completed successfully' },
+      { key: 'variant', label: 'Variant', control: 'select', options: [
+        { value: 'info', label: 'Info' },
+        { value: 'success', label: 'Success' },
+        { value: 'warning', label: 'Warning' }
+      ], required: false }
+    ],
+    run: (target, params, context) => {
+      const session = (target && target.session) || (context && context.session);
+      showClientToast(session, params.message || 'Notification', params.variant || 'info');
+      return true;
+    }
+  });
+
+  registry.register('navigate-page', {
+    label: 'Navigate to page',
+    params: [
+      { key: 'page', label: 'Page name', control: 'text', placeholder: 'index.html' }
+    ],
+    run: (target, params, context) => {
+      const session = (target && target.session) || (context && context.session);
+      if (!session) return null;
+      const pageName = params.page ? params.page.trim() : '';
+      if (pageName && session.pinManager) {
+        const roots = session.pinManager.getRootPins();
+        for (const r of roots) {
+          if (r.contents && (r.contents.get('title') === pageName || r.contents.get('name') === pageName)) {
+            return session.focus(r, { promote: true });
+          }
+        }
+      }
+      return session.focus(target, { promote: true });
     }
   });
 

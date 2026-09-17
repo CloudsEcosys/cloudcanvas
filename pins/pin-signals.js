@@ -27,6 +27,10 @@ export class PinSignalBus {
     // One listener object for every Pin and every type: re-attaching it is a
     // no-op, and detaching one Pin never disturbs another.
     this._forward = (event) => {
+      const source = event && event.detail ? event.detail.source : (event ? event.target : null);
+      if (event && event.currentTarget && source && event.currentTarget !== source) {
+        return;
+      }
       for (const handler of this.handlers) handler(event);
     };
   }

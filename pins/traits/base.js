@@ -87,7 +87,8 @@ export const PIN_SIGNAL_TYPES = Object.freeze([
   'drag:end',
   'resize:start',
   'resize:end',
-  'edit'
+  'edit',
+  'press'
 ]);
 
 /**
