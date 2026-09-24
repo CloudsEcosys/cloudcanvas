@@ -727,6 +727,34 @@ export const CANVAS_DEFAULT_CSS = `
     width: var(--cc-grab-handle-size-coarse, 20px);
     height: var(--cc-grab-handle-size-coarse, 20px);
   }
+/* ------------------ SVG STATE & 3D INTERPOLATION ------------------ */
+
+.cloudcanvas-svg-state-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+  pointer-events: none;
+  transform-style: preserve-3d;
+}
+
+.cloudcanvas-svg-state-host {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+  pointer-events: none;
+  transform-style: preserve-3d;
+  transform-origin: center center;
+}
+
+.cloudcanvas-svg-state-path {
+  vector-effect: non-scaling-stroke;
+  transform-box: fill-box;
+  transform-origin: center center;
 }
 
 /* ------------------ UTILITY ------------------ */
@@ -752,7 +780,9 @@ export const CANVAS_DEFAULT_CSS = `
 
   /* The SVG generators carry their own inline transitions. */
   .cloudcanvas-pin-needle-slot svg,
-  .cloudcanvas-pin-meter-slot * {
+  .cloudcanvas-pin-meter-slot *,
+  .cloudcanvas-svg-state-path,
+  .cloudcanvas-svg-state-host {
     transition: none !important;
   }
 }

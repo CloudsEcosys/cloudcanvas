@@ -26,6 +26,7 @@ import {
   ScopeTrait
 } from './graph.js';
 import { ResizableTrait } from './resizable.js';
+import { SvgStateTrait } from './svg-state.js';
 
 /**
  * Shallow-merge caller options over registered defaults.
@@ -82,6 +83,7 @@ export class TraitRegistry {
     this.register('focussable', FocussableTrait);
     this.register('scope', ScopeTrait);
     this.register('transmitter', TransmitterTrait);
+    this.register('svg-state', SvgStateTrait);
   }
 
   /**

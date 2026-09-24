@@ -56,11 +56,23 @@ export {
   FocussableTrait,
   ScopeTrait,
   TransmitterTrait,
+  SvgStateTrait,
+  SVG_STATE_WRAPPER_CLASS,
+  SVG_STATE_HOST_CLASS,
+  SVG_STATE_PATH_CLASS,
   PIN_SIGNAL_TYPES,
   emitPinSignal,
   TraitRegistry,
   traitRegistry
 } from './pins/traits.js';
+
+/* ---- everyday: vectorization & geometry processing ---- */
+export {
+  simplifyPoints,
+  vectorizeStroke,
+  vectorizeContour,
+  normalizePathTopology
+} from './graphics/vectorizer.js';
 
 /* ---- everyday: move a live Pin between scopes (nest / detach) ---- */
 export { reparentPin } from './pins/reparent.js';
