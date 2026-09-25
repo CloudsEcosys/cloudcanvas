@@ -30,6 +30,7 @@ var CloudCanvas = (() => {
     CANVAS_DEFAULT_CSS: () => CANVAS_DEFAULT_CSS,
     CHILDREN_ERROR_EVENT: () => CHILDREN_ERROR_EVENT,
     CLS: () => CLS,
+    CONTROL_SELECTOR: () => CONTROL_SELECTOR,
     CURSOR_ACTIVATED: () => CURSOR_ACTIVATED,
     CURSOR_CAPABILITY: () => CURSOR_CAPABILITY,
     CURSOR_FOCUS: () => CURSOR_FOCUS,
@@ -56,6 +57,8 @@ var CloudCanvas = (() => {
     FLOW_CHILD_CLASS: () => FLOW_CHILD_CLASS,
     FocussableTrait: () => FocussableTrait,
     GRAB_HANDLE_CLASS: () => GRAB_HANDLE_CLASS,
+    GROUP_STORAGE_PREFIX: () => GROUP_STORAGE_PREFIX,
+    HTML_KEY: () => HTML_KEY,
     HYDRATE_SELECTOR: () => HYDRATE_SELECTOR,
     KEY_ATTR: () => KEY_ATTR,
     KEY_BINDINGS: () => KEY_BINDINGS,
@@ -67,6 +70,7 @@ var CloudCanvas = (() => {
     MENU_CLASS: () => MENU_CLASS,
     MENU_FLYOUT_CLASS: () => MENU_FLYOUT_CLASS,
     MENU_GROUP_CLASS: () => MENU_GROUP_CLASS,
+    MENU_HOVER_OPEN_MS: () => MENU_HOVER_OPEN_MS,
     MENU_ITEM_ATTR: () => MENU_ITEM_ATTR,
     MENU_ITEM_CLASS: () => MENU_ITEM_CLASS,
     MENU_ITEM_SUBMENU_CLASS: () => MENU_ITEM_SUBMENU_CLASS,
@@ -99,9 +103,13 @@ var CloudCanvas = (() => {
     STYLE_PROPERTIES: () => STYLE_PROPERTIES,
     STYLE_RULES: () => STYLE_RULES,
     SVG_NS: () => SVG_NS,
+    SVG_STATE_HOST_CLASS: () => SVG_STATE_HOST_CLASS,
+    SVG_STATE_PATH_CLASS: () => SVG_STATE_PATH_CLASS,
+    SVG_STATE_WRAPPER_CLASS: () => SVG_STATE_WRAPPER_CLASS,
     SVG_TAGS: () => SVG_TAGS,
     ScopeTrait: () => ScopeTrait,
     SelectableTrait: () => SelectableTrait,
+    SvgStateTrait: () => SvgStateTrait,
     TOKENS: () => TOKENS,
     TOKEN_CATEGORY: () => TOKEN_CATEGORY,
     TOKEN_NAMES: () => TOKEN_NAMES,
@@ -122,12 +130,16 @@ var CloudCanvas = (() => {
     checkStyleDiscipline: () => checkStyleDiscipline,
     clearPinStyle: () => clearPinStyle,
     closeContextMenu: () => closeContextMenu,
+    compileBlueprint: () => compileBlueprint,
     compositeOver: () => compositeOver,
     contrastTextFor: () => contrastTextFor,
     createCanvasSession: () => createCanvasSession,
     createCursorLayer: () => createCursorLayer,
     createCursorPin: () => createCursorPin,
+    createReactiveState: () => createReactiveState,
     defineComponent: () => defineComponent,
+    definePrototype: () => definePrototype,
+    deleteGroup: () => deleteGroup,
     detachReactions: () => detachReactions,
     droppablePinAt: () => droppablePinAt,
     emitPinSignal: () => emitPinSignal,
@@ -138,15 +150,20 @@ var CloudCanvas = (() => {
     injectCanvasStyles: () => injectCanvasStyles,
     injectSessionStyles: () => injectSessionStyles,
     insertionSiblingFor: () => insertionSiblingFor,
+    instantiateGroup: () => instantiateGroup,
     isContextMenuOpen: () => isContextMenuOpen,
+    isControlTarget: () => isControlTarget,
     isStyleProperty: () => isStyleProperty,
     isToken: () => isToken,
     lightThemeValue: () => lightThemeValue,
+    listGroupKeys: () => listGroupKeys,
+    loadGroup: () => loadGroup,
     makeElement: () => makeElement,
     makeTextNode: () => makeTextNode,
     menuItemsFor: () => menuItemsFor,
     menuRegistry: () => menuRegistry,
     mountAnnouncer: () => mountAnnouncer,
+    normalizePathTopology: () => normalizePathTopology,
     normalizeReloadStrategy: () => normalizeReloadStrategy,
     pinStyleMap: () => pinStyleMap,
     place: () => place,
@@ -166,21 +183,28 @@ var CloudCanvas = (() => {
     resolveReloadMode: () => resolveReloadMode,
     resolveRenderMode: () => resolveRenderMode,
     rotatePin: () => rotatePin,
+    saveGroup: () => saveGroup,
     screenBoundsOf: () => screenBoundsOf,
     sendToBack: () => sendToBack,
+    serializeGroup: () => serializeGroup,
     setAttr: () => setAttr,
     setElevationChain: () => setElevationChain,
     setPinStyle: () => setPinStyle,
     setSlot: () => setSlot,
     setText: () => setText,
     setVisible: () => setVisible,
+    showClientToast: () => showClientToast,
+    simplifyPoints: () => simplifyPoints,
     stylePropertyInfo: () => stylePropertyInfo,
     styles: () => styles_exports,
     tokensInCategory: () => tokensInCategory,
     traitRegistry: () => traitRegistry,
     unbindKeyboard: () => unbindKeyboard,
+    unionBounds: () => unionBounds,
     unmountAnnouncer: () => unmountAnnouncer,
     unregisterMenuItem: () => unregisterMenuItem,
+    vectorizeContour: () => vectorizeContour,
+    vectorizeStroke: () => vectorizeStroke,
     wakesWithParent: () => wakesWithParent
   });
 
@@ -908,6 +932,36 @@ var CloudCanvas = (() => {
   }
 }
 
+/* ------------------ SVG STATE & 3D INTERPOLATION ------------------ */
+
+.cloudcanvas-svg-state-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+  pointer-events: none;
+  transform-style: preserve-3d;
+}
+
+.cloudcanvas-svg-state-host {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+  pointer-events: none;
+  transform-style: preserve-3d;
+  transform-origin: center center;
+}
+
+.cloudcanvas-svg-state-path {
+  vector-effect: non-scaling-stroke;
+  transform-box: fill-box;
+  transform-origin: center center;
+}
+
 /* ------------------ UTILITY ------------------ */
 
 /* Announcement target for assistive technology: in the accessibility tree,
@@ -931,7 +985,9 @@ var CloudCanvas = (() => {
 
   /* The SVG generators carry their own inline transitions. */
   .cloudcanvas-pin-needle-slot svg,
-  .cloudcanvas-pin-meter-slot * {
+  .cloudcanvas-pin-meter-slot *,
+  .cloudcanvas-svg-state-path,
+  .cloudcanvas-svg-state-host {
     transition: none !important;
   }
 }
@@ -2777,7 +2833,8 @@ var CloudCanvas = (() => {
     "drag:end",
     "resize:start",
     "resize:end",
-    "edit"
+    "edit",
+    "press"
   ]);
   function emitPinSignal(pin, type, payload = null) {
     if (!pin || typeof pin.dispatchEvent !== "function") return false;
@@ -3274,6 +3331,7 @@ var CloudCanvas = (() => {
       });
       this.dragging = false;
       this.dragOffset = { x: 0, y: 0 };
+      this.reparentOnDrop = options.reparentOnDrop !== false;
       this._downX = null;
       this._downY = null;
       this._translating = false;
@@ -3427,10 +3485,15 @@ var CloudCanvas = (() => {
      * One case intercepts the regression lock: a drop back inside a *flow* container
      * the Pin already belongs to is a reorder, not a no-op. See {@link _resolveReorder}.
      *
+     * `reparentOnDrop: false` short-circuits the whole resolution: the Pin keeps
+     * the parent and order it had, and the last `onPointerMove` is left as the only
+     * effect of the drop - it moved, it did not nest.
+     *
      * @returns {boolean} whether the Pin was reparented or reordered
      */
     _resolveDrop(pin, event, session) {
       if (event === void 0 || !session) return false;
+      if (!this.reparentOnDrop) return false;
       const target = droppablePinAt(session, event, { ignore: pin });
       if (this._resolveReorder(pin, target, event)) return true;
       if (target === pin.parent) return false;
@@ -4283,6 +4346,462 @@ var CloudCanvas = (() => {
     }
   };
 
+  // engine/motion-hint.js
+  var MOVING_CLASS = "cc-moving";
+  var MOVING_IDLE_FRAMES = 30;
+  var MotionHintSet = class {
+    constructor(idleFrames = MOVING_IDLE_FRAMES) {
+      this.idleFrames = idleFrames;
+      this._moving = /* @__PURE__ */ new Map();
+    }
+    get size() {
+      return this._moving.size;
+    }
+    has(pin) {
+      return this._moving.has(pin);
+    }
+    /** Promise the compositor a layer for as long as this Pin keeps moving. */
+    mark(pin, frameCount) {
+      if (!this._moving.has(pin) && pin.element && pin.element.classList) {
+        pin.element.classList.add(MOVING_CLASS);
+      }
+      this._moving.set(pin, frameCount);
+      return true;
+    }
+    /**
+     * Withdraw the hint from every Pin that has been still long enough. Only Pins
+     * that moved recently are visited, so a static canvas pays nothing for this.
+     *
+     * @returns {number} how many hints were withdrawn
+     */
+    sweep(frameCount) {
+      if (this._moving.size === 0) return 0;
+      let swept = 0;
+      for (const [pin, lastFrame] of this._moving) {
+        if (frameCount - lastFrame < this.idleFrames) continue;
+        if (pin.element && pin.element.classList) pin.element.classList.remove(MOVING_CLASS);
+        this._moving.delete(pin);
+        swept += 1;
+      }
+      return swept;
+    }
+    delete(pin) {
+      return this._moving.delete(pin);
+    }
+    clear() {
+      this._moving.clear();
+    }
+  };
+
+  // graphics/vectorizer.js
+  function simplifyPoints(points, tolerance = 1.5) {
+    if (!Array.isArray(points) || points.length <= 2) return points ? [...points] : [];
+    if (tolerance <= 0) return [...points];
+    const sqTolerance = tolerance * tolerance;
+    function getSqSegDist(p, p1, p2) {
+      let x = p1.x;
+      let y = p1.y;
+      let dx = p2.x - x;
+      let dy = p2.y - y;
+      if (dx !== 0 || dy !== 0) {
+        const t = ((p.x - x) * dx + (p.y - y) * dy) / (dx * dx + dy * dy);
+        if (t > 1) {
+          x = p2.x;
+          y = p2.y;
+        } else if (t > 0) {
+          x += dx * t;
+          y += dy * t;
+        }
+      }
+      dx = p.x - x;
+      dy = p.y - y;
+      return dx * dx + dy * dy;
+    }
+    function simplifyDPStep(pts, first, last, sqTol, simplified2) {
+      let maxSqDist = sqTol;
+      let index = -1;
+      for (let i = first + 1; i < last; i += 1) {
+        const sqDist = getSqSegDist(pts[i], pts[first], pts[last]);
+        if (sqDist > maxSqDist) {
+          index = i;
+          maxSqDist = sqDist;
+        }
+      }
+      if (index !== -1) {
+        if (index - first > 1) simplifyDPStep(pts, first, index, sqTol, simplified2);
+        simplified2.push(pts[index]);
+        if (last - index > 1) simplifyDPStep(pts, index, last, sqTol, simplified2);
+      }
+    }
+    const simplified = [points[0]];
+    simplifyDPStep(points, 0, points.length - 1, sqTolerance, simplified);
+    simplified.push(points[points.length - 1]);
+    return simplified;
+  }
+  function vectorizeStroke(rawPoints, options = {}) {
+    if (!Array.isArray(rawPoints) || rawPoints.length === 0) return "";
+    const precision = typeof options.precision === "number" ? options.precision : 2;
+    const fmt = (n2) => Number(n2).toFixed(precision);
+    const normalized = [];
+    for (const pt of rawPoints) {
+      if (pt && typeof pt === "object") {
+        const x = Number(pt.x !== void 0 ? pt.x : pt[0]);
+        const y = Number(pt.y !== void 0 ? pt.y : pt[1]);
+        if (Number.isFinite(x) && Number.isFinite(y)) {
+          normalized.push({ x, y });
+        }
+      }
+    }
+    if (normalized.length === 0) return "";
+    if (normalized.length === 1) {
+      const p = normalized[0];
+      return `M ${fmt(p.x)} ${fmt(p.y)} L ${fmt(p.x + 0.1)} ${fmt(p.y + 0.1)}`;
+    }
+    const tolerance = options.tolerance !== void 0 ? Number(options.tolerance) : 1.5;
+    const points = tolerance > 0 && normalized.length > 2 ? simplifyPoints(normalized, tolerance) : normalized;
+    if (points.length === 2) {
+      const p0 = points[0];
+      const p1 = points[1];
+      return `M ${fmt(p0.x)} ${fmt(p0.y)} L ${fmt(p1.x)} ${fmt(p1.y)}`;
+    }
+    const closed = Boolean(options.closed);
+    const tension = typeof options.smoothing === "number" ? options.smoothing : 0.25;
+    const n = points.length;
+    let d = `M ${fmt(points[0].x)} ${fmt(points[0].y)}`;
+    const numSegments = closed ? n : n - 1;
+    for (let i = 0; i < numSegments; i += 1) {
+      const p0 = closed ? points[(i - 1 + n) % n] : i === 0 ? points[0] : points[i - 1];
+      const p1 = points[i];
+      const p2 = closed ? points[(i + 1) % n] : points[i + 1];
+      const p3 = closed ? points[(i + 2) % n] : i + 2 < n ? points[i + 2] : p2;
+      const cp1x = p1.x + (p2.x - p0.x) * tension;
+      const cp1y = p1.y + (p2.y - p0.y) * tension;
+      const cp2x = p2.x - (p3.x - p1.x) * tension;
+      const cp2y = p2.y - (p3.y - p1.y) * tension;
+      d += ` C ${fmt(cp1x)} ${fmt(cp1y)}, ${fmt(cp2x)} ${fmt(cp2y)}, ${fmt(p2.x)} ${fmt(p2.y)}`;
+    }
+    if (closed) d += " Z";
+    return d;
+  }
+  function vectorizeContour(radii, cx = 100, cy = 100, options = {}) {
+    if (!radii || radii.length < 3) return "";
+    const n = radii.length;
+    const points = [];
+    const angleStep = Math.PI * 2 / n;
+    for (let i = 0; i < n; i += 1) {
+      const angle = i * angleStep;
+      const r = Math.max(0, Number(radii[i]) || 0);
+      points.push({
+        x: cx + r * Math.cos(angle),
+        y: cy + r * Math.sin(angle)
+      });
+    }
+    return vectorizeStroke(points, {
+      ...options,
+      tolerance: 0,
+      // Preserve exact radial angular resolution
+      closed: true
+    });
+  }
+  function normalizePathTopology(pathOrPoints, targetSegments = 16, options = {}) {
+    const segCount = Math.max(4, Number(targetSegments) || 16);
+    const cx = Number(options.cx !== void 0 ? options.cx : 100);
+    const cy = Number(options.cy !== void 0 ? options.cy : 100);
+    const rDefault = Number(options.defaultRadius || 50);
+    if (Array.isArray(pathOrPoints) && pathOrPoints.length >= 3) {
+      const resampled = [];
+      const srcLen = pathOrPoints.length;
+      for (let i = 0; i < segCount; i += 1) {
+        const srcIdx = i / segCount * srcLen;
+        const baseIdx = Math.floor(srcIdx);
+        const frac = srcIdx - baseIdx;
+        const p1 = pathOrPoints[baseIdx % srcLen];
+        const p2 = pathOrPoints[(baseIdx + 1) % srcLen];
+        resampled.push({
+          x: p1.x + (p2.x - p1.x) * frac,
+          y: p1.y + (p2.y - p1.y) * frac
+        });
+      }
+      return vectorizeStroke(resampled, { ...options, tolerance: 0, closed: true });
+    }
+    if (typeof pathOrPoints === "string" && pathOrPoints.trim().length > 0) {
+      const numbers = pathOrPoints.match(/-?\d+(?:\.\d+)?/g);
+      if (numbers && numbers.length >= 6) {
+        const parsedPoints = [];
+        for (let i = 0; i < numbers.length - 1; i += 2) {
+          parsedPoints.push({
+            x: parseFloat(numbers[i]),
+            y: parseFloat(numbers[i + 1])
+          });
+        }
+        if (parsedPoints.length >= 3) {
+          return normalizePathTopology(parsedPoints, segCount, options);
+        }
+      }
+    }
+    const radii = new Float32Array(segCount).fill(rDefault);
+    return vectorizeContour(radii, cx, cy, options);
+  }
+
+  // pins/traits/svg-state.js
+  var SVG_STATE_WRAPPER_CLASS = "cloudcanvas-svg-state-wrapper";
+  var SVG_STATE_HOST_CLASS = "cloudcanvas-svg-state-host";
+  var SVG_STATE_PATH_CLASS = "cloudcanvas-svg-state-path";
+  var DEFAULT_TRANSITION_DURATION = 350;
+  var DEFAULT_TRANSITION_EASING = "cubic-bezier(0.16, 1, 0.3, 1)";
+  var SvgStateTrait = class extends PinTrait {
+    constructor(options = {}) {
+      super(options, {
+        name: options.name || "svg-state",
+        capabilities: ["svg-state", "renderable", "transformable-3d"]
+      });
+      this.viewBox = options.viewBox || "0 0 200 200";
+      this.perspective = Number(options.perspective) || 800;
+      this.rx = Number(options.rx) || 0;
+      this.ry = Number(options.ry) || 0;
+      this.rz = Number(options.rz) || 0;
+      this.depth = Number(options.depth) || 0;
+      this.duration = typeof options.duration === "number" ? options.duration : DEFAULT_TRANSITION_DURATION;
+      this.easing = options.easing || DEFAULT_TRANSITION_EASING;
+      this.normalizeSegments = typeof options.normalizeSegments === "number" ? options.normalizeSegments : 0;
+      this.bindVector = typeof options.bindVector === "number" ? options.bindVector : null;
+      this.states = /* @__PURE__ */ new Map();
+      const rawStates = options.states && typeof options.states === "object" ? options.states : {};
+      for (const [key, state] of Object.entries(rawStates)) {
+        this.states.set(key, this._normalizeStateDef(state));
+      }
+      if (this.states.size === 0) {
+        const defaultPath = this.normalizeSegments > 0 ? normalizePathTopology("", this.normalizeSegments, { cx: 100, cy: 100, defaultRadius: 50 }) : "M 100 50 A 50 50 0 1 0 100 150 A 50 50 0 1 0 100 50 Z";
+        this.states.set("default", {
+          d: defaultPath,
+          fill: "var(--cc-surface-2, rgba(56, 189, 248, 0.15))",
+          stroke: "var(--cc-accent, #38bdf8)",
+          strokeWidth: 2,
+          transform: "none"
+        });
+      }
+      const stateKeys = Array.from(this.states.keys());
+      this.currentState = options.initialState && this.states.has(options.initialState) ? options.initialState : stateKeys[0];
+    }
+    /**
+     * Normalize an incoming state definition and pre-align path topology if requested.
+     */
+    _normalizeStateDef(state) {
+      if (!state || typeof state !== "object") {
+        return { d: "", fill: "none", stroke: "currentColor", strokeWidth: 2 };
+      }
+      let d = state.d || "";
+      if (this.normalizeSegments > 0 && d) {
+        d = normalizePathTopology(d, this.normalizeSegments, { cx: 100, cy: 100 });
+      }
+      return {
+        d,
+        fill: state.fill !== void 0 ? state.fill : "var(--cc-surface-2, rgba(56, 189, 248, 0.15))",
+        stroke: state.stroke !== void 0 ? state.stroke : "var(--cc-accent, #38bdf8)",
+        strokeWidth: state.strokeWidth !== void 0 ? state.strokeWidth : 2,
+        strokeDasharray: state.strokeDasharray || "none",
+        strokeDashoffset: state.strokeDashoffset !== void 0 ? state.strokeDashoffset : 0,
+        opacity: state.opacity !== void 0 ? state.opacity : 1,
+        transform: state.transform || "none",
+        filter: state.filter || "",
+        bloom: state.bloom !== void 0 ? state.bloom : false
+      };
+    }
+    /**
+     * Mount the 3D perspective wrapper and SVG element inside the Pin's content element.
+     */
+    onAttach(pin) {
+      const content = pin.contentElement || (pin.getContentElement ? pin.getContentElement() : null);
+      if (!content) return;
+      const pathNode = h("path", {
+        class: SVG_STATE_PATH_CLASS,
+        "vector-effect": "non-scaling-stroke"
+      });
+      const defsNode = h("defs", {});
+      const svgNode = h("svg", {
+        class: SVG_STATE_HOST_CLASS,
+        viewBox: this.viewBox,
+        preserveAspectRatio: "xMidYMid meet"
+      }, [defsNode, pathNode]);
+      const wrapper = h("div", {
+        class: SVG_STATE_WRAPPER_CLASS,
+        style: `perspective: ${this.perspective}px; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; overflow: visible;`
+      }, [svgNode]);
+      content.appendChild(wrapper);
+      const bindings = {
+        wrapper,
+        svg: svgNode,
+        defs: defsNode,
+        path: pathNode,
+        cleanupTimer: null
+      };
+      pin._svgStateBindings = bindings;
+      const onTransitionEnd = () => {
+        this._clearCompositorHint(pin);
+        pin.dispatchEvent(new PinEvent("svg:transitionend", {
+          source: pin,
+          payload: { state: this.currentState },
+          detail: { state: this.currentState }
+        }));
+      };
+      pathNode.addEventListener("transitionend", onTransitionEnd);
+      bindings._onTransitionEnd = onTransitionEnd;
+      this._applyStateToDOM(pin, this.currentState, true);
+      this.setTransform3D(pin, { rx: this.rx, ry: this.ry, rz: this.rz, depth: this.depth });
+    }
+    /**
+     * Teardown DOM and listeners on trait detach.
+     */
+    onDetach(pin) {
+      const bindings = pin._svgStateBindings;
+      if (!bindings) return;
+      if (bindings.cleanupTimer) {
+        clearTimeout(bindings.cleanupTimer);
+        bindings.cleanupTimer = null;
+      }
+      if (bindings.path && bindings._onTransitionEnd) {
+        bindings.path.removeEventListener("transitionend", bindings._onTransitionEnd);
+      }
+      if (bindings.wrapper && bindings.wrapper.parentNode) {
+        bindings.wrapper.parentNode.removeChild(bindings.wrapper);
+      }
+      this._clearCompositorHint(pin);
+      pin._svgStateBindings = null;
+    }
+    /**
+     * Set 3D perspective orientation on the SVG host.
+     */
+    setTransform3D(pin, { rx, ry, rz, depth } = {}) {
+      if (rx !== void 0) this.rx = Number(rx) || 0;
+      if (ry !== void 0) this.ry = Number(ry) || 0;
+      if (rz !== void 0) this.rz = Number(rz) || 0;
+      if (depth !== void 0) this.depth = Number(depth) || 0;
+      const bindings = pin._svgStateBindings;
+      if (!bindings || !bindings.svg) return;
+      const transform3d = `translateZ(${this.depth}px) rotateX(${this.rx}deg) rotateY(${this.ry}deg) rotateZ(${this.rz}deg)`;
+      bindings.svg.style.transform = transform3d;
+    }
+    /**
+     * Smoothly transition to a named vector state using CSS transitions and GPU compositing.
+     *
+     * @param {Pin} pin
+     * @param {string} stateName Target state key
+     * @param {Object} [options]
+     * @param {number} [options.duration] Override transition duration
+     * @param {string} [options.easing] Override transition easing
+     * @param {boolean} [options.immediate=false] Skip transition if true
+     * @returns {boolean} True if transition was initiated
+     */
+    transitionTo(pin, stateName, options = {}) {
+      if (!this.states.has(stateName)) return false;
+      const previousState = this.currentState;
+      this.currentState = stateName;
+      const immediate = options.immediate || prefersReducedMotion();
+      this._applyStateToDOM(pin, stateName, immediate, options);
+      const eventPayload = {
+        from: previousState,
+        to: stateName,
+        state: this.states.get(stateName)
+      };
+      pin.dispatchEvent(new PinEvent("svg:statechange", {
+        source: pin,
+        payload: eventPayload,
+        detail: eventPayload
+      }));
+      return true;
+    }
+    /**
+     * Directly morph the current SVG path geometry with a new path string.
+     */
+    applyContour(pin, pathData, options = {}) {
+      const bindings = pin._svgStateBindings;
+      if (!bindings || !bindings.path) return;
+      let d = pathData;
+      if (this.normalizeSegments > 0) {
+        d = normalizePathTopology(d, this.normalizeSegments, { cx: 100, cy: 100 });
+      }
+      const immediate = options.immediate || prefersReducedMotion();
+      if (!immediate) {
+        this._grantCompositorHint(pin);
+      }
+      bindings.path.setAttribute("d", d);
+      bindings.path.style.d = `path("${d}")`;
+    }
+    /**
+     * Apply a state's presentation properties to the DOM nodes.
+     */
+    _applyStateToDOM(pin, stateName, immediate = false, options = {}) {
+      const bindings = pin._svgStateBindings;
+      if (!bindings || !bindings.path) return;
+      const state = this.states.get(stateName);
+      if (!state) return;
+      const path = bindings.path;
+      const duration = typeof options.duration === "number" ? options.duration : this.duration;
+      const easing = options.easing || this.easing;
+      if (immediate) {
+        path.style.transition = "none";
+        this._clearCompositorHint(pin);
+      } else {
+        path.style.transition = `d ${duration}ms ${easing}, transform ${duration}ms ${easing}, fill ${duration}ms ease, stroke ${duration}ms ease, stroke-width ${duration}ms ease, filter ${duration}ms ease`;
+        this._grantCompositorHint(pin);
+        if (bindings.cleanupTimer) clearTimeout(bindings.cleanupTimer);
+        bindings.cleanupTimer = setTimeout(() => {
+          this._clearCompositorHint(pin);
+          bindings.cleanupTimer = null;
+        }, duration + 80);
+      }
+      if (state.d) {
+        path.setAttribute("d", state.d);
+        path.style.d = `path("${state.d}")`;
+      }
+      path.setAttribute("fill", state.fill);
+      path.setAttribute("stroke", state.stroke);
+      path.setAttribute("stroke-width", String(state.strokeWidth));
+      path.setAttribute("stroke-dasharray", state.strokeDasharray);
+      path.setAttribute("stroke-dashoffset", String(state.strokeDashoffset));
+      path.setAttribute("opacity", String(state.opacity));
+      if (state.transform && state.transform !== "none") {
+        path.style.transform = state.transform;
+      } else {
+        path.style.transform = "";
+      }
+      let filterString = state.filter || "";
+      if (state.bloom) {
+        const bloomIntensity = typeof state.bloom === "number" ? state.bloom : 1;
+        const bloomFilter = `drop-shadow(0 0 ${4 * bloomIntensity}px ${state.stroke}) drop-shadow(0 0 ${12 * bloomIntensity}px ${state.fill})`;
+        filterString = filterString ? `${filterString} ${bloomFilter}` : bloomFilter;
+      }
+      path.style.filter = filterString;
+    }
+    /**
+     * Grant GPU compositor layer hint to pin element.
+     */
+    _grantCompositorHint(pin) {
+      if (pin.element && pin.element.classList) {
+        pin.element.classList.add(MOVING_CLASS);
+      }
+    }
+    /**
+     * Retire GPU compositor layer hint from pin element to avoid VRAM leaks.
+     */
+    _clearCompositorHint(pin) {
+      if (pin.element && pin.element.classList) {
+        pin.element.classList.remove(MOVING_CLASS);
+      }
+    }
+    /**
+     * Frame tick handler: optionally maps bound particle vectors to 3D rotation or state.
+     */
+    onTick(pin, dt, context) {
+      if (this.bindVector === null || !pin.particle || !pin.particle.vectors) return;
+      const val = pin.particle.getVector(this.bindVector);
+      if (typeof val === "number") {
+        this.ry = val * 45 % 360;
+        this.setTransform3D(pin, { ry: this.ry });
+      }
+    }
+  };
+
   // pins/traits/registry.js
   function mergeOptions(defaults = {}, options = {}) {
     const merged = { ...defaults, ...options };
@@ -4314,6 +4833,7 @@ var CloudCanvas = (() => {
       this.register("focussable", FocussableTrait);
       this.register("scope", ScopeTrait);
       this.register("transmitter", TransmitterTrait);
+      this.register("svg-state", SvgStateTrait);
     }
     /**
      * Register a trait definition. Names are unique: re-registering an existing
@@ -4382,6 +4902,396 @@ var CloudCanvas = (() => {
     }
   };
   var traitRegistry = new TraitRegistry();
+
+  // pins/traits/define-component.js
+  function defineComponent(spec = {}) {
+    const { name, build, update } = spec;
+    if (typeof name !== "string" || name.length === 0) {
+      throw new TypeError("defineComponent: name must be a non-empty string");
+    }
+    if (typeof build !== "function" || typeof update !== "function") {
+      throw new TypeError(`defineComponent: "${name}" requires both build() and update()`);
+    }
+    const registry = spec.registry || traitRegistry;
+    registry.register(name, DisplayTrait, traitDefaults(spec));
+    return Object.freeze({
+      name,
+      createTrait: (options = {}) => registry.create(name, { ...options, ...identity(spec) })
+    });
+  }
+  function identity(spec) {
+    return { name: spec.name, build: spec.build, update: spec.update };
+  }
+  function traitDefaults(spec) {
+    const defaults = {
+      ...spec.defaults || {},
+      name: spec.name,
+      displayType: spec.defaults && spec.defaults.displayType || spec.name,
+      build: spec.build,
+      update: spec.update
+    };
+    if (spec.allowedKeys !== void 0) defaults.allowedKeys = spec.allowedKeys;
+    if (spec.chrome !== void 0) defaults.chrome = spec.chrome;
+    return defaults;
+  }
+
+  // pins/traits/blueprint-compiler.js
+  function compileBlueprint(blueprint, componentName, actions = {}) {
+    const bindingDescriptors = [];
+    const rootSpecs = Array.isArray(blueprint[0]) && typeof blueprint[0][0] === "string" ? blueprint : [blueprint];
+    function parseNode(spec, bindingsList, pin) {
+      if (typeof spec === "string") {
+        const textNode = document.createTextNode(spec);
+        return textNode;
+      }
+      if (!Array.isArray(spec) || spec.length === 0) {
+        throw new TypeError(`compileBlueprint: invalid node spec "${JSON.stringify(spec)}"`);
+      }
+      const [tagAndClass, propsOrChild, ...restChildren] = spec;
+      const parts = (tagAndClass || "div").split(".");
+      const tag = parts[0] || "div";
+      const classNames = parts.slice(1);
+      const el = document.createElement(tag);
+      for (const c of classNames) {
+        el.classList.add(`${componentName}-${c}`);
+      }
+      let props = {};
+      let children = [];
+      if (propsOrChild && typeof propsOrChild === "object" && !Array.isArray(propsOrChild)) {
+        props = propsOrChild;
+        children = restChildren;
+      } else if (propsOrChild !== void 0) {
+        children = [propsOrChild, ...restChildren];
+      }
+      if (props.attrs) {
+        for (const [k, v] of Object.entries(props.attrs)) {
+          if (typeof v === "string" && v.startsWith("$")) {
+            const key = v.slice(1);
+            const index = bindingsList.length;
+            bindingsList.push(el);
+            bindingDescriptors.push({ type: "attr", attrName: k, key, index });
+          } else {
+            el.setAttribute(k, String(v));
+          }
+        }
+      }
+      if (props.text !== void 0) {
+        if (typeof props.text === "string" && props.text.startsWith("$")) {
+          const key = props.text.slice(1);
+          const textNode = document.createTextNode("");
+          el.appendChild(textNode);
+          const index = bindingsList.length;
+          bindingsList.push(textNode);
+          bindingDescriptors.push({ type: "text", key, index });
+        } else {
+          el.appendChild(document.createTextNode(String(props.text)));
+        }
+      }
+      if (props.class !== void 0 && typeof props.class === "string" && props.class.startsWith("$")) {
+        const key = props.class.slice(1);
+        const index = bindingsList.length;
+        bindingsList.push(el);
+        bindingDescriptors.push({
+          type: "class",
+          key,
+          baseClass: `${componentName}-${classNames[0] || "elem"}`,
+          index
+        });
+      }
+      if (props.style && typeof props.style === "object") {
+        for (const [propName, propVal] of Object.entries(props.style)) {
+          if (typeof propVal === "string" && propVal.startsWith("$")) {
+            const key = propVal.slice(1);
+            const index = bindingsList.length;
+            bindingsList.push(el);
+            bindingDescriptors.push({ type: "style", propName, key, index });
+          } else {
+            el.style.setProperty(propName, String(propVal));
+          }
+        }
+      }
+      if (props.value !== void 0 && typeof props.value === "string" && props.value.startsWith("$")) {
+        const key = props.value.slice(1);
+        const index = bindingsList.length;
+        bindingsList.push(el);
+        bindingDescriptors.push({ type: "value", key, index });
+      }
+      if (props.on && typeof props.on === "object") {
+        for (const [eventName, actionName] of Object.entries(props.on)) {
+          el.addEventListener(eventName, (event) => {
+            event.stopPropagation();
+            const fn = actions[actionName] || (pin ? pin[actionName] : null);
+            if (typeof fn === "function") {
+              fn(pin, event);
+            }
+          });
+        }
+      }
+      for (const child of children) {
+        if (Array.isArray(child)) {
+          el.appendChild(parseNode(child, bindingsList, pin));
+        } else if (typeof child === "string") {
+          if (child.startsWith("$")) {
+            const key = child.slice(1);
+            const textNode = document.createTextNode("");
+            el.appendChild(textNode);
+            const index = bindingsList.length;
+            bindingsList.push(textNode);
+            bindingDescriptors.push({ type: "text", key, index });
+          } else {
+            el.appendChild(document.createTextNode(child));
+          }
+        }
+      }
+      return el;
+    }
+    const templateFactory = (pin) => {
+      const bindings = [];
+      let root;
+      if (rootSpecs.length === 1) {
+        root = parseNode(rootSpecs[0], bindings, pin);
+      } else {
+        root = document.createElement("div");
+        root.classList.add(`${componentName}-container`);
+        for (const spec of rootSpecs) {
+          root.appendChild(parseNode(spec, bindings, pin));
+        }
+      }
+      return { root, bindings };
+    };
+    return { templateFactory, bindingDescriptors };
+  }
+
+  // pins/traits/prototype.js
+  var INJECTED_STYLES = /* @__PURE__ */ new Set();
+  function coerceValue(rule, val, key, componentName) {
+    if (val === void 0 || val === null) {
+      return rule.default !== void 0 ? rule.default : rule.type === "number" ? 0 : rule.type === "boolean" ? false : "";
+    }
+    const type = rule.type || "text";
+    if (type === "number") {
+      const n = Number(val);
+      if (!Number.isFinite(n)) {
+        throw new TypeError(`[${componentName}] Property "${key}" must be a finite number, received "${val}"`);
+      }
+      if (rule.min !== void 0 && n < rule.min) return rule.min;
+      if (rule.max !== void 0 && n > rule.max) return rule.max;
+      return n;
+    }
+    if (type === "boolean" || type === "bool") {
+      return Boolean(val);
+    }
+    if (type === "enum") {
+      const str = String(val);
+      if (Array.isArray(rule.values) && !rule.values.includes(str)) {
+        return rule.default !== void 0 ? rule.default : rule.values[0];
+      }
+      return str;
+    }
+    if (type === "object" && typeof val === "object") {
+      return val;
+    }
+    if ((type === "array" || type === "list") && Array.isArray(val)) {
+      return val;
+    }
+    return String(val);
+  }
+  function createReactiveState(pin, schema, defaults, componentName) {
+    return new Proxy({}, {
+      get(_, prop) {
+        if (typeof prop !== "string") return void 0;
+        const rule = schema[prop];
+        if (!rule) {
+          return pin.contents.get(prop);
+        }
+        const val = pin.contents.get(prop);
+        return val !== void 0 ? val : defaults[prop] !== void 0 ? defaults[prop] : void 0;
+      },
+      set(_, prop, value) {
+        if (typeof prop !== "string") return false;
+        const rule = schema[prop];
+        if (!rule) {
+          throw new Error(`[${componentName}] Cannot set undeclared property "${prop}" on prototype with rigid schema`);
+        }
+        const coerced = coerceValue(rule, value, prop, componentName);
+        if (pin.contents.get(prop) === coerced) return true;
+        pin.setContent(prop, coerced);
+        return true;
+      },
+      has(_, prop) {
+        return prop in schema || pin.contents.has(prop);
+      },
+      ownKeys(_) {
+        return Array.from(/* @__PURE__ */ new Set([...Object.keys(schema), ...pin.contents.keys()]));
+      },
+      getOwnPropertyDescriptor(_, prop) {
+        return {
+          enumerable: true,
+          configurable: true,
+          writable: true,
+          value: this.get(_, prop)
+        };
+      }
+    });
+  }
+  function injectPrototypeStyles(name, styles) {
+    if (typeof document === "undefined" || !styles) return;
+    const styleId = `cc-proto-${name}`;
+    if (INJECTED_STYLES.has(styleId) || document.getElementById(styleId)) {
+      INJECTED_STYLES.add(styleId);
+      return;
+    }
+    let cssText = "";
+    if (typeof styles === "string") {
+      cssText = styles;
+    } else if (typeof styles === "object") {
+      cssText = Object.entries(styles).map(([part, rules]) => `.${name}-${part} { ${rules} }`).join("\n");
+    }
+    if (cssText.trim()) {
+      const styleEl = document.createElement("style");
+      styleEl.id = styleId;
+      styleEl.dataset.ccPrototype = name;
+      styleEl.textContent = cssText;
+      document.head.appendChild(styleEl);
+      INJECTED_STYLES.add(styleId);
+    }
+  }
+  function definePrototype(spec = {}) {
+    const {
+      name,
+      schema = {},
+      styles = null,
+      blueprint,
+      actions = {},
+      traits = ["draggable", "selectable"],
+      chrome = true
+    } = spec;
+    if (typeof name !== "string" || name.length === 0) {
+      throw new TypeError("definePrototype: name must be a non-empty string");
+    }
+    if (!blueprint || !Array.isArray(blueprint)) {
+      throw new TypeError(`definePrototype: "${name}" requires a valid blueprint array`);
+    }
+    const allowedKeys = Object.keys(schema);
+    const defaults = {};
+    for (const [k, rule] of Object.entries(schema)) {
+      defaults[k] = rule.default !== void 0 ? rule.default : rule.type === "number" ? 0 : rule.type === "boolean" ? false : "";
+    }
+    injectPrototypeStyles(name, styles);
+    const { templateFactory, bindingDescriptors } = compileBlueprint(blueprint, name, actions);
+    const handle = defineComponent({
+      name,
+      chrome,
+      allowedKeys: allowedKeys.length > 0 ? allowedKeys : void 0,
+      build(pin, contentEl) {
+        const { root, bindings } = templateFactory(pin);
+        contentEl.replaceChildren(root);
+        if (!pin.state) {
+          pin.state = createReactiveState(pin, schema, defaults, name);
+        }
+        for (const [actionName, fn] of Object.entries(actions)) {
+          pin[actionName] = (...args) => fn(pin, ...args);
+        }
+        if (!pin.emit) {
+          pin.emit = (type, payload) => {
+            pin.transmit(new PinEvent(type, { payload, source: pin, bubbles: true }));
+          };
+        }
+        if (!pin.rotate) {
+          pin.rotate = (deltaDeg) => rotatePin(pin, deltaDeg);
+        }
+        return { bindings, cache: /* @__PURE__ */ new Map() };
+      },
+      update(pin, contents, state) {
+        if (!state || !state.bindings) return;
+        const { bindings, cache } = state;
+        for (let i = 0; i < bindingDescriptors.length; i++) {
+          const desc = bindingDescriptors[i];
+          const targetNode = bindings[desc.index];
+          if (!targetNode) continue;
+          const val = contents.get(desc.key) !== void 0 ? contents.get(desc.key) : defaults[desc.key];
+          if (desc.type === "text") {
+            const str = val === void 0 || val === null ? "" : String(val);
+            if (targetNode.data !== str) {
+              targetNode.data = str;
+            }
+          } else if (desc.type === "class") {
+            const cls = val ? `${desc.baseClass}-${val}` : "";
+            const prev = cache.get(desc.index);
+            if (prev !== cls) {
+              if (prev) targetNode.classList.remove(prev);
+              if (cls) targetNode.classList.add(cls);
+              cache.set(desc.index, cls);
+            }
+          } else if (desc.type === "attr") {
+            const prev = cache.get(desc.index);
+            if (prev !== val) {
+              if (val === false || val === null || val === void 0) {
+                targetNode.removeAttribute(desc.attrName);
+              } else {
+                targetNode.setAttribute(desc.attrName, String(val));
+              }
+              cache.set(desc.index, val);
+            }
+          } else if (desc.type === "style") {
+            const prev = cache.get(desc.index);
+            if (prev !== val) {
+              targetNode.style.setProperty(desc.propName, String(val ?? ""));
+              cache.set(desc.index, val);
+            }
+          } else if (desc.type === "value") {
+            const str = String(val ?? "");
+            if (targetNode.value !== str) {
+              targetNode.value = str;
+            }
+          }
+        }
+      }
+    });
+    const prototype = {
+      name,
+      handle,
+      schema: Object.freeze({ ...schema }),
+      defaults: Object.freeze({ ...defaults }),
+      create(session, options = {}) {
+        const initialContents = {
+          ...defaults,
+          ...options.state || options.contents || {}
+        };
+        const pin = session.createPin({
+          chrome,
+          ...options,
+          type: name,
+          contents: initialContents
+        });
+        for (const trait of traits) {
+          if (!pin.traits.has(trait)) {
+            pin.addTrait(trait);
+          }
+        }
+        return pin;
+      },
+      extend(childSpec = {}) {
+        const mergedSchema = { ...schema, ...childSpec.schema || {} };
+        const mergedStyles = childSpec.styles ? typeof styles === "object" && typeof childSpec.styles === "object" ? { ...styles, ...childSpec.styles } : `${styles || ""}
+${childSpec.styles}` : styles;
+        const mergedActions = { ...actions, ...childSpec.actions || {} };
+        const mergedTraits = Array.from(/* @__PURE__ */ new Set([...traits, ...childSpec.traits || []]));
+        return definePrototype({
+          ...spec,
+          ...childSpec,
+          name: childSpec.name || `${name}-extended`,
+          schema: mergedSchema,
+          styles: mergedStyles,
+          blueprint: childSpec.blueprint || blueprint,
+          actions: mergedActions,
+          traits: mergedTraits,
+          chrome: childSpec.chrome !== void 0 ? childSpec.chrome : chrome
+        });
+      }
+    };
+    return prototype;
+  }
 
   // pins/pin-traits.js
   function initTraits(pin, options) {
@@ -5711,6 +6621,10 @@ var CloudCanvas = (() => {
       this.types = types;
       this.handlers = /* @__PURE__ */ new Set();
       this._forward = (event) => {
+        const source = event && event.detail ? event.detail.source : event ? event.target : null;
+        if (event && event.currentTarget && source && event.currentTarget !== source) {
+          return;
+        }
         for (const handler of this.handlers) handler(event);
       };
     }
@@ -6284,53 +7198,6 @@ var CloudCanvas = (() => {
         }
       }
       this.groups.clear();
-    }
-  };
-
-  // engine/motion-hint.js
-  var MOVING_CLASS = "cc-moving";
-  var MOVING_IDLE_FRAMES = 30;
-  var MotionHintSet = class {
-    constructor(idleFrames = MOVING_IDLE_FRAMES) {
-      this.idleFrames = idleFrames;
-      this._moving = /* @__PURE__ */ new Map();
-    }
-    get size() {
-      return this._moving.size;
-    }
-    has(pin) {
-      return this._moving.has(pin);
-    }
-    /** Promise the compositor a layer for as long as this Pin keeps moving. */
-    mark(pin, frameCount) {
-      if (!this._moving.has(pin) && pin.element && pin.element.classList) {
-        pin.element.classList.add(MOVING_CLASS);
-      }
-      this._moving.set(pin, frameCount);
-      return true;
-    }
-    /**
-     * Withdraw the hint from every Pin that has been still long enough. Only Pins
-     * that moved recently are visited, so a static canvas pays nothing for this.
-     *
-     * @returns {number} how many hints were withdrawn
-     */
-    sweep(frameCount) {
-      if (this._moving.size === 0) return 0;
-      let swept = 0;
-      for (const [pin, lastFrame] of this._moving) {
-        if (frameCount - lastFrame < this.idleFrames) continue;
-        if (pin.element && pin.element.classList) pin.element.classList.remove(MOVING_CLASS);
-        this._moving.delete(pin);
-        swept += 1;
-      }
-      return swept;
-    }
-    delete(pin) {
-      return this._moving.delete(pin);
-    }
-    clear() {
-      this._moving.clear();
     }
   };
 
@@ -7283,6 +8150,7 @@ var CloudCanvas = (() => {
     session.focusedPin = pin;
     pin.setFocused(true, session);
     setFocusPresentation(session, previous, pin);
+    if (session.options && session.options.frameOnFocus === false) return pin;
     const focussable = pin.traits.get("focussable");
     session.viewport.zoomToFit(pin.getGlobalBounds(), session.getHostRect(), {
       padding: focussable ? focussable.padding : void 0,
@@ -7369,6 +8237,7 @@ var CloudCanvas = (() => {
   var MENU_ITEM_CLASS = "cloudcanvas-context-menu-item";
   var MENU_ITEM_SUBMENU_CLASS = "cloudcanvas-context-menu-item--submenu";
   var MENU_ITEM_ATTR = "data-menu-item";
+  var MENU_HOVER_OPEN_MS = 180;
   function bringToFront(pin) {
     const element = pin ? pin.element : null;
     const container = element ? element.parentNode : null;
@@ -7447,6 +8316,9 @@ var CloudCanvas = (() => {
       if (action !== void 0 && typeof action !== "function") {
         throw new Error(`MenuRegistry.register: "${id}" action, if given, must be a function`);
       }
+      if (item.renderItem !== void 0 && typeof item.renderItem !== "function") {
+        throw new Error(`MenuRegistry.register: "${id}" renderItem, if given, must be a function`);
+      }
       if (this._items.has(id)) {
         throw new Error(`MenuRegistry.register: "${id}" is already registered`);
       }
@@ -7457,7 +8329,11 @@ var CloudCanvas = (() => {
         group: typeof item.group === "string" ? item.group : "",
         parent,
         when: typeof item.when === "function" ? item.when : ALWAYS,
-        action: typeof action === "function" ? action : null
+        action: typeof action === "function" ? action : null,
+        // The three opt-in seams, normalized once so every read is a plain field.
+        renderItem: typeof item.renderItem === "function" ? item.renderItem : null,
+        closeOnRun: item.closeOnRun !== false,
+        openOnHover: Boolean(item.openOnHover)
       });
       this._items.set(id, definition);
       return definition;
@@ -7569,11 +8445,17 @@ var CloudCanvas = (() => {
       items: /* @__PURE__ */ new Map(),
       /** @type {PanelRecord[]} the open chain: [0] is the root, then each flyout */
       panels: [],
+      /** Pending `openOnHover` timer, or null; at most one is ever armed. */
+      hoverTimer: null,
       onClick: (event) => runClickedItem(session, event),
+      onPointerOver: (event) => onMenuPointerOver(session, event),
+      onPointerOut: (event) => onMenuPointerOut(session, event),
       onDocumentPointerDown: (event) => dismissOnOutside(session, event),
       onDocumentKeyDown: (event) => onMenuKeyDown(session, event)
     };
     element.addEventListener("click", state.onClick);
+    element.addEventListener("pointerover", state.onPointerOver);
+    element.addEventListener("pointerout", state.onPointerOut);
     overlay.appendChild(element);
     session._contextMenu = state;
     return element;
@@ -7583,6 +8465,8 @@ var CloudCanvas = (() => {
     if (!state) return false;
     closeContextMenu(session);
     state.element.removeEventListener("click", state.onClick);
+    state.element.removeEventListener("pointerover", state.onPointerOver);
+    state.element.removeEventListener("pointerout", state.onPointerOut);
     if (state.element.parentNode) state.element.parentNode.removeChild(state.element);
     session._contextMenu = null;
     return true;
@@ -7596,7 +8480,7 @@ var CloudCanvas = (() => {
       return false;
     }
     closeContextMenu(session);
-    const ids = renderInto(state.element, items, state);
+    const ids = renderInto(state.element, items, state, context);
     state.panels = [rootPanel(state.element, ids)];
     state.element.hidden = false;
     placeInHost(session, state.element, { mode: "point", x: context.x, y: context.y });
@@ -7610,6 +8494,7 @@ var CloudCanvas = (() => {
     const state = session ? session._contextMenu : null;
     if (!state || state.element.hidden) return false;
     const held = menuHoldsFocus(state);
+    clearHoverTimer(state);
     closePanelsDeeperThan(session, 0);
     state.element.hidden = true;
     state.element.textContent = "";
@@ -7651,8 +8536,10 @@ var CloudCanvas = (() => {
     panel.className = `${MENU_CLASS} ${MENU_FLYOUT_CLASS}`;
     panel.setAttribute("role", "menu");
     panel.addEventListener("click", state.onClick);
+    panel.addEventListener("pointerover", state.onPointerOver);
+    panel.addEventListener("pointerout", state.onPointerOut);
     session.overlayElement.appendChild(panel);
-    const ids = renderInto(panel, children, state);
+    const ids = renderInto(panel, children, state, state.context);
     const side = placeInHost(session, panel, {
       mode: "box",
       rect: triggerButton.getBoundingClientRect(),
@@ -7680,6 +8567,8 @@ var CloudCanvas = (() => {
       if (panel.triggerButton) panel.triggerButton.setAttribute("aria-expanded", "false");
       if (panel.element !== state.element) {
         panel.element.removeEventListener("click", state.onClick);
+        panel.element.removeEventListener("pointerover", state.onPointerOver);
+        panel.element.removeEventListener("pointerout", state.onPointerOut);
         if (panel.element.parentNode) panel.element.parentNode.removeChild(panel.element);
       }
       closed += 1;
@@ -7695,7 +8584,7 @@ var CloudCanvas = (() => {
     if (trigger && typeof trigger.focus === "function") trigger.focus({ preventScroll: true });
     return true;
   }
-  function renderInto(containerElement, items, state) {
+  function renderInto(containerElement, items, state, context) {
     const doc = containerElement.ownerDocument;
     containerElement.textContent = "";
     const ids = [];
@@ -7703,7 +8592,7 @@ var CloudCanvas = (() => {
       const wrapper = doc.createElement("div");
       wrapper.className = MENU_GROUP_CLASS;
       for (const item of group) {
-        wrapper.appendChild(itemButton(doc, item));
+        wrapper.appendChild(itemButton(doc, item, context));
         state.items.set(item.id, item);
         ids.push(item.id);
       }
@@ -7711,7 +8600,7 @@ var CloudCanvas = (() => {
     }
     return ids;
   }
-  function itemButton(doc, item) {
+  function itemButton(doc, item, context) {
     const button = doc.createElement("button");
     button.type = "button";
     button.className = MENU_ITEM_CLASS;
@@ -7719,6 +8608,10 @@ var CloudCanvas = (() => {
     button.setAttribute(MENU_ITEM_ATTR, item.id);
     button.textContent = item.label;
     if (isSubmenuTrigger(item)) decorateTrigger(button);
+    if (typeof item.renderItem === "function") {
+      const replacement = item.renderItem(button, item, context);
+      if (replacement && replacement !== button && replacement.nodeType === 1) return replacement;
+    }
     return button;
   }
   function decorateTrigger(button) {
@@ -7734,12 +8627,14 @@ var CloudCanvas = (() => {
     caret.textContent = "▸";
     button.appendChild(caret);
   }
+  var EMPTY_INSETS = Object.freeze({ top: 0, right: 0, bottom: 0, left: 0 });
   function placeInHost(session, element, anchor) {
     const hostRect = session.getHostRect();
-    const hostLeft = hostRect.left || 0;
-    const hostTop = hostRect.top || 0;
-    const hostRight = hostLeft + (hostRect.width || 0);
-    const hostBottom = hostTop + (hostRect.height || 0);
+    const inset = session.menuInsets || EMPTY_INSETS;
+    const hostLeft = (hostRect.left || 0) + (inset.left || 0);
+    const hostTop = (hostRect.top || 0) + (inset.top || 0);
+    const hostRight = (hostRect.left || 0) + (hostRect.width || 0) - (inset.right || 0);
+    const hostBottom = (hostRect.top || 0) + (hostRect.height || 0) - (inset.bottom || 0);
     const anchorTop = anchor.mode === "box" ? anchor.rect.top : Number(anchor.y) || 0;
     const anchorLeft = anchor.mode === "box" ? anchor.rect.right : Number(anchor.x) || 0;
     element.style.top = `${anchorTop - hostTop}px`;
@@ -7751,8 +8646,19 @@ var CloudCanvas = (() => {
     } else {
       clampFarEdge(element, "left", box.right, hostRight);
     }
-    clampFarEdge(element, "top", box.bottom, hostBottom);
+    if (!placeAbove(element, anchor, box, hostTop, hostBottom)) {
+      clampFarEdge(element, "top", box.bottom, hostBottom);
+    }
     return side;
+  }
+  function placeAbove(element, anchor, box, hostTop, hostBottom) {
+    if (anchor.mode === "box") return false;
+    if (box.bottom <= hostBottom) return false;
+    const top = parseFloat(element.style.top) || 0;
+    const above = top - box.height;
+    if (above < 0 || box.height > (anchor.y || 0) - hostTop) return false;
+    element.style.top = `${above}px`;
+    return true;
   }
   function placeBoxHorizontally(element, anchor, panelWidth, hostLeft, hostRight) {
     const { rect: triggerRect, preferSide, allowFlip } = anchor;
@@ -7811,8 +8717,37 @@ var CloudCanvas = (() => {
     if (isSubmenuTrigger(item)) return openFlyout(session, item, button);
     if (typeof item.action !== "function") return false;
     item.action(session, state.context);
-    closeContextMenu(session);
+    if (item.closeOnRun) closeContextMenu(session);
     return true;
+  }
+  function onMenuPointerOver(session, event) {
+    const state = session ? session._contextMenu : null;
+    if (!state || state.element.hidden) return;
+    clearHoverTimer(state);
+    const target = event ? event.target : null;
+    const button = target && typeof target.closest === "function" ? target.closest(`[${MENU_ITEM_ATTR}]`) : null;
+    if (!button) return;
+    const item = state.items.get(button.getAttribute(MENU_ITEM_ATTR));
+    if (!item || !item.openOnHover || !isSubmenuTrigger(item)) return;
+    if (button.getAttribute("aria-expanded") === "true") return;
+    state.hoverTimer = setTimeout(() => {
+      state.hoverTimer = null;
+      if (!button.isConnected || button.getAttribute("aria-expanded") === "true") return;
+      openFlyout(session, item, button);
+    }, MENU_HOVER_OPEN_MS);
+  }
+  function onMenuPointerOut(session, event) {
+    const state = session ? session._contextMenu : null;
+    if (!state) return;
+    const target = event ? event.target : null;
+    const onItem = target && typeof target.closest === "function" && target.closest(`[${MENU_ITEM_ATTR}]`);
+    if (onItem) clearHoverTimer(state);
+  }
+  function clearHoverTimer(state) {
+    if (state && state.hoverTimer !== null) {
+      clearTimeout(state.hoverTimer);
+      state.hoverTimer = null;
+    }
   }
   function dismissOnOutside(session, event) {
     const state = session._contextMenu;
@@ -8067,6 +9002,7 @@ var CloudCanvas = (() => {
     }
     const pin = pinForEvent(session, event);
     if (!pin) {
+      if (session.options && session.options.pan === false) return null;
       session.isPanning = true;
       session.lastPointer = { x: event.clientX, y: event.clientY };
       return null;
@@ -8358,7 +9294,8 @@ var CloudCanvas = (() => {
     const host = session.hostElement;
     if (!host || typeof host.addEventListener !== "function") return false;
     if (session._keyboard) unbindKeyboard(session);
-    const tabindexAdded = typeof host.hasAttribute === "function" && !host.hasAttribute("tabindex");
+    const tabStop = !(session.options && session.options.tabStop === false);
+    const tabindexAdded = tabStop && typeof host.hasAttribute === "function" && !host.hasAttribute("tabindex");
     if (tabindexAdded) host.setAttribute("tabindex", "0");
     const state = {
       /** Whether this binding is the one that made the host focusable. */
@@ -8905,9 +9842,12 @@ var CloudCanvas = (() => {
     "container",
     "customCSS",
     "defaultReload",
+    "frameOnFocus",
     "label",
     "loadChildren",
     "offloadMargin",
+    "pan",
+    "tabStop",
     "viewport"
   ]);
   var OPTION_HINTS = Object.freeze({
@@ -9442,6 +10382,63 @@ var CloudCanvas = (() => {
     else element.style.removeProperty("visibility");
     return next;
   }
+  function showClientToast(session, message, variant = "info") {
+    if (typeof document === "undefined") return;
+    const host = session && session.hostElement || document.body;
+    let container = host.querySelector(".cloudcanvas-toast-container");
+    if (!container) {
+      container = document.createElement("div");
+      container.className = "cloudcanvas-toast-container";
+      container.style.cssText = [
+        "position: absolute",
+        "bottom: 24px",
+        "right: 24px",
+        "display: flex",
+        "flex-direction: column",
+        "gap: 10px",
+        "z-index: 9999",
+        "pointer-events: none",
+        "max-width: 360px"
+      ].join("; ");
+      host.appendChild(container);
+    }
+    const toast = document.createElement("div");
+    toast.className = `cloudcanvas-toast cloudcanvas-toast-${variant}`;
+    const borderCol = variant === "success" ? "#22c55e" : variant === "warning" ? "#eab308" : "#3b82f6";
+    toast.style.cssText = [
+      "background: rgba(15, 23, 42, 0.92)",
+      "color: #f8fafc",
+      "padding: 12px 18px",
+      "border-radius: 8px",
+      "font-family: system-ui, -apple-system, sans-serif",
+      "font-size: 13px",
+      "line-height: 1.4",
+      `border-left: 4px solid ${borderCol}`,
+      "border: 1px solid rgba(255, 255, 255, 0.12)",
+      "box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)",
+      "backdrop-filter: blur(12px)",
+      "transform: translateY(10px)",
+      "opacity: 0",
+      "transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
+      "pointer-events: auto"
+    ].join("; ");
+    toast.textContent = message;
+    container.appendChild(toast);
+    if (typeof requestAnimationFrame === "function") {
+      requestAnimationFrame(() => {
+        toast.style.transform = "translateY(0)";
+        toast.style.opacity = "1";
+      });
+    } else {
+      toast.style.transform = "translateY(0)";
+      toast.style.opacity = "1";
+    }
+    setTimeout(() => {
+      toast.style.transform = "translateY(-10px)";
+      toast.style.opacity = "0";
+      setTimeout(() => toast.remove(), 300);
+    }, 2800);
+  }
   function registerBuiltinActions(registry) {
     registry.register("set-content", {
       label: "Set content",
@@ -9475,6 +10472,64 @@ var CloudCanvas = (() => {
         const session = target && target.session;
         if (!session) return null;
         return session.focus(target, { promote: Boolean(params.promote) });
+      }
+    });
+    registry.register("increment-counter", {
+      label: "Increment counter",
+      params: [
+        { key: "key", label: "Content key", control: "text", placeholder: "count" },
+        { key: "step", label: "Step", control: "number", required: false }
+      ],
+      run: (target, params) => {
+        const key = params.key || "count";
+        const step = Number.isFinite(params.step) ? params.step : 1;
+        const current = Number(target.getContent(key)) || 0;
+        const next = current + step;
+        target.setContent(key, next);
+        if (target.contents && target.contents.has("title")) {
+          const title = target.contents.get("title");
+          if (typeof title === "string" && title.includes(":")) {
+            const parts = title.split(":");
+            target.setContent("title", `${parts[0].trim()}: ${next}`);
+          }
+        }
+        return next;
+      }
+    });
+    registry.register("notify", {
+      label: "Show notification",
+      params: [
+        { key: "message", label: "Message", control: "text", placeholder: "Action completed successfully" },
+        { key: "variant", label: "Variant", control: "select", options: [
+          { value: "info", label: "Info" },
+          { value: "success", label: "Success" },
+          { value: "warning", label: "Warning" }
+        ], required: false }
+      ],
+      run: (target, params, context) => {
+        const session = target && target.session || context && context.session;
+        showClientToast(session, params.message || "Notification", params.variant || "info");
+        return true;
+      }
+    });
+    registry.register("navigate-page", {
+      label: "Navigate to page",
+      params: [
+        { key: "page", label: "Page name", control: "text", placeholder: "index.html" }
+      ],
+      run: (target, params, context) => {
+        const session = target && target.session || context && context.session;
+        if (!session) return null;
+        const pageName = params.page ? params.page.trim() : "";
+        if (pageName && session.pinManager) {
+          const roots = session.pinManager.getRootPins();
+          for (const r of roots) {
+            if (r.contents && (r.contents.get("title") === pageName || r.contents.get("name") === pageName)) {
+              return session.focus(r, { promote: true });
+            }
+          }
+        }
+        return session.focus(target, { promote: true });
       }
     });
     return registry;
@@ -9700,36 +10755,131 @@ var CloudCanvas = (() => {
     RUNNERS.delete(session);
   }
 
-  // pins/traits/define-component.js
-  function defineComponent(spec = {}) {
-    const { name, build, update } = spec;
-    if (typeof name !== "string" || name.length === 0) {
-      throw new TypeError("defineComponent: name must be a non-empty string");
-    }
-    if (typeof build !== "function" || typeof update !== "function") {
-      throw new TypeError(`defineComponent: "${name}" requires both build() and update()`);
-    }
-    const registry = spec.registry || traitRegistry;
-    registry.register(name, DisplayTrait, traitDefaults(spec));
-    return Object.freeze({
-      name,
-      createTrait: (options = {}) => registry.create(name, { ...options, ...identity(spec) })
-    });
+  // pins/group.js
+  var GROUP_STORAGE_PREFIX = "cloudcanvas-group:";
+  function storage() {
+    if (typeof localStorage === "undefined") return null;
+    return localStorage;
   }
-  function identity(spec) {
-    return { name: spec.name, build: spec.build, update: spec.update };
+  function serializeGroup(rootPin) {
+    if (!rootPin || typeof rootPin !== "object") {
+      throw new TypeError("serializeGroup: a valid Pin instance is required");
+    }
+    function serializeNode(pin) {
+      const contents = {};
+      if (pin.contents instanceof Map) {
+        for (const [k, v] of pin.contents.entries()) {
+          if (v !== void 0 && typeof v !== "function") {
+            contents[k] = v;
+          }
+        }
+      }
+      const traitNames = pin.traits instanceof Map ? Array.from(pin.traits.keys()) : [];
+      const children = pin.children instanceof Set || Array.isArray(pin.children) ? Array.from(pin.children).filter((c) => !c.utility).map(serializeNode) : [];
+      return {
+        type: pin.type || (pin.displayTrait ? pin.displayTrait.name : "card"),
+        x: pin.x || 0,
+        y: pin.y || 0,
+        width: pin.particle ? pin.particle.width : pin.width,
+        height: pin.particle ? pin.particle.height : pin.height,
+        layout: pin.layout || "free",
+        layoutGap: pin.layoutGap !== void 0 ? pin.layoutGap : null,
+        chrome: pin.chrome !== void 0 ? pin.chrome : true,
+        bordered: pin.bordered !== void 0 ? pin.bordered : true,
+        contents,
+        traitNames,
+        children
+      };
+    }
+    return serializeNode(rootPin);
   }
-  function traitDefaults(spec) {
-    const defaults = {
-      ...spec.defaults || {},
-      name: spec.name,
-      displayType: spec.defaults && spec.defaults.displayType || spec.name,
-      build: spec.build,
-      update: spec.update
-    };
-    if (spec.allowedKeys !== void 0) defaults.allowedKeys = spec.allowedKeys;
-    if (spec.chrome !== void 0) defaults.chrome = spec.chrome;
-    return defaults;
+  function saveGroup(rootPin, name) {
+    if (typeof name !== "string" || name.trim().length === 0) {
+      throw new TypeError("saveGroup: a non-empty name is required");
+    }
+    const store = storage();
+    const data = serializeGroup(rootPin);
+    if (store) {
+      store.setItem(`${GROUP_STORAGE_PREFIX}${name.trim()}`, JSON.stringify(data));
+    }
+    return data;
+  }
+  function loadGroup(name) {
+    const store = storage();
+    if (!store) return null;
+    const raw = store.getItem(`${GROUP_STORAGE_PREFIX}${name.trim()}`);
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+  function listGroupKeys() {
+    const store = storage();
+    if (!store) return [];
+    const keys = [];
+    for (let i = 0; i < store.length; i++) {
+      const k = store.key(i);
+      if (k && k.startsWith(GROUP_STORAGE_PREFIX)) {
+        keys.push(k.slice(GROUP_STORAGE_PREFIX.length));
+      }
+    }
+    return keys.sort();
+  }
+  function deleteGroup(name) {
+    const store = storage();
+    if (!store) return false;
+    const key = `${GROUP_STORAGE_PREFIX}${name.trim()}`;
+    if (store.getItem(key) === null) return false;
+    store.removeItem(key);
+    return true;
+  }
+  function instantiateGroup(session, groupData, options = {}) {
+    if (!session || typeof session.createPin !== "function") {
+      throw new TypeError("instantiateGroup: a valid CloudCanvasSession is required");
+    }
+    if (!groupData || typeof groupData !== "object") {
+      throw new TypeError("instantiateGroup: invalid group data");
+    }
+    function spawnNode(nodeData, parentPin = null, isRoot = false) {
+      const posX = isRoot && options.x !== void 0 ? options.x : nodeData.x;
+      const posY = isRoot && options.y !== void 0 ? options.y : nodeData.y;
+      const targetParent = isRoot && options.parent !== void 0 ? options.parent : parentPin;
+      const pinConfig = {
+        type: nodeData.type,
+        x: posX,
+        y: posY,
+        contents: { ...nodeData.contents || {} },
+        parent: targetParent
+      };
+      if (nodeData.width) pinConfig.width = nodeData.width;
+      if (nodeData.height) pinConfig.height = nodeData.height;
+      if (nodeData.chrome !== void 0) pinConfig.chrome = nodeData.chrome;
+      if (nodeData.bordered !== void 0) pinConfig.bordered = nodeData.bordered;
+      const pin = session.createPin(pinConfig);
+      if (nodeData.layout) pin.layout = nodeData.layout;
+      if (nodeData.layoutGap !== void 0 && nodeData.layoutGap !== null) {
+        pin.layoutGap = nodeData.layoutGap;
+      }
+      if (Array.isArray(nodeData.traitNames)) {
+        for (const t of nodeData.traitNames) {
+          if (!pin.traits.has(t)) {
+            try {
+              pin.addTrait(t);
+            } catch {
+            }
+          }
+        }
+      }
+      if (Array.isArray(nodeData.children)) {
+        for (const childData of nodeData.children) {
+          spawnNode(childData, pin, false);
+        }
+      }
+      return pin;
+    }
+    return spawnNode(groupData, null, true);
   }
 
   // graphics/style-gates.js
