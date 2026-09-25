@@ -56,11 +56,23 @@ export {
   FocussableTrait,
   ScopeTrait,
   TransmitterTrait,
+  SvgStateTrait,
+  SVG_STATE_WRAPPER_CLASS,
+  SVG_STATE_HOST_CLASS,
+  SVG_STATE_PATH_CLASS,
   PIN_SIGNAL_TYPES,
   emitPinSignal,
   TraitRegistry,
   traitRegistry
 } from './pins/traits.js';
+
+/* ---- everyday: vectorization & geometry processing ---- */
+export {
+  simplifyPoints,
+  vectorizeStroke,
+  vectorizeContour,
+  normalizePathTopology
+} from './graphics/vectorizer.js';
 
 /* ---- everyday: move a live Pin between scopes (nest / detach) ---- */
 export { reparentPin } from './pins/reparent.js';
@@ -114,7 +126,8 @@ export {
   ActionRegistry,
   actionRegistry,
   registerBuiltinActions,
-  PARAM_CONTROLS
+  PARAM_CONTROLS,
+  showClientToast
 } from './pins/reaction-actions.js';
 export {
   ReactionStore,
@@ -154,7 +167,7 @@ export { CHILDREN_ERROR_EVENT } from './pins/children-loader.js';
 export { DEFAULT_OFFLOAD_MARGIN } from './engine/offload.js';
 
 /* ---- everyday: component authoring ---- */
-export { CLS, PRESERVE_TYPE } from './pins/traits/display-templates.js';
+export { CLS, HTML_KEY, PRESERVE_TYPE } from './pins/traits/display-templates.js';
 
 /**
  * The component-authoring surface: the writes a `{ build, update }` template
@@ -162,6 +175,11 @@ export { CLS, PRESERVE_TYPE } from './pins/traits/display-templates.js';
  * template pair into a registered Pin type.
  */
 export { defineComponent } from './pins/traits/define-component.js';
+export {
+  definePrototype,
+  createReactiveState,
+  compileBlueprint
+} from './pins/traits.js';
 export {
   KEY_ATTR,
   makeElement,
@@ -172,6 +190,17 @@ export {
   setText,
   setVisible
 } from './pins/traits/template-kit.js';
+
+/* ---- everyday: group & subtree operations ---- */
+export {
+  serializeGroup,
+  saveGroup,
+  loadGroup,
+  listGroupKeys,
+  deleteGroup,
+  instantiateGroup,
+  GROUP_STORAGE_PREFIX
+} from './pins/group.js';
 
 /* ---- everyday: theming and the style discipline gate ---- */
 export {
