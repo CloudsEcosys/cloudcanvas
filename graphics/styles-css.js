@@ -727,6 +727,8 @@ export const CANVAS_DEFAULT_CSS = `
     width: var(--cc-grab-handle-size-coarse, 20px);
     height: var(--cc-grab-handle-size-coarse, 20px);
   }
+}
+
 /* ------------------ SVG STATE & 3D INTERPOLATION ------------------ */
 
 .cloudcanvas-svg-state-wrapper {
