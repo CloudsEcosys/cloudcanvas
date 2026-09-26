@@ -5,7 +5,14 @@
  * Base trait primitives: the generic PinEvent signal and the PinTrait lifecycle base class.
  */
 
+import { pinOf } from '../pin-hierarchy.js';
+
 export const DEFAULT_EVENT_TYPE = 'message';
+
+/** The Pin a DOM node is the root element of, else the node itself (null stays null). */
+function ownerOf(node) {
+  return (node && pinOf(node)) || node;
+}
 
 /**
  * Native CustomEvent carrying CloudCanvas signal semantics.
@@ -16,7 +23,10 @@ export const DEFAULT_EVENT_TYPE = 'message';
  *   - `detail.source`  : origin Pin (or origin Event, for wrapped foreign events)
  *
  * `stopPropagation()` / `preventDefault()` stay native; `cancelled` is the legacy
- * alias for `defaultPrevented`. `target` is never assigned by hand - the DOM owns it.
+ * alias for `defaultPrevented`. `target` is never assigned by hand - the DOM owns
+ * it: the event is dispatched on a Pin's element and bubbles through the Pin
+ * elements above, so `target` / `currentTarget` read the DOM node and answer
+ * with the Pin it belongs to (any other node is returned as is).
  */
 export class PinEvent extends CustomEvent {
   constructor(type, options = {}) {
@@ -42,6 +52,16 @@ export class PinEvent extends CustomEvent {
     return this.detail ? this.detail.payload : undefined;
   }
 
+  /** The Pin whose element the event was dispatched on (the node itself when it is no Pin's). */
+  get target() {
+    return ownerOf(super.target);
+  }
+
+  /** The Pin whose element is currently handling the event; null outside a dispatch. */
+  get currentTarget() {
+    return ownerOf(super.currentTarget);
+  }
+
   /** Legacy alias for `defaultPrevented`; a cancelled event stops bubbling. */
   get cancelled() {
     return this.defaultPrevented;
@@ -52,7 +72,7 @@ export class PinEvent extends CustomEvent {
  * Pin lifecycle signals: the one mechanism by which state changes *inside* a Pin
  * reach a session-level observer.
  *
- * A Pin is an EventTarget, but its events never cross into another Pin, so the
+ * A signal does not bubble past the Pin it is about, so the
  * PinManager - the only component that knows every Pin - subscribes to these
  * types on registration and re-broadcasts them (`PinManager.onSignal`). The
  * session is the single consumer: it is what turns `activate` and `select` into

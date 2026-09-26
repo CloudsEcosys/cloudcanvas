@@ -13,6 +13,7 @@ import {
 import { h } from '../../graphics/primitives/element.js';
 import { reconcileKeyedList } from './template-kit.js';
 import { PinEvent, PinTrait } from './base.js';
+import { pinOf } from '../pin-hierarchy.js';
 
 /**
  * TransmitterTrait: Programmable event dispatcher, message broadcaster, and telemetry router
@@ -67,9 +68,8 @@ export class TransmitterTrait extends PinTrait {
     }
 
     // Optionally propagate along ConnectableTrait links
-    const pinMap = context?.pinMap || (pin._manager ? pin._manager.pins : null);
-    if (this.forwardToConnections && pin.traits.has('connectable') && pinMap) {
-      this._relayToConnections(pin, event, { ...context, pinMap });
+    if (this.forwardToConnections && pin.traits.has('connectable')) {
+      this._relayToConnections(pin, event, context || {});
     }
   }
 
@@ -79,6 +79,10 @@ export class TransmitterTrait extends PinTrait {
    * Each hop carries a `detail.relayChain` of the pin ids already visited; a pin in
    * that chain is never forwarded to again, so mutual connections terminate instead
    * of recursing forever. Relayed events never bubble - the relay is the propagation.
+   *
+   * A target is resolved by id (`relayTarget`): the element carrying that
+   * `data-pin-id` in the source's own tree, else the source's manager, else a
+   * `context.pinMap` handed to `transmit`.
    */
   _relayToConnections(pin, event, context) {
     const connTrait = pin.traits.get('connectable');
@@ -87,7 +91,7 @@ export class TransmitterTrait extends PinTrait {
     for (const targetId of connTrait.getConnections()) {
       if (relayChain.includes(targetId)) continue;
 
-      const targetPin = context.pinMap.get(targetId);
+      const targetPin = relayTarget(pin, targetId, context);
       if (!targetPin || targetPin === pin) continue;
 
       targetPin.transmit(new PinEvent(event?.type, {
@@ -99,6 +103,24 @@ export class TransmitterTrait extends PinTrait {
       }), context);
     }
   }
+}
+
+/**
+ * The Pin `id` names: in `pin`'s tree, else in its manager (a parked or
+ * offloaded Pin is out of the tree but still registered - until S5 gives the
+ * root an id index that includes parked blits), else in `context.pinMap`.
+ */
+function relayTarget(pin, id, context) {
+  const root = pin.element && typeof pin.element.getRootNode === 'function' ? pin.element.getRootNode() : null;
+  const selector = `[data-pin-id="${String(id).replace(/["\\]/g, '\\$&')}"]`;
+  const element = root
+    ? (root.nodeType === 1 && root.matches(selector) ? root : root.querySelector(selector))
+    : null;
+  const found = element ? pinOf(element) : null;
+  if (found) return found;
+  const registered = pin._manager && pin._manager.pins instanceof Map ? pin._manager.pins.get(id) : null;
+  if (registered) return registered;
+  return context.pinMap instanceof Map ? context.pinMap.get(id) || null : null;
 }
 
 /**

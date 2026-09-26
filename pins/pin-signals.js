@@ -4,9 +4,9 @@
  * PinSignalBus: the one route by which state changes inside a Pin reach an
  * observer outside it.
  *
- * A Pin is an EventTarget, but its events never cross into another Pin, so a
- * listener would otherwise have to be attached Pin by Pin by every interested
- * party. Instead the PinManager - the only component that knows every Pin -
+ * A Pin is an EventTarget, and a signal does not bubble past the Pin it is
+ * about, so a listener would otherwise have to be attached Pin by Pin by every
+ * interested party. Instead the PinManager - the only component that knows every Pin -
  * attaches one listener per Pin per signal type, and re-broadcasts to whoever
  * subscribed here. Today that is the session, turning `activate` / `select` into
  * cursor targets and `destroy` into their release.

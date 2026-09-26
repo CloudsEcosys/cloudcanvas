@@ -39,6 +39,7 @@ import * as renderOps from './pin-render.js';
 import * as edit from './pin-edit.js';
 import * as scope from './pin-scope.js';
 import { childrenOf, parentOf } from './pin-hierarchy.js';
+import { DeprecatedPinAliases } from './pin-deprecated.js';
 
 /**
  * Structure classes live with the code that builds them; they are re-exported
@@ -64,7 +65,7 @@ export {
   resolveReloadMode
 } from './reload.js';
 
-export class Pin extends EventTarget {
+export class Pin extends DeprecatedPinAliases {
   constructor(options = {}) {
     super();
     this.id = options.id || `pin_${Math.random().toString(36).slice(2, 9)}`;
@@ -180,9 +181,6 @@ export class Pin extends EventTarget {
   /** Remove a child Pin from this Pin's internal scope. */
   removeChild(childPin) { return scope.removeChild(this, childPin); }
 
-  /** @deprecated since 0.3.0 - use `Array.from(pin.children)`. Removed in 0.4.0. */
-  getChildren() { return Array.from(childrenOf(this)); }
-
   /**
    * The persistent scope container for child Pins.
    * Built once with the rest of the element structure; this only rebuilds it for
@@ -268,15 +266,6 @@ export class Pin extends EventTarget {
 
   removeTrait(traitName) { return traitOps.removeTrait(this, traitName); }
 
-  /** @deprecated since 0.3.0 - use `pin.traits.get(name)`. Removed in 0.4.0. */
-  getTrait(traitName) { return this.traits.get(traitName); }
-
-  /** @deprecated since 0.3.0 - use `pin.traits.has(name)`. Removed in 0.4.0. */
-  hasTrait(traitName) { return this.traits.has(traitName); }
-
-  /** @deprecated since 0.3.0 - use `Array.from(pin.traits.values())`. Removed in 0.4.0. */
-  getTraits() { return Array.from(this.traits.values()); }
-
   /** The trait responsible for this Pin's display, or the first trait it has. */
   get displayTrait() { return traitOps.getDisplayTrait(this); }
 
@@ -287,12 +276,6 @@ export class Pin extends EventTarget {
   setDisplayTrait(traitOrName, options) {
     return traitOps.setDisplayTrait(this, traitOrName, options);
   }
-
-  /** @deprecated since 0.3.0 - use {@link Pin#displayTrait}. Removed in 0.4.0. */
-  getType() { return this.getDisplayTrait(); }
-
-  /** @deprecated since 0.3.0 - use {@link Pin#setDisplayTrait}. Removed in 0.4.0. */
-  setType(traitOrName, options) { return this.setDisplayTrait(traitOrName, options); }
 
   _displayTraits() { return traitOps.displayTraits(this); }
 
@@ -311,15 +294,6 @@ export class Pin extends EventTarget {
   deleteContent(key) { return contentOps.deleteContent(this, key); }
 
   clearContents() { return contentOps.clearContents(this); }
-
-  /** @deprecated since 0.3.0 - use `pin.contents.get(key)`. Removed in 0.4.0. */
-  getContent(key) { return this.contents.get(key); }
-
-  /** @deprecated since 0.3.0 - use `pin.contents.has(key)`. Removed in 0.4.0. */
-  hasContent(key) { return this.contents.has(key); }
-
-  /** @deprecated since 0.3.0 - use `new Map(pin.contents)`. Removed in 0.4.0. */
-  getAllContents() { return new Map(this.contents); }
 
   /* ------------------ APPEARANCE OVERRIDES API (./pin-style.js) ------------------ */
 
@@ -359,9 +333,6 @@ export class Pin extends EventTarget {
    */
   invalidate(kind = 'content') { return renderOps.invalidate(this, kind); }
 
-  /** @deprecated since 0.3.0 - use {@link Pin#invalidate}. Removed in 0.4.0. */
-  _invalidate(kind = 'content') { return this.invalidate(kind); }
-
   /** Invalidation kinds recorded before a renderer existed (replayed at attach). */
   takePendingInvalidations() { return renderOps.takePendingInvalidations(this); }
 
@@ -400,21 +371,6 @@ export class Pin extends EventTarget {
 
   /** Directional gradient: the single vector, or the mean of the list. */
   get gradient() { return this.particle.getGradient(); }
-
-  /** @deprecated since 0.3.0 - use `pin.particle.getVectors()`. Removed in 0.4.0. */
-  getVectors() { return this.particle.getVectors(); }
-
-  /** @deprecated since 0.3.0 - use `pin.particle.getVector(index)`. Removed in 0.4.0. */
-  getVector(index = 0) { return this.particle.getVector(index); }
-
-  /** @deprecated since 0.3.0 - use `pin.particle.getPrimaryVector()`. Removed in 0.4.0. */
-  getPrimaryVector() { return this.particle.getPrimaryVector(); }
-
-  /** @deprecated since 0.3.0 - use {@link Pin#magnitude}. Removed in 0.4.0. */
-  getMagnitude() { return this.magnitude; }
-
-  /** @deprecated since 0.3.0 - use {@link Pin#gradient}. Removed in 0.4.0. */
-  getGradient() { return this.gradient; }
 
   /* ------------------ EDIT LOCK (./pin-edit.js) ------------------ */
 
@@ -465,9 +421,6 @@ export class Pin extends EventTarget {
 
   set pinned(value) { this.particle.pinned = Boolean(value); }
 
-  /** @deprecated since 0.3.0 - use {@link Pin#pinned}. Removed in 0.4.0. */
-  setPinned(pinned) { this.pinned = pinned; }
-
   /** Selection state, owned by `SelectableTrait`; false without one. */
   get selected() {
     const sel = this.traits.get('selectable');
@@ -480,9 +433,6 @@ export class Pin extends EventTarget {
     if (value) sel.select(this);
     else sel.deselect(this);
   }
-
-  /** @deprecated since 0.3.0 - use {@link Pin#selected}. Removed in 0.4.0. */
-  setSelected(selected) { this.selected = selected; }
 
   /** Drag state, owned by `DraggableTrait`; false without one. */
   get dragging() {
@@ -498,9 +448,6 @@ export class Pin extends EventTarget {
       this.element.classList.toggle('is-dragging', drag.dragging);
     }
   }
-
-  /** @deprecated since 0.3.0 - use {@link Pin#dragging}. Removed in 0.4.0. */
-  setDragging(dragging) { this.dragging = dragging; }
 
   /**
    * Whether the card's border is painted. Default true, and independent of
@@ -577,12 +524,25 @@ export class Pin extends EventTarget {
   /** Full synchronous render: contents, measurement, transform, and children. */
   render(context = {}) { return renderOps.render(this, context); }
 
-  /* ------------------ EVENT TRANSMISSION ------------------ */
-
-  _normalizeTransmitEvent(event) { return scope.normalizeTransmitEvent(this, event); }
+  /* ------------------ EVENTS ------------------ */
 
   /**
-   * Transmit an event through this Pin and up its scope chain.
+   * The Pin's events are its element's: listening on the Pin and on the element
+   * are the same thing. The core transmit listener goes on first (`./pin-scope.js`).
+   */
+  addEventListener(type, listener, options) {
+    scope.hookElement(this.element, type);
+    this.element.addEventListener(type, listener, options);
+  }
+
+  removeEventListener(type, listener, options) {
+    this.element.removeEventListener(type, listener, options);
+  }
+
+  dispatchEvent(event) { return this.element.dispatchEvent(event); }
+
+  /**
+   * Transmit an event through this Pin and up its scope chain, natively (`./pin-scope.js`).
    * Returns every trait `onTransmit` result collected along the walk.
    */
   transmit(event, context = {}) { return scope.transmit(this, event, context); }

@@ -5,14 +5,16 @@
  * Pin scope chain: the parent walk, and everything that travels along it.
  *
  * Two halves of one structure - breadcrumb/ancestor access, and the event
- * transmission that bubbles up the same chain (normalising anything
- * transmittable into the event that makes the trip).
+ * transmission that bubbles up the same chain natively, Pin element to Pin
+ * element (normalising anything transmittable into the event that makes the trip).
  *
  * `PinEvent` and the trait `onTransmit` contract live in `./traits/base.js`;
  * this module is only the Pin's transport. Every function takes the Pin as its
  * first argument.
  */
+import { MAX_DEPTH } from '../core/state.js';
 import { PinEvent, DEFAULT_EVENT_TYPE } from './traits.js';
+import { pinOf } from './pin-hierarchy.js';
 import { wakesWithParent } from './reload.js';
 import { syncFlowChild } from './pin-element.js';
 import { detachElement, placeElement } from './pin-membership.js';
@@ -64,36 +66,101 @@ export function wrapForeignEvent(event) {
   });
 }
 
+/** @type {WeakMap<Event, {context: object, results: Array}>} the transmits under way */
+const IN_FLIGHT = /* @__PURE__ */ new WeakMap();
+
 /**
  * Transmit an event through a Pin and up its scope chain.
  *
- * At every node: trait `onTransmit` hooks run first, then the node dispatches the
- * event natively so `addEventListener` subscribers see it. Bubbling stops when the
- * event does not bubble, propagation was stopped, or the event was cancelled.
- * Returns every trait hook result collected along the walk.
+ * One native dispatch, on the Pin's element with the event's own `bubbles`: the
+ * browser carries it up the DOM, and the Pin elements above are the scope chain.
+ * At every Pin the core listener (`onTransmitted`, installed ahead of any Pin
+ * listener) runs the trait `onTransmit` hooks first, then the node's own
+ * listeners run natively. Bubbling ends where a listener stopped it, at the
+ * first Pin above a cancelled node (that node's own listeners still ran), or at
+ * the top Pin, which stops it so nothing reaches the host or the document.
+ *
+ * Native listeners are typed, so the core listener is installed per event type
+ * at first sight: by `Pin.addEventListener` (before the caller's listener), here
+ * on the source, and on each parent as the event passes its child. A listener
+ * added straight on the element before any of those precedes the hooks at that
+ * node - listen through the Pin to keep hooks first. A parked element's tree
+ * ends at the park: an event from a parked subtree stops at its top, exactly as
+ * a core `emit` does.
+ *
+ * A legacy duck-typed event (a plain object with a string `type`) is not an
+ * `Event` and cannot be dispatched; it walks the hooks by hand and never reaches
+ * a native listener.
+ *
+ * @returns {Array} every trait hook result collected along the walk, in order
  */
 export function transmit(pin, event, context = {}) {
-  const evt = pin._normalizeTransmitEvent(event);
-  const dispatchable = typeof Event !== 'undefined' && evt instanceof Event;
-  const results = [];
-  const visited = new Set();
+  const evt = normalizeTransmitEvent(pin, event);
+  if (typeof Event === 'undefined' || !(evt instanceof Event)) {
+    return walkHooks(pin, evt, context);
+  }
 
-  let node = pin;
-  while (node && !visited.has(node)) {
-    visited.add(node);
+  const flight = { context, results: [] };
+  hookElement(pin.element, evt.type);
+  IN_FLIGHT.set(evt, flight);
+  try {
+    pin.element.dispatchEvent(evt);
+  } finally {
+    IN_FLIGHT.delete(evt);
+  }
+  return flight.results;
+}
 
-    for (const trait of node.traits.values()) {
-      if (typeof trait.onTransmit === 'function') {
-        results.push(trait.onTransmit(node, evt, context));
-      }
+/**
+ * Put the core listener for `type` on a Pin element. One function object per
+ * type, so the DOM keeps a single registration and its first position.
+ */
+export function hookElement(element, type) {
+  if (element) element.addEventListener(type, onTransmitted);
+}
+
+/**
+ * The core listener: first at every Pin an in-flight event reaches. Anything
+ * not sent through `transmit` (a raw DOM event, a `dispatchEvent`) passes by.
+ */
+function onTransmitted(event) {
+  const flight = IN_FLIGHT.get(event);
+  if (!flight) return;
+
+  const at = event.currentTarget;
+  const node = pinOf(at) || at;
+  if (!node || !(node.traits instanceof Map)) return;
+
+  if (event.defaultPrevented) {
+    event.stopImmediatePropagation();
+    return;
+  }
+
+  runHooks(node, event, flight.context, flight.results);
+
+  const parent = event.bubbles ? node.parent : null;
+  if (parent) hookElement(parent.element, event.type);
+  else event.stopPropagation();
+}
+
+/** Run every trait `onTransmit` hook on `node`, collecting the results in order. */
+function runHooks(node, event, context, results) {
+  for (const trait of node.traits.values()) {
+    if (typeof trait.onTransmit === 'function') {
+      results.push(trait.onTransmit(node, event, context));
     }
+  }
+}
 
-    if (dispatchable) node.dispatchEvent(evt);
-
+/** The hooks-only walk for a non-`Event` object: up the parents, stopping as `transmit` would. */
+function walkHooks(pin, evt, context) {
+  const results = [];
+  let node = pin;
+  for (let depth = 0; node && depth < MAX_DEPTH; depth += 1) {
+    runHooks(node, evt, context, results);
     if (!evt.bubbles || evt.cancelled || evt.cancelBubble) break;
     node = node.parent;
   }
-
   return results;
 }
 
