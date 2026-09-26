@@ -350,7 +350,7 @@ export function registerBuiltinActions(registry) {
     run: (target, params) => {
       const key = params.key || 'count';
       const step = Number.isFinite(params.step) ? params.step : 1;
-      const current = Number(target.getContent(key)) || 0;
+      const current = Number(target.contents.get(key)) || 0;
       const next = current + step;
       target.setContent(key, next);
       if (target.contents && target.contents.has('title')) {
