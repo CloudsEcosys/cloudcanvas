@@ -20,6 +20,9 @@
 import { DRAG_CHAIN_CLASS, setElevationChain } from './elevation.js';
 import { isControlTarget } from '../pins/pin-element.js';
 import { DRAG_THRESHOLD_PX } from '../pins/traits/interaction.js';
+import { createLogger } from '../log.js';
+
+const logger = createLogger('gesture');
 
 /**
  * Property set on a `pointerdown` that landed inside a Pin's selectable text.
@@ -90,7 +93,8 @@ function capturePointerId(session, pointerId) {
   try {
     host.setPointerCapture(pointerId);
     return true;
-  } catch {
+  } catch (error) {
+    logger.debug(`setPointerCapture(${pointerId}) refused`, error);
     return false;
   }
 }
@@ -163,7 +167,8 @@ export function releasePointer(session, event) {
     if (typeof host.hasPointerCapture === 'function' && !host.hasPointerCapture(id)) return false;
     host.releasePointerCapture(id);
     return true;
-  } catch {
+  } catch (error) {
+    logger.debug(`releasePointerCapture(${id}) refused`, error);
     return false;
   }
 }

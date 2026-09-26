@@ -350,3 +350,6 @@ export {
   ELEVATED_CLASS,
   setElevationChain
 } from './engine/elevation.js';
+
+/* ---- advanced: the logging seam (silent below `error` until a sink is set) ---- */
+export { LOG_LEVELS, consoleLogSink, createLogger, setLogSink } from './log.js';

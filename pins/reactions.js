@@ -22,6 +22,9 @@
 
 import { PIN_SIGNAL_TYPES } from './traits/base.js';
 import { actionRegistry as defaultActionRegistry } from './reaction-actions.js';
+import { createLogger } from '../log.js';
+
+const logger = createLogger('reactions');
 
 /** The signal a binding may fire on; the same closed set the bus relays. */
 const SIGNAL_SET = new Set(PIN_SIGNAL_TYPES);
@@ -169,6 +172,7 @@ export class ReactionStore {
       try {
         this.add(raw);
       } catch (error) {
+        logger.debug('reaction skipped on load', error);
         warn(`reaction skipped: ${error.message}`);
       }
     }
@@ -245,9 +249,7 @@ export class ReactionRunner {
     try {
       this.registry.run(type, target, params, { session: this.session, source, target, event });
     } catch (error) {
-      if (typeof console !== 'undefined') {
-        console.error(`[CloudCanvas] reaction "${binding.id}" (${type}) failed`, error);
-      }
+      logger.error(`reaction "${binding.id}" (${type}) failed`, error);
     }
   }
 }

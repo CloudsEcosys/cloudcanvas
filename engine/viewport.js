@@ -6,6 +6,9 @@
  * smooth camera animations, and focus framing.
  */
 import { formatTransform3D } from '../graphics/styles.js';
+import { createLogger } from '../log.js';
+
+const logger = createLogger('viewport');
 
 /**
  * Named easing curves usable as `options.easing` on animated camera moves.
@@ -174,8 +177,10 @@ function reducedMotionCache() {
   let query = null;
   try {
     query = globalThis.matchMedia(REDUCED_MOTION_QUERY);
-  } catch {
-    return state; // Environment exposes matchMedia but cannot parse the query.
+  } catch (error) {
+    // Environment exposes matchMedia but cannot parse the query.
+    logger.debug(`matchMedia rejected "${REDUCED_MOTION_QUERY}"`, error);
+    return state;
   }
   if (!query) return state;
 
