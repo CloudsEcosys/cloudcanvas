@@ -21,7 +21,9 @@
  * conversion is the whole of what this module adds, through `scopeOriginOf`
  * (`./pin-element.js`) - the inverse of the sum `getGlobalBounds` walks.
  */
-import { captureScopeOffset, scopeOriginOf, syncScopePopulation } from './pin-element.js';
+import { nodeOf } from '../core/park.js';
+import { captureScopeOffset, scopeOriginOf } from './pin-element.js';
+import { placeElement, syncScopePopulation } from './pin-membership.js';
 
 /**
  * Move `pin` under `newParent`, or - with `newParent === null` - out to the
@@ -105,7 +107,7 @@ export function reparentPin(pin, newParent, position = {}) {
 function settleNewWell(pin, newParent) {
   const scope = newParent.getOrCreateScopeElement();
   if (!scope || !pin.element) return;
-  if (pin.element.parentNode !== scope) scope.appendChild(pin.element);
+  placeElement(pin, scope);
   syncScopePopulation(newParent);
   captureScopeOffset(newParent);
 }
@@ -114,19 +116,14 @@ function settleNewWell(pin, newParent) {
 
 /**
  * Reorder `pin` within its flow container, moving it to sit immediately before
- * `beforeSibling` - or to the end when that is null - in both the DOM and the
- * `Pin.children` iteration order.
+ * `beforeSibling` - or to the end when that is null.
  *
  * A reorder is not a reparent, and deliberately does *not* go through
  * `removeChild`/`addChild`: `pin` is already a child of `container`, so there is
  * no relinking, no renderer re-attach, no coordinate conversion, and no well to
- * settle - only order changes. The two orders it changes have to move together
- * because two different layers read them: the browser paints the DOM, and the
- * serializer walks `children`. `Pin.children` is a `Set`, whose iteration order
- * is insertion order, and a `Set` has no insert-at-index - so the order is
- * rebuilt by clearing and re-adding in sequence, which is sufficient precisely
- * because insertion order is the whole contract. The element moves with a single
- * native `insertBefore`, which relocates it rather than cloning.
+ * settle - only order changes. The DOM is the one order: the browser paints it
+ * and `children` reads it, so one native `insertBefore` is the whole move. A
+ * parked Pin moves by its anchor, so it comes back in its new place.
  *
  * @param {Pin} container the flow parent both siblings belong to
  * @param {Pin} pin the child being moved
@@ -135,39 +132,20 @@ function settleNewWell(pin, newParent) {
  */
 export function reorderChild(container, pin, beforeSibling = null) {
   if (!container || !pin || pin === beforeSibling) return null;
-  if (pin.parent !== container || !container.children.has(pin)) return null;
-  if (beforeSibling && !container.children.has(beforeSibling)) return null;
+  if (pin.parent !== container) return null;
+  if (beforeSibling && beforeSibling.parent !== container) return null;
 
-  reorderChildrenSet(container, pin, beforeSibling);
   reorderChildElement(container, pin, beforeSibling);
   return pin;
 }
 
-/** Rebuild `container.children` with `pin` moved to just before `beforeSibling`. */
-function reorderChildrenSet(container, pin, beforeSibling) {
-  const ordered = [];
-  for (const child of container.children) {
-    if (child === pin) continue;
-    if (child === beforeSibling) ordered.push(pin);
-    ordered.push(child);
-  }
-  if (!beforeSibling) ordered.push(pin);
-
-  container.children.clear();
-  for (const child of ordered) container.children.add(child);
-}
-
-/** Move the element into the matching DOM position, when both are mounted. */
+/** Move the Pin's node (element, or anchor while parked) to its new place in the scope. */
 function reorderChildElement(container, pin, beforeSibling) {
   const scope = container.scopeElement;
   if (!scope || !pin.element) return;
 
-  const ref = beforeSibling
-    && beforeSibling.element
-    && beforeSibling.element.parentNode === scope
-    ? beforeSibling.element
-    : null;
-  scope.insertBefore(pin.element, ref);
+  const ref = beforeSibling && beforeSibling.element ? nodeOf(beforeSibling.element) : null;
+  scope.insertBefore(nodeOf(pin.element), ref && ref.parentNode === scope ? ref : null);
 }
 
 /**

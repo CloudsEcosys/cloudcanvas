@@ -218,13 +218,12 @@ export class PinManager {
         removed += 1;
       }
     }
-    pin.children.clear();
     return removed;
   }
 
   /**
    * Remove and destroy a Pin along with its entire subtree.
-   * Pin.destroy() recursively destroys children and clears the child sets,
+   * Pin.destroy() recursively destroys children and detaches their elements,
    * so the subtree is collected before destruction.
    */
   removePin(id) {

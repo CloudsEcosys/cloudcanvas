@@ -19,6 +19,8 @@
  * Nothing here decides *whether* a Pin should be mounted; that is reload policy
  * (`src/pins/reload.js`). These are the mechanics that carry the decision out.
  */
+import { stateOf } from '../core/state.js';
+import { park, place } from '../core/park.js';
 import { DORMANT_CLASS, RELOAD_MODES, resolveRenderMode } from '../pins/reload.js';
 
 /** Depth walk guard: a malformed parent cycle must not hang a frame. */
@@ -26,7 +28,8 @@ export const MAX_DEPTH = 4096;
 
 /**
  * Place a Pin's element in its parent's scope container, or on the canvas plane
- * when it is a root Pin.
+ * when it is a root Pin. A parked element goes back at its anchor, so it keeps
+ * its place among its siblings (`../core/park.js`).
  *
  * @returns {boolean} true when the element ended up inside a container
  */
@@ -38,17 +41,14 @@ export function mountPin(pin, planeElement) {
     : planeElement;
   if (!container) return false;
 
-  if (pin.element.parentNode !== container) {
-    container.appendChild(pin.element);
-  }
+  place(stateOf(pin.element), container);
   return true;
 }
 
-/** Detach a Pin's element. The Pin instance and all its state are untouched. */
+/** Park a Pin's element behind an anchor. The Pin instance and all its state are untouched. */
 export function detachPin(pin) {
-  if (!pin.element || !pin.element.parentNode) return false;
-  pin.element.parentNode.removeChild(pin.element);
-  return true;
+  if (!pin.element) return false;
+  return park(stateOf(pin.element));
 }
 
 /** Toggle the hidden-but-mounted class (`display: none`). */

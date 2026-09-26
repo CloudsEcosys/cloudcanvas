@@ -6,14 +6,14 @@
  * that settles a Pin into the DOM state its reload strategy prescribes.
  *
  * The policy - what a strategy *means* - lives in `./reload.js`; the DOM
- * mechanics live in `./pin-element.js`. This module is the sequencing between
+ * mechanics live in `./pin-membership.js`. This module is the sequencing between
  * them: which trait hooks fire, how deactivation cascades, when the children
  * provider is asked to fill a scope.
  *
  * Every function takes the Pin as its first argument; `Pin` forwards to them.
  */
 import { RELOAD_STRATEGIES, wakesWithParent } from './reload.js';
-import { applyReloadMode } from './pin-element.js';
+import { applyReloadMode, detachElement } from './pin-membership.js';
 import { emitPinSignal } from './traits/base.js';
 
 /**
@@ -142,7 +142,6 @@ export function destroyChildren(pin) {
   for (const child of children) {
     child.destroy();
   }
-  pin.children.clear();
   return children.length;
 }
 
@@ -201,10 +200,10 @@ export function setFocused(pin, focused, session) {
  * an editing affordance in the page's own chrome - open against a Pin that no
  * longer exists. The `'destroy'` signal goes next, while the manager is still
  * listening, so whatever holds a reference to this Pin - a cursor pointing at
- * it - gets to let go. The parent link then, because a destroyed child left in
- * `parent.children` is re-mounted by the next parent render. Then the subtree,
- * the traits' own `onDetach`, the renderer, the element, and finally the
- * manager's indices.
+ * it - gets to let go. Then the subtree, the traits' own `onDetach`, the
+ * renderer (which still reads `parent` to invalidate the well above), the
+ * element - detached outright, which is what ends the parent link - and
+ * finally the manager's indices.
  *
  * @returns {Pin} the Pin, now detached from everything
  */
@@ -214,15 +213,9 @@ export function destroy(pin) {
   pin.endEdit();
   emitPinSignal(pin, 'destroy');
 
-  if (pin.parent) {
-    pin.parent.children.delete(pin);
-    pin.parent = null;
-  }
-
   for (const child of Array.from(pin.children)) {
     child.destroy();
   }
-  pin.children.clear();
 
   for (const trait of pin.traits.values()) {
     if (typeof trait.onDetach === 'function') trait.onDetach(pin);
@@ -230,7 +223,7 @@ export function destroy(pin) {
   pin.traits.clear();
 
   if (pin._renderer) pin._renderer.forget(pin);
-  pin.unmount();
+  detachElement(pin);
   if (pin._manager) pin._manager.reindexPin(pin);
 
   return pin;

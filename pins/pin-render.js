@@ -15,6 +15,7 @@
  */
 import { CONTENT_CLASS } from './pin-element.js';
 import { deferRender } from './pin-edit.js';
+import { forEachChild, hasChildren } from './pin-hierarchy.js';
 import { RELOAD_MODES, resolveReloadMode } from './reload.js';
 
 /** The two invalidation kinds the conjugate renderer understands. */
@@ -66,9 +67,13 @@ export function tick(pin, dt = 1, context = {}) {
     }
   }
 
-  for (const child of pin.children) {
-    child.tick(dt, context);
-  }
+  // Per frame: the non-allocating walk, never the `children` Set.
+  forEachChild(pin, tickChild, dt, context);
+}
+
+/** `forEachChild` visitor for `tick`. */
+function tickChild(child, dt, context) {
+  child.tick(dt, context);
 }
 
 /**
@@ -174,7 +179,7 @@ export function render(pin, context = {}) {
   }
   pin.renderPosition();
 
-  if (pin.children.size > 0) renderChildren(pin, context);
+  if (hasChildren(pin)) renderChildren(pin, context);
 }
 
 /**
@@ -183,15 +188,17 @@ export function render(pin, context = {}) {
  */
 function renderChildren(pin, context) {
   const scopeElement = pin.getOrCreateScopeElement();
+  forEachChild(pin, renderChild, scopeElement, context);
+}
 
-  for (const child of pin.children) {
-    if (resolveReloadMode(child) !== RELOAD_MODES.MOUNTED) {
-      child._reconcile();
-      continue;
-    }
-    if (scopeElement && child.element && child.element.parentNode !== scopeElement) {
-      child.mount(scopeElement);
-    }
-    child.render(context);
+/** `forEachChild` visitor for `renderChildren`: settle a child, or bring it back into scope and render it. */
+function renderChild(child, scopeElement, context) {
+  if (resolveReloadMode(child) !== RELOAD_MODES.MOUNTED) {
+    child._reconcile();
+    return;
   }
+  if (scopeElement && child.element && child.element.parentNode !== scopeElement) {
+    child.mount(scopeElement);
+  }
+  child.render(context);
 }

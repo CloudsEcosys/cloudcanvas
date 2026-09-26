@@ -12,7 +12,9 @@
  * This file is the model and its public surface. The mechanics live beside it,
  * as free functions taking the Pin as their first argument:
  *
- *   ./pin-element.js   - element structure, DOM membership, measurement
+ *   ./pin-element.js   - element structure and measurement
+ *   ./pin-membership.js- DOM membership: mount, park, detach
+ *   ./pin-hierarchy.js - parent and children, read from the DOM
  *   ./pin-lifecycle.js - activation, focus, lazy provisioning, reconciliation
  *   ./pin-traits.js    - trait resolution and attach/replace/detach bookkeeping
  *   ./pin-contents.js  - contents coercion, writes, and the key contract
@@ -27,6 +29,7 @@ import { sizeOf, stateOf } from '../core/state.js';
 import { particleFromOptions } from '../particles/pin-particle.js';
 import { RELOAD_STRATEGIES, reloadFromOptions } from './reload.js';
 import * as element from './pin-element.js';
+import * as membership from './pin-membership.js';
 import * as lifecycle from './pin-lifecycle.js';
 import * as traitOps from './pin-traits.js';
 import * as contentOps from './pin-contents.js';
@@ -35,6 +38,7 @@ import * as vectorOps from './pin-vectors.js';
 import * as renderOps from './pin-render.js';
 import * as edit from './pin-edit.js';
 import * as scope from './pin-scope.js';
+import { childrenOf, parentOf } from './pin-hierarchy.js';
 
 /**
  * Structure classes live with the code that builds them; they are re-exported
@@ -89,26 +93,18 @@ export class Pin extends EventTarget {
     // 3. Traits: Composable capability dictionary
     this.traits = new Map();
 
-    // 4. Hierarchy & Scoping
-    this.parent = null;
-    this.children = new Set();
-
-    // Fixed two-child element structure (built once in `_setupElement`):
-    //   .cloudcanvas-pin > .cloudcanvas-pin-content + .cloudcanvas-pin-scope
-    // Display traits write into `contentElement`; `scopeElement` hosts child Pins
-    // and is never rewritten, so nested Pins survive every content update.
+    // 4. Hierarchy is read from the DOM (`parent` / `children` below), over the
+    // fixed two-child structure `.cloudcanvas-pin > content + scope` built once in
+    // `_setupElement`; `scopeElement` hosts child Pins and is never rewritten.
     this.contentElement = null;
     this.scopeElement = null;
 
-    // Live layout origin of THIS Pin inside its parent's scope, cached at
-    // measurement time and read by `getGlobalBounds` in place of the particle x/y
-    // for a flow child (`element.captureFlowOrigin`). Null when transform-placed.
+    // Live layout origin of a flow child inside its parent's scope, cached at
+    // measurement time for `getGlobalBounds` (`element.captureFlowOrigin`); null when transform-placed.
     this._flowOrigin = null;
 
-    // How this Pin arranges its CHILDREN: 'free' (default) or a flow mode
-    // ('row'/'column'/'grid') worn as one `is-layout-*` class on the scope well.
-    // Set after `children` exists (the setter re-flags every child); the well is
-    // not built yet, so this only records the flag and `syncLayout` writes it.
+    // How this Pin arranges its CHILDREN: 'free' (default) or 'row'/'column'/'grid',
+    // one `is-layout-*` class on the scope well; recorded here, written by `syncLayout`.
     this._layoutGap = null;
     this.layout = options.layout;
     if (options.gap !== undefined) this.layoutGap = options.gap;
@@ -169,6 +165,12 @@ export class Pin extends EventTarget {
 
   /* ------------------ HIERARCHY & SCOPE API ------------------ */
 
+  /** The Pin whose scope holds this one, read from the DOM (`./pin-hierarchy.js`); null at the root. */
+  get parent() { return parentOf(this); }
+
+  /** The Pins in this Pin's scope, in DOM order, as a fresh Set (`./pin-hierarchy.js`). */
+  get children() { return childrenOf(this); }
+
   /** Add a child Pin into this Pin's internal scope (`./pin-scope.js`). */
   addChild(childPin) {
     if (!(childPin instanceof Pin) || childPin === this) return null;
@@ -178,11 +180,8 @@ export class Pin extends EventTarget {
   /** Remove a child Pin from this Pin's internal scope. */
   removeChild(childPin) { return scope.removeChild(this, childPin); }
 
-  /**
-   * @deprecated since 0.3.0 - iterate `pin.children`, or `Array.from(pin.children)`
-   * for a snapshot. Removed in 0.4.0.
-   */
-  getChildren() { return Array.from(this.children); }
+  /** @deprecated since 0.3.0 - use `Array.from(pin.children)`. Removed in 0.4.0. */
+  getChildren() { return Array.from(childrenOf(this)); }
 
   /**
    * The persistent scope container for child Pins.
@@ -559,9 +558,10 @@ export class Pin extends EventTarget {
   /** Read this Pin's layout box straight from the DOM (read phase only). */
   measureLayout() { return element.measureLayout(this); }
 
-  mount(parentContainer) { return element.mountInto(this, parentContainer); }
+  mount(parentContainer) { return membership.mountInto(this, parentContainer); }
 
-  unmount() { return element.unmountElement(this); }
+  /** Park the element: out of the document, its place and parent kept. */
+  unmount() { return membership.unmountElement(this); }
 
   /* ------------------ TICK & RENDERING HOOKS ------------------ */
 

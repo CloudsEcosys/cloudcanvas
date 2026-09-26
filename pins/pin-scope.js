@@ -15,6 +15,7 @@
 import { PinEvent, DEFAULT_EVENT_TYPE } from './traits.js';
 import { wakesWithParent } from './reload.js';
 import { syncFlowChild } from './pin-element.js';
+import { detachElement, placeElement } from './pin-membership.js';
 
 /**
  * Normalise anything transmittable into the event that will travel the scope chain.
@@ -136,13 +137,14 @@ export function deriveFromScope(pin, traitName, key) {
 /**
  * Link a child Pin into this Pin's scope.
  *
- * Three things follow from the link, and none of them is "render it": a child
- * added into a live scope joins the same renderer (so it gets per-frame
- * position writes without the parent re-rendering it), it wakes with an already
- * awake parent if its strategy says so, and it then settles into whatever DOM
- * state *its own* reload strategy asks for. Membership is decided by that
- * strategy, never by the act of linking - a lazy child stays out of the DOM
- * until it is required.
+ * The link *is* the DOM move: the child's element goes into this Pin's scope
+ * container now, so `parent` and `children` answer from the tree at once. Three
+ * things follow, and none of them is "render it": a child added into a live
+ * scope joins the same renderer (so it gets per-frame position writes without
+ * the parent re-rendering it), it wakes with an already awake parent if its
+ * strategy says so, and it then settles into whatever DOM state *its own*
+ * reload strategy asks for - a lazy child is parked behind its anchor until it
+ * is required, still in place, still this Pin's child.
  *
  * The caller has already established that `childPin` is a Pin other than
  * `pin` - that guard stays in `./pin.js`, where the class is.
@@ -154,9 +156,10 @@ export function addChild(pin, childPin) {
     childPin.parent.removeChild(childPin);
   }
 
-  childPin.parent = pin;
-  pin.children.add(childPin);
-  pin.getOrCreateScopeElement();
+  // Structure is synchronous; whether the element stays mounted or is parked
+  // there is the reload mode's call, made by the next structure flush
+  // (`../engine/mounting.js`) or the `_reconcile` below.
+  placeElement(childPin, pin.getOrCreateScopeElement());
 
   // Offload is a root-only concept: only root Pins are individually
   // visibility-tested by the offload sweep (`../engine/offload.js`), which skips
@@ -188,16 +191,16 @@ export function addChild(pin, childPin) {
   return childPin;
 }
 
-/** Unlink a child Pin and take its element out of this Pin's scope. */
+/**
+ * Unlink a child Pin: its element leaves this Pin's scope entirely (no anchor),
+ * which is what ends the parent link.
+ */
 export function removeChild(pin, childPin) {
-  if (!pin.children.has(childPin)) return false;
+  if (!childPin || childPin.parent !== pin) return false;
 
-  childPin.parent = null;
-  pin.children.delete(childPin);
-  // No parent means no flow: drop the `is-flow-child` class before the element
-  // leaves, so a Pin pulled out of a flow container is a free, transform-placed
-  // Pin again (`reparentPin`/`removeChild` are the paths that end its flow life).
+  detachElement(childPin);
+  // No parent means no flow: drop the `is-flow-child` class, so a Pin pulled out
+  // of a flow container is a free, transform-placed Pin again.
   syncFlowChild(childPin);
-  childPin.unmount();
   return true;
 }

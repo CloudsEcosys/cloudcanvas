@@ -7,8 +7,10 @@
  * Three concerns, all of them mechanical:
  *
  *   - structure  : the fixed `.cloudcanvas-pin > content + scope` two-child shape,
- *   - membership : mount / unmount, and the reload strategy's resting DOM state,
  *   - measurement: layout-space reads and the cached scope offset they feed.
+ *
+ * DOM membership (mount / park / detach) lives in `./pin-membership.js`, and the
+ * hierarchy those moves imply is read back from the DOM by `./pin-hierarchy.js`.
  *
  * Every function takes the Pin as its first argument. `Pin` keeps thin methods
  * that forward here, so the class stays the model and this stays the mechanics.
@@ -19,7 +21,7 @@ import { stateOf } from '../core/state.js';
 import { MAX_DEPTH } from '../engine/mounting.js';
 import { formatTransform3D } from '../graphics/styles.js';
 import { CLS } from './traits/display-templates.js';
-import { DORMANT_CLASS, RELOAD_MODES, resolveReloadMode } from './reload.js';
+import { registerElement } from './pin-hierarchy.js';
 
 /** Class every Pin's root element carries; the engine's only structural hook. */
 export const PIN_CLASS = 'cloudcanvas-pin';
@@ -193,6 +195,7 @@ function rootClassName(options) {
  */
 export function setupElement(pin) {
   if (!pin.element) return;
+  registerElement(pin, pin.element);
   if (pin.element.classList) pin.element.classList.add(PIN_CLASS);
   if (pin.element.setAttribute) {
     pin.element.setAttribute('data-pin-id', pin.id);
@@ -568,102 +571,6 @@ function directChildByClass(pin, className) {
     if (node.classList && node.classList.contains(className)) return node;
   }
   return null;
-}
-
-/* ------------------ MEMBERSHIP ------------------ */
-
-/** Append into `parentContainer`, then measure and render in place. */
-export function mountInto(pin, parentContainer) {
-  if (!parentContainer || !pin.element) return;
-
-  if (pin.element.parentNode !== parentContainer) {
-    parentContainer.appendChild(pin.element);
-  }
-  pin.syncDimensions();
-  pin.render();
-}
-
-/** Detach the element. The Pin instance and all of its state are untouched. */
-export function unmountElement(pin) {
-  if (pin.element && pin.element.parentNode) {
-    pin.element.parentNode.removeChild(pin.element);
-  }
-}
-
-/** Synchronous mount / hide / unmount with no renderer; a utility Pin's node stays detached. */
-export function applyReloadMode(pin) {
-  if (!pin.element || pin.utility) return false;
-
-  const mode = resolveReloadMode(pin);
-  const classList = pin.element.classList || null;
-
-  if (mode === RELOAD_MODES.UNMOUNTED) {
-    if (classList) classList.remove(DORMANT_CLASS);
-    pin.unmount();
-    return syncScopeWells(pin);
-  }
-
-  if (classList) {
-    if (mode === RELOAD_MODES.DORMANT) classList.add(DORMANT_CLASS);
-    else classList.remove(DORMANT_CLASS);
-  }
-
-  const container = reloadContainer(pin);
-  if (container && pin.element.parentNode !== container) {
-    // A dormant Pin is placed without rendering: it is asleep, not stale.
-    if (mode === RELOAD_MODES.DORMANT) container.appendChild(pin.element);
-    else pin.mount(container);
-  }
-
-  return syncScopeWells(pin);
-}
-
-/**
- * The renderer-less mirror of the renderer's `ScopeWellPass`.
- *
- * A Pin with no renderer applies its reload mode synchronously, so the wells it
- * just changed have to be brought along in the same call - both the one above it
- * (which gained or lost an occupant) and its own (whose children may have moved
- * with it). Only the population flag is mirrored: sizing needs measured
- * geometry, which is exactly what a Pin without a renderer does not batch.
- *
- * @returns {boolean} always true; the caller's contract is "handled"
- */
-function syncScopeWells(pin) {
-  syncScopePopulation(pin);
-  syncScopePopulation(pin.parent);
-  return true;
-}
-
-/**
- * Toggle `cc-populated` from the scope container's own DOM.
- *
- * Read from the element rather than the Pin graph, because this path also
- * serves Pins whose scope holds markup the graph never registered.
- *
- * @returns {boolean} whether the well ended up populated
- */
-export function syncScopePopulation(pin) {
-  const scope = pin ? pin.scopeElement : null;
-  if (!scope || !scope.classList) return false;
-
-  let populated = false;
-  for (const node of scope.children) {
-    if (node.classList && !node.classList.contains(DORMANT_CLASS)) {
-      populated = true;
-      break;
-    }
-  }
-
-  scope.classList.toggle(SCOPE_POPULATED_CLASS, populated);
-  return populated;
-}
-
-/** Where this Pin's element belongs: the parent scope, or its current host. */
-export function reloadContainer(pin) {
-  if (pin.parent) return pin.parent.getOrCreateScopeElement();
-  if (pin.element && pin.element.parentNode) return pin.element.parentNode;
-  return pin._manager ? pin._manager.container : null;
 }
 
 /* ------------------ MEASUREMENT ------------------ */

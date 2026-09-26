@@ -44,6 +44,7 @@ const STATES = /* @__PURE__ */ new WeakMap();
  * @property {boolean} painted whether a port has run for this blit yet
  * @property {Function|null} port a custom port, or null for the default
  * @property {object|null} root the frame machinery, present on a root's record only
+ * @property {Comment|null} anchor the place-holder left in the tree while the element is parked (`./park.js`)
  */
 
 /** The record for `element`, or undefined when it is not a blit. */
@@ -68,7 +69,8 @@ export function createState(element) {
     changed: new Set(),
     painted: false,
     port: null,
-    root: null
+    root: null,
+    anchor: null
   };
   STATES.set(element, state);
   element.setAttribute(BLIT_ATTR, '');
@@ -82,10 +84,17 @@ export function rootOf(state) {
   return hostState ? hostState.root : null;
 }
 
-/** The nearest blit element above `element`, or null. */
+/** The node `element` hangs from: its anchor's parent while parked, else its own. */
+export function parentNodeOf(element) {
+  const state = STATES.get(element);
+  const anchor = state ? state.anchor : null;
+  return anchor && anchor.parentNode ? anchor.parentNode : element.parentNode;
+}
+
+/** The nearest blit element above `element`, read through its anchor when parked, or null. */
 export function parentElementOf(element) {
-  const parent = element.parentElement;
-  return parent ? parent.closest(`[${BLIT_ATTR}]`) : null;
+  const parent = parentNodeOf(element);
+  return parent && typeof parent.closest === 'function' ? parent.closest(`[${BLIT_ATTR}]`) : null;
 }
 
 /** The size in force: the last measured box, or the declared one until then. */
