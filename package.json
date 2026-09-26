@@ -1,30 +1,10 @@
 {
-  "name": "cloudcanvas",
+  "name": "cloudcanvas-base",
   "version": "0.4.0",
+  "private": true,
   "description": "Minimalist client-side GUI framework treating HTML elements as canvas pins",
   "type": "module",
   "main": "index.js",
-  "exports": {
-    ".": "./index.js",
-    "./styles": "./graphics/styles.js",
-    "./styles.css": "./graphics/styles-css.js",
-    "./package.json": "./package.json"
-  },
-  "files": [
-    "index.js",
-    "engine",
-    "graphics",
-    "pins",
-    "particles",
-    "dist",
-    "README.md",
-    "ARCHITECTURE.md",
-    "CHANGELOG.md",
-    "LICENSE"
-  ],
-  "scripts": {
-    "build": "node scripts/build.js"
-  },
   "keywords": [
     "canvas",
     "gui",
@@ -36,16 +16,13 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/NeoTecDigital/cloudcanvas.git"
+    "url": "git+https://github.com/CloudsEcosys/cloudcanvas.git"
   },
   "bugs": {
-    "url": "https://github.com/NeoTecDigital/cloudcanvas/issues"
+    "url": "https://github.com/CloudsEcosys/cloudcanvas/issues"
   },
-  "homepage": "https://github.com/NeoTecDigital/cloudcanvas#readme",
+  "homepage": "https://github.com/CloudsEcosys/cloudcanvas#readme",
   "engines": {
     "node": ">=20"
-  },
-  "devDependencies": {
-    "esbuild": "^0.28.2"
   }
 }
