@@ -96,13 +96,14 @@ export class ParticleEngine {
   }
 
   /**
-   * Find all Pins whose bounds intersect a circular radius around (x, y)
+   * Find all Pins whose global bounds intersect a circular radius around (x, y).
+   * Global, not local: a nested Pin is found where it sits on the canvas.
    */
   queryRadius(x, y, radius) {
     const rSq = radius * radius;
     const results = [];
     for (const pin of this.pins.values()) {
-      const bounds = pin.getBounds();
+      const bounds = pin.getGlobalBounds();
       const clampedX = Math.max(bounds.minX, Math.min(x, bounds.maxX));
       const clampedY = Math.max(bounds.minY, Math.min(y, bounds.maxY));
       const dx = x - clampedX;
@@ -115,12 +116,12 @@ export class ParticleEngine {
   }
 
   /**
-   * Find all Pins whose bounds intersect the given bounding box
+   * Find all Pins whose global bounds intersect the given canvas-space box.
    */
   queryBox(minX, minY, maxX, maxY) {
     const results = [];
     for (const pin of this.pins.values()) {
-      const bounds = pin.getBounds();
+      const bounds = pin.getGlobalBounds();
       const intersects =
         bounds.minX <= maxX &&
         bounds.maxX >= minX &&

@@ -88,6 +88,26 @@ export function parentElementOf(element) {
   return parent ? parent.closest(`[${BLIT_ATTR}]`) : null;
 }
 
+/** The size in force: the last measured box, or the declared one until then. */
+export function sizeOf(state) {
+  return { w: state.mw > 0 ? state.mw : (state.w ?? 0), h: state.mh > 0 ? state.mh : (state.h ?? 0) };
+}
+
+/** The global box: local placement summed over every ancestor blit, up to a root. */
+export function boundsOf(state) {
+  let { x, y } = state;
+  let node = parentElementOf(state.el);
+
+  for (let depth = 0; node && depth < MAX_DEPTH; depth += 1) {
+    const above = STATES.get(node);
+    if (!above || above.root) break;
+    x += above.x + above.sx;
+    y += above.y + above.sy;
+    node = parentElementOf(node);
+  }
+  return { x, y, ...sizeOf(state) };
+}
+
 /** Where a blit's children go: its own `[data-scope]`, else the element itself. */
 export function scopeContainerOf(element) {
   const scope = element.querySelector(`[${SCOPE_ATTR}]`);

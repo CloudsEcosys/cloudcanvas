@@ -14,8 +14,8 @@
  * `[data-slot]`s, `port` to the state, everything else to `data-*`.
  */
 import {
-  BLIT_ATTR, MAX_DEPTH, PLACEMENT_KEYS, ROOT_ATTR, SLOT_ATTR,
-  createState, parentElementOf, rootOf, scopeContainerOf, stateOf
+  BLIT_ATTR, PLACEMENT_KEYS, ROOT_ATTR, SLOT_ATTR,
+  boundsOf, createState, parentElementOf, rootOf, scopeContainerOf, sizeOf, stateOf
 } from './state.js';
 import { readSpec, writeAttribute } from './spec.js';
 import { PHASES, paint, schedule } from './frame.js';
@@ -40,26 +40,10 @@ export class Blit {
   get z() { return this.#s.z; }
 
   /** The size the last read phase measured, or the declared one until then. */
-  get size() {
-    const s = this.#s;
-    return { w: s.mw > 0 ? s.mw : (s.w ?? 0), h: s.mh > 0 ? s.mh : (s.h ?? 0) };
-  }
+  get size() { return sizeOf(this.#s); }
 
   /** The global box: local placement summed over every ancestor blit. */
-  get bounds() {
-    const s = this.#s;
-    let { x, y } = s;
-    let node = parentElementOf(s.el);
-
-    for (let depth = 0; node && depth < MAX_DEPTH; depth += 1) {
-      const above = stateOf(node);
-      if (!above || above.root) break;
-      x += above.x + above.sx;
-      y += above.y + above.sy;
-      node = parentElementOf(node);
-    }
-    return { x, y, ...this.size };
-  }
+  get bounds() { return boundsOf(this.#s); }
 
   /** The nearest blit above this one, or null. */
   get parent() {
@@ -225,8 +209,9 @@ export function blit(target) {
     throw new TypeError(`blit: no element for ${String(target)}`);
   }
 
+  // A record made without a handle (the Pin engine's element state) gets one here.
   const existing = stateOf(element);
-  if (existing) return existing.handle;
+  if (existing) return existing.handle || new Blit(existing);
 
   const state = createState(element);
   const handle = new Blit(state);

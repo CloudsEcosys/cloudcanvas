@@ -23,6 +23,7 @@
  *   ./pin-scope.js     - the parent chain and the events that bubble up it
  *   ./reload.js        - the pure reload policy those decisions are made from
  */
+import { sizeOf, stateOf } from '../core/state.js';
 import { particleFromOptions } from '../particles/pin-particle.js';
 import { RELOAD_STRATEGIES, reloadFromOptions } from './reload.js';
 import * as element from './pin-element.js';
@@ -64,31 +65,22 @@ export class Pin extends EventTarget {
     super();
     this.id = options.id || `pin_${Math.random().toString(36).slice(2, 9)}`;
 
-    // A utility Pin is machinery, not content: it carries traits and a spatial
-    // node but no element, no display, and no interaction, and it is filtered
-    // out of every manager query (see `./manager.js`). The cursor Pin is one.
-    // Known at construction and never afterwards, so it is read-only from here.
+    // A utility Pin is machinery, not content: traits and a spatial node on a
+    // detached element, no display, no interaction, and filtered out of every
+    // manager query (`./manager.js`). The cursor Pin is one. Read-only from here.
     this.utility = Boolean(options.utility);
 
-    // Opt-in real text selection inside the content node: the stylesheet lifts
-    // `user-select` there and the drag gesture stands down (see
-    // `./pin-element.js` and `../engine/pointer.js`). Also known at
-    // construction, because it is written onto the element at setup.
+    // Opt-in real text selection inside the content node (`./pin-element.js`,
+    // `../engine/pointer.js`); written onto the element at setup, so fixed here.
     this.selectableText = Boolean(options.selectableText);
 
-    // Whether the card's border is painted. Unlike the two above this is *not* an
-    // invariant - it is one class, so it stays writable (accessor below).
+    // Whether the card's border is painted: one class, so writable (accessor below).
     this.bordered = options.bordered;
 
-    // Whether the default card chrome is worn at all. Like `bordered` it is one
-    // class on the root, so it is writable too (accessor below). Set through the
-    // setter before the element exists, so this only records the flag; the element
-    // is built with the matching class by `createDefaultElement`, and `setupElement`
-    // re-applies it - the same two-step `bordered` uses.
+    // Whether the default card chrome is worn: one class on the root, writable too.
+    // Set before the element exists, so this only records the flag; the element is
+    // built with the matching class and `setupElement` re-applies it.
     this.chrome = options.chrome;
-
-    // 1. Spatial node & Vector list (float[])
-    this._initParticle(options);
 
     // 2. Contents: Map of Objects
     this.contents = new Map();
@@ -108,23 +100,15 @@ export class Pin extends EventTarget {
     this.contentElement = null;
     this.scopeElement = null;
 
-    // Layout offset of the scope container inside this Pin, cached at measurement
-    // time so `getGlobalBounds` can place descendants without touching the DOM.
-    this._scopeOffset = { x: 0, y: 0 };
-
     // Live layout origin of THIS Pin inside its parent's scope, cached at
     // measurement time and read by `getGlobalBounds` in place of the particle x/y
-    // for a flow child - whose particle position the flex/grid flow makes
-    // meaningless (`element.captureFlowOrigin`). Null for a transform-placed Pin,
-    // which is every free child and every root.
+    // for a flow child (`element.captureFlowOrigin`). Null when transform-placed.
     this._flowOrigin = null;
 
-    // How this Pin arranges its CHILDREN: 'free' (default, every child absolutely
-    // positioned as today) or a flow mode ('row'/'column'/'grid') worn as one
-    // `is-layout-*` class on the scope well below. Set after `children` exists
-    // because the setter re-flags every child on a change; the well is not built
-    // yet, so this only records the flag and `setupElement`'s `syncLayout` writes
-    // the class once it is - the same two-step chrome uses.
+    // How this Pin arranges its CHILDREN: 'free' (default) or a flow mode
+    // ('row'/'column'/'grid') worn as one `is-layout-*` class on the scope well.
+    // Set after `children` exists (the setter re-flags every child); the well is
+    // not built yet, so this only records the flag and `syncLayout` writes it.
     this._layoutGap = null;
     this.layout = options.layout;
     if (options.gap !== undefined) this.layoutGap = options.gap;
@@ -140,8 +124,9 @@ export class Pin extends EventTarget {
     // 5. Activation & reload strategy
     lifecycle.initReloadState(this, options, reloadFromOptions(options));
 
-    // 6. HTML <div> Element
+    // 6. HTML <div> Element, then the spatial node that views its core record
     this.element = options.element || this._createDefaultElement(options);
+    this._initParticle(options);
     this._setupElement();
 
     // Attach initial traits
@@ -151,8 +136,8 @@ export class Pin extends EventTarget {
     this.render();
   }
 
-  /** Adopt the supplied spatial node, or build one (`../particles/pin-particle.js`). */
-  _initParticle(options) { this.particle = particleFromOptions(this.id, options); }
+  /** Adopt the supplied spatial node, or build one, over the element (`../particles/pin-particle.js`). */
+  _initParticle(options) { this.particle = particleFromOptions(this.id, options, this.element); }
 
   _initContents(contentsInput) { return contentOps.initContents(this, contentsInput); }
 
@@ -219,6 +204,21 @@ export class Pin extends EventTarget {
 
   /** Cumulative global bounding box, summed over the ancestor chain. */
   getGlobalBounds() { return element.globalBoundsOf(this); }
+
+  /** The size in force, `{w, h}`: measured when there is one, else declared (the core's rule). */
+  get size() { return sizeOf(stateOf(this.element)); }
+
+  /** The global box, `{x, y, w, h}`: {@link getGlobalBounds} in the core's shape. */
+  get bounds() {
+    const { minX, minY, width, height } = this.getGlobalBounds();
+    return { x: minX, y: minY, w: width, h: height };
+  }
+
+  /** The scope container's layout offset inside this Pin, as the core record holds it. */
+  get _scopeOffset() {
+    const { sx, sy } = stateOf(this.element);
+    return { x: sx, y: sy };
+  }
 
   /* ------------------ ACTIVATION & RELOAD API ------------------ */
 

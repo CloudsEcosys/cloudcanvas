@@ -4,8 +4,7 @@
  *
  * Pin element: everything a Pin does to its backing DOM node.
  *
- * Three concerns, all of them mechanical, all of them guarded for headless use
- * (no `document`, or a Pin deliberately built without an element):
+ * Three concerns, all of them mechanical:
  *
  *   - structure  : the fixed `.cloudcanvas-pin > content + scope` two-child shape,
  *   - membership : mount / unmount, and the reload strategy's resting DOM state,
@@ -16,6 +15,7 @@
  * Nothing here decides *whether* a Pin should be mounted - that is reload policy
  * (`./reload.js`) - and nothing here runs a trait hook.
  */
+import { stateOf } from '../core/state.js';
 import { MAX_DEPTH } from '../engine/mounting.js';
 import { formatTransform3D } from '../graphics/styles.js';
 import { CLS } from './traits/display-templates.js';
@@ -127,18 +127,21 @@ const PIN_ARIA = Object.freeze({
 /* ------------------ STRUCTURE ------------------ */
 
 /**
- * Build the Pin's backing <div>. Headless environments (no DOM) get `null`:
- * every element access is guarded, so a Pin stays a fully functional
- * spatial/trait entity without a document.
+ * Build the Pin's backing <div>. Every Pin has one - its core record holds the
+ * placement (`../core/state.js`) - so a missing document throws. A utility Pin
+ * gets a detached, hidden node that nothing mounts, queries or renders.
  */
 export function createDefaultElement(pin, options = {}) {
-  if (typeof document === 'undefined') return null;
-  // A utility Pin is a null pin: traits and a spatial node, no DOM node at all.
-  if (pin.utility) return null;
-
+  if (typeof document === 'undefined') {
+    throw new TypeError('Pin: a document is required; headless construction is not supported');
+  }
   const div = document.createElement('div');
   div.id = pin.id;
   div.className = rootClassName(options);
+  if (pin.utility) {
+    div.hidden = true;
+    return div;
+  }
 
   if (options.width !== undefined) {
     div.style.width = `${options.width}px`;
@@ -207,9 +210,8 @@ export function setupElement(pin) {
 
 /**
  * Set the Pin's border state and mirror it onto the element. The Pin holds the
- * flag and the class list holds the paint, exactly as `dragging` does, so a
- * headless Pin still remembers what it was asked for - and `setupElement`
- * re-applies it, which is what writes it onto an element built after the flag.
+ * flag and the class list holds the paint, exactly as `dragging` does, and
+ * `setupElement` re-applies it onto an element built after the flag.
  *
  * @returns {boolean} the border state now in force
  */
@@ -529,7 +531,7 @@ function applyPinAria(element) {
  * @returns {Element|null} the content element (null in headless mode)
  */
 export function buildElementStructure(pin) {
-  if (!pin.element || typeof document === 'undefined') return null;
+  if (!pin.element) return null;
   if (pin.contentElement && pin.scopeElement) return pin.contentElement;
 
   let content = directChildByClass(pin, CONTENT_CLASS);
@@ -588,9 +590,9 @@ export function unmountElement(pin) {
   }
 }
 
-/** Synchronous mount / hide / unmount for Pins with no renderer attached. */
+/** Synchronous mount / hide / unmount with no renderer; a utility Pin's node stays detached. */
 export function applyReloadMode(pin) {
-  if (!pin.element) return false;
+  if (!pin.element || pin.utility) return false;
 
   const mode = resolveReloadMode(pin);
   const classList = pin.element.classList || null;
@@ -667,10 +669,8 @@ export function reloadContainer(pin) {
 /* ------------------ MEASUREMENT ------------------ */
 
 /**
- * Request a layout measurement.
- *
- * With a renderer attached the Pin joins the batched read phase; otherwise it
- * reads immediately so headless and unattached Pins keep working.
+ * Request a layout measurement: batched into the renderer's read phase when
+ * one is attached, read immediately otherwise so unattached Pins keep working.
  */
 export function syncDimensions(pin) {
   if (!pin.element) return false;
@@ -698,9 +698,8 @@ export function measureLayout(pin) {
   const height = pin.element.offsetHeight;
   if (width > 0 && height > 0) {
     pin.particle.setSize(width, height);
-    // Only a Pin with a real layout box has a meaningful live origin to read;
-    // a headless or unlaid-out Pin keeps `_flowOrigin` null and falls back to its
-    // particle in `globalBoundsOf`, exactly as before this cache existed.
+    // Only a Pin with a real layout box has a live origin to read; an unlaid-out
+    // one keeps `_flowOrigin` null and falls back to its particle in `globalBoundsOf`.
     captureFlowOrigin(pin);
   }
 
@@ -708,11 +707,12 @@ export function measureLayout(pin) {
   return true;
 }
 
-/** Cache the scope container's layout offset for `getGlobalBounds`. */
+/** Record the scope container's layout offset on the core record, for `getGlobalBounds`. */
 export function captureScopeOffset(pin) {
   if (!pin.scopeElement) return;
-  pin._scopeOffset.x = Number(pin.scopeElement.offsetLeft) || 0;
-  pin._scopeOffset.y = Number(pin.scopeElement.offsetTop) || 0;
+  const state = stateOf(pin.element);
+  state.sx = Number(pin.scopeElement.offsetLeft) || 0;
+  state.sy = Number(pin.scopeElement.offsetTop) || 0;
 }
 
 /**

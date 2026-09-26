@@ -355,6 +355,23 @@ records the migration surface, not the commit history.
 
 ### Changed
 
+- **Every Pin has an element; headless (no-document) construction is gone.** (Breaking.)
+  A Pin's placement (`x y z` and its size) now lives on its element's core record
+  (`.plugin/core/state.js`), and `pin.particle` is a view over that record - one home for
+  the geometry, no copies. Constructing a Pin without a `document` throws. A utility Pin
+  (the cursor Pin) gets a detached, hidden element nothing mounts, queries or renders; it
+  stays excluded from every manager query, the renderer and the default traits as before.
+- **`pin.size` and `pin.bounds`.** `size` is `{w, h}` by the core's rule (the measured box,
+  or the declared one until a measurement); `bounds` is the global `{x, y, w, h}`. Read
+  these, or `pin.x`/`pin.y`, rather than `pin.particle.width` and friends; the particle
+  keeps its physics (velocity, mass, friction, `pinned`, vectors).
+
+### Fixed
+
+- **`ParticleEngine.queryRadius`/`queryBox` test global bounds.** They compared a nested
+  Pin's parent-local box against a canvas-space query, so a child Pin was found where it
+  would sit if it were a root. Both now use the particle's global bounds.
+
 - **A missing `container` throws instead of mounting nothing.**
   `createCanvasSession({ container: null })` (or `undefined`, `''`, a non-element)
   used to succeed silently and render nothing - the session existed, `hostElement` was

@@ -1,14 +1,46 @@
 /**
  * CloudCanvas - NeoTec, LLC, Richard Christopher
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
- * 
+ *
  * PinParticle represents the spatial, physical, and bounding state of a Pin in the display coordinate space.
  * Each Pin maintains an associated list of Vectors (represented as floats) indicating gradients,
  * magnitudes, or directional pointers.
+ *
+ * Placement geometry (`x y z width height`) is a VIEW: it reads from and writes
+ * to the core record of the particle's element (`../core/state.js`), so the
+ * element's state is the one home of where a Pin sits and how big it is. A
+ * particle built without an element owns a detached one. Physics-only data -
+ * velocity, mass, friction, the pinned flag, the vector list - stays here.
  */
+import { boundsOf, createState, sizeOf, stateOf } from '../core/state.js';
+
+/** The core record for `element`, made on first sight; a bare particle gets its own node. */
+function stateFor(element) {
+  const target = element || document.createElement('div');
+  return stateOf(target) || createState(target);
+}
+
+/** The `{minX .. centerY}` box every spatial consumer here reads. */
+function boxOf(x, y, width, height) {
+  return {
+    minX: x,
+    minY: y,
+    maxX: x + width,
+    maxY: y + height,
+    width,
+    height,
+    centerX: x + width / 2,
+    centerY: y + height / 2
+  };
+}
+
 export class PinParticle {
+  /** @type {import('../core/state.js').BlitState} */
+  #state;
+
   constructor(options = {}) {
     this.id = options.id || `pin_${Math.random().toString(36).slice(2, 9)}`;
+    this.#state = stateFor(options.element);
     this.x = Number(options.x) || 0;
     this.y = Number(options.y) || 0;
     this.z = Number(options.z) || 0;
@@ -16,8 +48,8 @@ export class PinParticle {
     this.vx = Number(options.vx) || 0;
     this.vy = Number(options.vy) || 0;
 
-    this.width = Number(options.width) || 0;
-    this.height = Number(options.height) || 0;
+    if (options.width !== undefined) this.width = Number(options.width) || 0;
+    if (options.height !== undefined) this.height = Number(options.height) || 0;
 
     this.mass = Number(options.mass) > 0 ? Number(options.mass) : 1;
     this.friction = options.friction !== undefined ? Number(options.friction) : 0.92;
@@ -32,6 +64,46 @@ export class PinParticle {
     } else {
       this.vectors = [];
     }
+  }
+
+  /* ------------------ PLACEMENT VIEW ------------------ */
+
+  /** The element whose core record holds this particle's placement. */
+  get element() { return this.#state.el; }
+
+  get x() { return this.#state.x; }
+
+  set x(value) { this.#state.x = value; }
+
+  get y() { return this.#state.y; }
+
+  set y(value) { this.#state.y = value; }
+
+  get z() { return this.#state.z; }
+
+  set z(value) { this.#state.z = value; }
+
+  /** The size in force, by the core's rule: measured when there is one, else declared. */
+  get width() { return sizeOf(this.#state).w; }
+
+  set width(value) { this.#state.w = this.#state.mw = value; }
+
+  get height() { return sizeOf(this.#state).h; }
+
+  set height(value) { this.#state.h = this.#state.mh = value; }
+
+  /**
+   * Move this particle's placement onto `element`'s core record and view that
+   * from now on. A one-time move for a particle built before its Pin's element
+   * existed; after it there is again exactly one copy of the geometry.
+   * @returns {this}
+   */
+  bindTo(element) {
+    const next = stateFor(element);
+    if (next === this.#state) return this;
+    for (const key of ['x', 'y', 'z', 'w', 'h', 'mw', 'mh']) next[key] = this.#state[key];
+    this.#state = next;
+    return this;
   }
 
   /**
@@ -197,19 +269,20 @@ export class PinParticle {
   }
 
   /**
-   * Compute bounding box in canvas space
+   * Compute bounding box in the parent's (local) space
    */
   getBounds() {
-    return {
-      minX: this.x,
-      minY: this.y,
-      maxX: this.x + this.width,
-      maxY: this.y + this.height,
-      width: this.width,
-      height: this.height,
-      centerX: this.x + this.width / 2,
-      centerY: this.y + this.height / 2
-    };
+    return boxOf(this.x, this.y, this.width, this.height);
+  }
+
+  /**
+   * Compute bounding box in canvas space: the local box summed over every
+   * ancestor element the core knows (`boundsOf`), so a nested Pin reports where
+   * it actually sits. A detached or root element's global box is its local one.
+   */
+  getGlobalBounds() {
+    const { x, y, w, h } = boundsOf(this.#state);
+    return boxOf(x, y, w, h);
   }
 
   /**
@@ -223,7 +296,7 @@ export class PinParticle {
 }
 
 /**
- * Build the spatial node a Pin is constructed with.
+ * Build the spatial node a Pin is constructed with, over the Pin's element.
  *
  * The mapping from Pin construction options to particle options lives here, next
  * to the constructor that defines their shape, rather than inside the Pin: a
@@ -232,13 +305,17 @@ export class PinParticle {
  *
  * @param {string} id the Pin's id, which the particle carries
  * @param {object} options the Pin's construction options
+ * @param {Element} element the Pin's element, whose core record the particle views
  * @returns {PinParticle}
  */
-export function particleFromOptions(id, options = {}) {
-  if (options.particle instanceof PinParticle) return options.particle;
+export function particleFromOptions(id, options = {}, element = undefined) {
+  if (options.particle instanceof PinParticle) {
+    return element ? options.particle.bindTo(element) : options.particle;
+  }
 
   const particle = new PinParticle({
     id,
+    element,
     x: options.x || 0,
     y: options.y || 0,
     z: options.z || 0,

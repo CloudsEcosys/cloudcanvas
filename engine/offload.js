@@ -23,9 +23,7 @@
  *   - **Root-only evaluation.** Only root Pins are tested, against their correct
  *     `getGlobalBounds()`. Detaching a root's element takes its whole subtree out
  *     of the document with it, so nested Pins ride their root rather than being
- *     tested one by one. (This also sidesteps `ParticleEngine.queryBox`, whose
- *     intersection test compares a nested Pin's *local* bounds against a global
- *     rectangle - correct for roots, wrong for anything nested.)
+ *     tested one by one.
  *   - **Camera-gated.** The sweep runs only when the viewport version moved (or a
  *     new offload Pin was just adopted), never on an idle frame, so the engine's
  *     idle-canvas-zero-writes invariant is preserved: a still camera does no
