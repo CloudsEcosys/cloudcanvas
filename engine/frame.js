@@ -17,12 +17,14 @@
  * expressed in the same context a frame is, just not driven by the clock.
  */
 import { renderSessionCursors } from './cursors.js';
+import { FRAME_MS, frameDelta } from '../core/frame.js';
 
-/** Duration of one reference frame at 60Hz, in milliseconds. */
-export const FRAME_MS = 16.67;
-
-/** Largest frame delta the simulation will accept (guards tab-switch stalls). */
-export const MAX_FRAME_DELTA_MS = 50;
+/**
+ * The clock lives in the core frame (`../core/frame.js`): the two constants
+ * and `frameDelta`, which reads and writes the session's `_lastTs` exactly as
+ * it always did. Re-exported under their old names.
+ */
+export { FRAME_MS, MAX_FRAME_DELTA_MS, frameDelta } from '../core/frame.js';
 
 /** Start the animation loop; a session already running is left alone. */
 export function start(session) {
@@ -129,25 +131,6 @@ export function regraph(session, traitName, fn) {
   }
 
   return pins;
-}
-
-/**
- * Frame delta in reference frames, derived from the rAF timestamp so the
- * simulation advances at the same rate on any display refresh rate.
- */
-export function frameDelta(session, timestamp) {
-  if (!Number.isFinite(timestamp)) {
-    session._lastTs = null;
-    return 1;
-  }
-
-  const previous = session._lastTs;
-  session._lastTs = timestamp;
-
-  if (previous === null) return 1;
-
-  const elapsedMs = Math.min(Math.max(timestamp - previous, 0), MAX_FRAME_DELTA_MS);
-  return elapsedMs / FRAME_MS;
 }
 
 /** One turn of the loop: tick this frame, then ask for the next. */

@@ -1,0 +1,96 @@
+/**
+ * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
+ *
+ * Per-blit engine state: one record per element in a module-level WeakMap, so
+ * the browser owns the lifetime and nothing is ever unregistered. The handle
+ * is cached on the record, which gives `blit(el)` its stable identity.
+ */
+
+/** The marker every blit element carries. */
+export const BLIT_ATTR = 'data-blit';
+
+/** The extra marker on a root's host element. */
+export const ROOT_ATTR = 'data-blit-root';
+
+/** Where a blit's children go when its type declares a scope container. */
+export const SCOPE_ATTR = 'data-scope';
+
+/** The slots a `fill` write lands in, by name. */
+export const SLOT_ATTR = 'data-slot';
+
+/** The placement keys `set()` routes to the port rather than to `data-*`. */
+export const PLACEMENT_KEYS = /* @__PURE__ */ Object.freeze(['x', 'y', 'z', 'w', 'h']);
+
+/** Depth guard on ancestor walks: a malformed tree must never hang a frame. */
+export const MAX_DEPTH = 4096;
+
+/** @type {WeakMap<Element, BlitState>} element -> its engine record */
+const STATES = /* @__PURE__ */ new WeakMap();
+
+/**
+ * @typedef {object} BlitState
+ * @property {Element} el the element this record belongs to
+ * @property {object|null} handle the cached `Blit` handle
+ * @property {number} x local placement, relative to the parent's scope origin
+ * @property {number} y
+ * @property {number} z
+ * @property {number|null} w explicit size, or null when the element sizes itself
+ * @property {number|null} h
+ * @property {number} mw the size last measured in a read phase
+ * @property {number} mh
+ * @property {number} sx the scope container's layout offset inside the element
+ * @property {number} sy
+ * @property {Set<string>} changed keys written since the last port call
+ * @property {boolean} painted whether a port has run for this blit yet
+ * @property {Function|null} port a custom port, or null for the default
+ * @property {object|null} root the frame machinery, present on a root's record only
+ */
+
+/** The record for `element`, or undefined when it is not a blit. */
+export function stateOf(element) {
+  return STATES.get(element);
+}
+
+/** Create the record for an element and mark it `data-blit`; the caller decides what kind. */
+export function createState(element) {
+  const state = {
+    el: element,
+    handle: null,
+    x: 0,
+    y: 0,
+    z: 0,
+    w: null,
+    h: null,
+    mw: 0,
+    mh: 0,
+    sx: 0,
+    sy: 0,
+    changed: new Set(),
+    painted: false,
+    port: null,
+    root: null
+  };
+  STATES.set(element, state);
+  element.setAttribute(BLIT_ATTR, '');
+  return state;
+}
+
+/** The root record the element sits under, or null; read from the DOM, never cached. */
+export function rootOf(state) {
+  const host = state.el.closest ? state.el.closest(`[${ROOT_ATTR}]`) : null;
+  const hostState = host ? STATES.get(host) : null;
+  return hostState ? hostState.root : null;
+}
+
+/** The nearest blit element above `element`, or null. */
+export function parentElementOf(element) {
+  const parent = element.parentElement;
+  return parent ? parent.closest(`[${BLIT_ATTR}]`) : null;
+}
+
+/** Where a blit's children go: its own `[data-scope]`, else the element itself. */
+export function scopeContainerOf(element) {
+  const scope = element.querySelector(`[${SCOPE_ATTR}]`);
+  if (scope && scope.closest(`[${BLIT_ATTR}]`) === element) return scope;
+  return element;
+}

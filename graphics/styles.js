@@ -85,11 +85,7 @@ export function injectSessionStyles(css) {
 }
 
 /**
- * Format a hardware-accelerated 3D transform string
+ * The transform formatter lives in the core (`../core/port.js`, the default
+ * port) and is re-exported here under its old name: one implementation.
  */
-export function formatTransform3D(x, y, z = 0, scale = 1) {
-  if (scale === 1) {
-    return `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, ${z.toFixed(2)}px)`;
-  }
-  return `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, ${z.toFixed(2)}px) scale(${scale.toFixed(4)})`;
-}
+export { formatTransform3D } from '../core/port.js';

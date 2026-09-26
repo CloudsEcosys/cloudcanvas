@@ -23,6 +23,7 @@
  */
 
 import { PRESERVE_TYPE } from '../pins/traits/display-templates.js';
+import { readAttributes } from '../core/spec.js';
 
 /** Namespace every hydration attribute lives under. */
 const ATTR_PREFIX = 'data-cc-';
@@ -59,7 +60,16 @@ const NUMERIC_OPTIONS = new Set(['x', 'y', 'z', 'width', 'height', 'mass', 'fric
 const BOOLEAN_OPTIONS = new Set([
   'chrome', 'bordered', 'draggable', 'selectable', 'selectableText', 'pinned'
 ]);
-const BOOLEAN_VALUES = new Map([['true', true], ['false', false]]);
+
+/** The two sets above plus the error prefix, in the shape the core reader takes. */
+const HYDRATE_KINDS = /* @__PURE__ */ Object.freeze({
+  numeric: NUMERIC_OPTIONS,
+  boolean: BOOLEAN_OPTIONS,
+  label: 'hydrate'
+});
+
+/** The marker is a flag, never an option. */
+const HYDRATE_SKIP = /* @__PURE__ */ new Set([PIN_ATTR]);
 
 /** `Node.ELEMENT_NODE`, named rather than assumed present on a bare object. */
 const ELEMENT_NODE = 1;
@@ -137,48 +147,13 @@ export function hydrate(session, container, selector = HYDRATE_SELECTOR) {
  *
  * `data-cc-` is stripped, the rest is camel-cased (`data-cc-selectable-text` ->
  * `selectableText`), and the marker attribute is not an option. Values are
- * coerced only where the option's type is known; see `NUMERIC_OPTIONS`.
+ * coerced only where the option's type is known; see `NUMERIC_OPTIONS`. The
+ * reader itself is the core's (`../core/spec.js`), parameterised by prefix and
+ * kinds; a numeric option that does not parse throws by attribute name.
  *
  * @param {Element} element
  * @returns {object}
  */
 export function readConfig(element) {
-  const options = {};
-
-  for (const attribute of element.attributes) {
-    if (!attribute.name.startsWith(ATTR_PREFIX) || attribute.name === PIN_ATTR) continue;
-
-    const key = camelCase(attribute.name.slice(ATTR_PREFIX.length));
-    options[key] = coerce(key, attribute.value, attribute.name);
-  }
-
-  return options;
-}
-
-/** `selectable-text` -> `selectableText`. */
-function camelCase(name) {
-  return name.replace(/-([a-z])/g, (_, character) => character.toUpperCase());
-}
-
-/**
- * An attribute value as the option's declared type.
- *
- * A numeric option that did not parse throws rather than reaching the spatial
- * node as `NaN`: a mistyped coordinate silently becoming 0 is a Pin in the wrong
- * place with nothing to read that says so.
- */
-function coerce(key, value, attributeName) {
-  if (NUMERIC_OPTIONS.has(key)) {
-    const number = value.trim() === '' ? NaN : Number(value);
-    if (!Number.isFinite(number)) {
-      throw new TypeError(`hydrate: ${attributeName}="${value}" is not a number`);
-    }
-    return number;
-  }
-
-  if (BOOLEAN_OPTIONS.has(key) && BOOLEAN_VALUES.has(value)) {
-    return BOOLEAN_VALUES.get(value);
-  }
-
-  return value;
+  return readAttributes(element, ATTR_PREFIX, HYDRATE_SKIP, HYDRATE_KINDS);
 }
