@@ -15,6 +15,9 @@
  *   ADVANCED    - the pieces `CloudCanvasSession` already wires for you
  */
 
+// The engine registers nothing on import: this entry installs the built-in
+// traits, cursors, actions and menu commands, so `cloudcanvas` is unchanged.
+import './defaults.js';
 import { CloudCanvasSession } from './engine/session.js';
 
 /* ==========================================================================

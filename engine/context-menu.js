@@ -104,12 +104,12 @@ export function sendToBack(pin) {
 /* ------------------ REGISTRY ------------------ */
 
 /**
- * The commands the framework ships.
+ * The commands the framework ships, installed by `../defaults.js`.
  *
  * Navigation first, because it is what a right-click on the canvas background
  * is for; the z-order pair is Pin-scoped and disappears on empty canvas.
  */
-const BUILT_IN_ITEMS = Object.freeze([
+export const BUILT_IN_MENU_ITEMS = Object.freeze([
   {
     id: 'nav-back',
     label: 'Back',
@@ -164,11 +164,15 @@ export class MenuRegistry {
   constructor() {
     /** @type {Map<string, MenuItem>} insertion-ordered, which is render order */
     this._items = new Map();
-    this._initDefaults();
+    /** @type {Set<(registry: MenuRegistry) => void>} built-in registrars (`../defaults.js`), replayed by `clear()` */
+    this._defaultProviders = new Set();
   }
 
-  _initDefaults() {
-    for (const item of BUILT_IN_ITEMS) this.register(item);
+  /** Run a registrar of built-in commands now and adopt it (a non-function throws first); `clear()` replays it. */
+  registerDefaults(provider) {
+    provider(this);
+    this._defaultProviders.add(provider);
+    return this;
   }
 
   /**
@@ -258,11 +262,7 @@ export class MenuRegistry {
 
   /** @returns {MenuItem[]} the commands nesting under `id`, in registration order */
   childrenOf(id) {
-    const out = [];
-    for (const item of this._items.values()) {
-      if (item.parent === id) out.push(item);
-    }
-    return out;
+    return this.list().filter((item) => item.parent === id);
   }
 
   /** @returns {MenuItem[]} in registration order */
@@ -273,11 +273,11 @@ export class MenuRegistry {
   /** Drop every custom command and restore the built-in set. */
   clear() {
     this._items.clear();
-    this._initDefaults();
+    for (const provider of this._defaultProviders) provider(this);
   }
 }
 
-/** The registry every session reads. One menu, however many canvases. */
+/** The registry every session reads. One menu, however many canvases; empty until `../defaults.js` fills it. */
 export const menuRegistry = new MenuRegistry();
 
 /** Add a command to the canvas menu (see {@link MenuRegistry#register}). */

@@ -11,7 +11,7 @@
  * or a *collection* (blits inside it; a root is one).
  *
  * `set()` routes by key: `x y z w h` to the port, `fill` as text into
- * `[data-slot]`s, `port` to the state, everything else to `data-*`.
+ * `[data-slot]`s, `port`, `with` and `blit.use()` names to `./use.js`, the rest to `data-*`.
  */
 import {
   BLIT_ATTR, PLACEMENT_KEYS, ROOT_ATTR, SLOT_ATTR,
@@ -21,6 +21,7 @@ import { readSpec, writeAttribute } from './spec.js';
 import { PHASES, paint, schedule } from './frame.js';
 import { mountRoot, scanRoot } from './root.js';
 import { defineType, findType, instantiate, isTemplate } from './type.js';
+import { runTraits, specTraits, stopTraits, use, writeTraitKey } from './use.js';
 
 const PLACEMENT = /* @__PURE__ */ new Set(PLACEMENT_KEYS);
 
@@ -59,11 +60,12 @@ export class Blit {
       .map((child) => blit(child));
   }
 
-  /** `data-*` keys, placement and slot text: `parent.blit(b.spec)` reproduces it. */
+  /** `data-*` keys, placement, slot text, named traits and port: `parent.blit(b.spec)` reproduces it. */
   get spec() {
     const s = this.#s;
     const spec = readSpec(s.el);
     for (const key of PLACEMENT_KEYS) delete spec[key];
+    specTraits(s, spec);
 
     spec.x = s.x;
     spec.y = s.y;
@@ -92,12 +94,12 @@ export class Blit {
 
     let measure = false;
     for (const [key, value] of Object.entries(patch)) {
-      if (key === 'port') s.port = typeof value === 'function' ? value : null;
-      else if (PLACEMENT.has(key)) writePlacement(s, key, value);
+      if (PLACEMENT.has(key)) writePlacement(s, key, value);
       else if (key === 'fill') { writeFill(s.el, value); measure = true; }
-      else { writeAttribute(s.el, key, value); measure = true; }
+      else if (!writeTraitKey(s, key, value)) { writeAttribute(s.el, key, value); measure = true; }
       s.changed.add(key);
     }
+    runTraits(s);
 
     // A root or a template paints nothing; a detached blit paints now; an attached one next frame.
     if (s.root || isTemplate(s.el)) { s.changed.clear(); return this; }
@@ -158,6 +160,7 @@ export class Blit {
         const state = stateOf(element);
         root.dirty.delete(state);
         root.measure.delete(state);
+        if (state) stopTraits(state);
       }
     }
     s.el.remove();
@@ -228,6 +231,7 @@ export function blit(target) {
   }
 
   const root = mountRoot(state);
+  runTraits(state);
   for (const found of scanRoot(root)) blit(found);
   return handle;
 }
@@ -249,6 +253,9 @@ export function type(name, definition) {
   if (definition?.defaults) handle.set(definition.defaults);
   return handle;
 }
+
+/** Name traits and ports: `blit.use({drag: fn})`. The one static on `blit`. */
+blit.use = use;
 
 /* ------------------ HELPERS ------------------ */
 
@@ -301,7 +308,7 @@ function adoptPlacement(state) {
   }
 }
 
-/** Join the root the element sits under; a top-level element moves onto the plane. */
+/** Join the root the element sits under; a top-level element moves onto the plane. Its traits start here. */
 function attach(state) {
   const root = rootOf(state);
   if (parentElementOf(state.el) === root.host && state.el.parentElement !== root.plane) {
@@ -310,4 +317,5 @@ function attach(state) {
   root.dirty.add(state);
   root.measure.add(state);
   schedule(root);
+  runTraits(state);
 }

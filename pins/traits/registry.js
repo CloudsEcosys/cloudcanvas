@@ -10,23 +10,10 @@
  *
  * The instance index lives on PinManager (`traitIndex` / `capabilityIndex`), which
  * is the only component that knows which Pins actually exist.
+ *
+ * A registry is empty on construction. The built-in definitions are installed by
+ * `../../defaults.js` through `registerDefaults`, so nothing registers on import.
  */
-
-import { DisplayTrait } from './display.js';
-import { PRESERVE_TYPE } from './display-templates.js';
-import {
-  DraggableTrait,
-  SelectableTrait,
-  FocussableTrait,
-  PhysicsTrait
-} from './interaction.js';
-import {
-  ConnectableTrait,
-  TransmitterTrait,
-  ScopeTrait
-} from './graph.js';
-import { ResizableTrait } from './resizable.js';
-import { SvgStateTrait } from './svg-state.js';
 
 /**
  * Shallow-merge caller options over registered defaults.
@@ -55,35 +42,11 @@ export class TraitRegistry {
     this._definitions = new Map();
 
     /**
-     * Registrars of built-in definitions that live outside this module, replayed
-     * by `clear()`. Cursors register through here: they are built-ins, but
-     * `src/pins/cursor.js` reaches back into this registry to build a cursor Pin,
-     * so it cannot be imported from here without a cycle.
+     * Registrars of built-in definitions, replayed by `clear()`. The built-in
+     * traits and the cursors both arrive this way, from `../../defaults.js`.
      * @type {Set<(registry: TraitRegistry) => void>}
      */
     this._defaultProviders = new Set();
-
-    this._initDefaults();
-  }
-
-  _initDefaults() {
-    this.register('card', DisplayTrait, { name: 'card', displayType: 'card' });
-    this.register('vector-pointer', DisplayTrait, { name: 'vector-pointer', displayType: 'vector-pointer' });
-    this.register('media', DisplayTrait, { name: 'media', displayType: 'media' });
-    this.register('raw', DisplayTrait, { name: 'raw', displayType: 'raw' });
-    // Adopted DOM: a display type that renders nothing, so the markup the caller
-    // already wrote survives every frame (see `./display-templates.js`).
-    this.register(PRESERVE_TYPE, DisplayTrait, { name: PRESERVE_TYPE, displayType: PRESERVE_TYPE });
-    this.register('draggable', DraggableTrait);
-    this.register('selectable', SelectableTrait);
-    // Opt-in, unlike the two above: holding the trait *is* the resize toggle.
-    this.register('resizable', ResizableTrait);
-    this.register('physics', PhysicsTrait);
-    this.register('connectable', ConnectableTrait);
-    this.register('focussable', FocussableTrait);
-    this.register('scope', ScopeTrait);
-    this.register('transmitter', TransmitterTrait);
-    this.register('svg-state', SvgStateTrait);
   }
 
   /**
@@ -154,12 +117,11 @@ export class TraitRegistry {
   /** Drop every custom definition and restore the built-in set. */
   clear() {
     this._definitions.clear();
-    this._initDefaults();
     for (const provider of this._defaultProviders) {
       provider(this);
     }
   }
 }
 
-// Singleton registry shared by Pin.addTrait
+/** The registry `Pin.addTrait` resolves names through; empty until `../../defaults.js` fills it. */
 export const traitRegistry = new TraitRegistry();

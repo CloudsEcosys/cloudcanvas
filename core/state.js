@@ -44,7 +44,10 @@ const STATES = /* @__PURE__ */ new WeakMap();
  * @property {boolean} painted whether a port has run for this blit yet
  * @property {Function|null} port a custom port, or null for the default
  * @property {object|null} root the frame machinery, present on a root's record only
- * @property {Comment|null} anchor the place-holder left in the tree while the element is parked (`./park.js`)
+ * @property {Comment|null} anchor the place-holder left in the tree while the element is parked (`../addons/park.js`)
+ * @property {Function[]|null} with anonymous traits given by value (`./use.js`)
+ * @property {Map<string|Function, Function|null>|null} cleanups the running traits, by name or function
+ * @property {Function|null} traits `(state, run)` once indexed: run or stop the traits of its subtree (`./use.js`)
  */
 
 /** The record for `element`, or undefined when it is not a blit. */
@@ -70,7 +73,10 @@ export function createState(element) {
     painted: false,
     port: null,
     root: null,
-    anchor: null
+    anchor: null,
+    with: null,
+    cleanups: null,
+    traits: null
   };
   STATES.set(element, state);
   element.setAttribute(BLIT_ATTR, '');

@@ -21,7 +21,7 @@
  * conversion is the whole of what this module adds, through `scopeOriginOf`
  * (`./pin-element.js`) - the inverse of the sum `getGlobalBounds` walks.
  */
-import { nodeOf } from '../core/park.js';
+import { nodeOf } from '../addons/park.js';
 import { captureScopeOffset, scopeOriginOf } from './pin-element.js';
 import { placeElement, syncScopePopulation } from './pin-membership.js';
 

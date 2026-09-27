@@ -7,13 +7,13 @@
  * A Pin's element is the one record of where it sits: its parent is the nearest
  * Pin element above it, and its children are the Pins whose elements sit in its
  * scope container, in document order. Nothing here is stored twice - a parked
- * element (`../core/park.js`) is read through the anchor that holds its place,
+ * element (`../addons/park.js`) is read through the anchor that holds its place,
  * so an unmounted, offloaded or demoted Pin keeps its ancestry and its position.
  *
  * Every function takes the Pin as its first argument; `Pin` forwards to them.
  */
 import { MAX_DEPTH, parentElementOf } from '../core/state.js';
-import { parkedStateOf } from '../core/park.js';
+import { parkedStateOf } from '../addons/park.js';
 
 /** @type {WeakMap<Element, import('./pin.js').Pin>} element -> the Pin it belongs to */
 const PIN_OF = /* @__PURE__ */ new WeakMap();

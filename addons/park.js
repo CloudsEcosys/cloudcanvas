@@ -5,10 +5,12 @@
  * tree leaves a Comment anchor in its place. The anchor keeps the element's
  * logical ancestry readable (`parentElementOf` walks through it) and its
  * position among its siblings, so the element returns to exactly where it was.
+ * A core blit's traits stop on the way out and run again on the way back
+ * (`state.traits`, set by `../core/use.js` once it is indexed).
  */
-import { stateOf } from './state.js';
+import { stateOf } from '../core/state.js';
 
-/** @type {WeakMap<Comment, import('./state.js').BlitState>} anchor -> the record it holds a place for */
+/** @type {WeakMap<Comment, import('../core/state.js').BlitState>} anchor -> the record it holds a place for */
 const OWNERS = /* @__PURE__ */ new WeakMap();
 
 /** The record an anchor node holds a place for, or undefined for any other node. */
@@ -23,6 +25,7 @@ export function park(state) {
 
   // Two plain moves rather than `replaceChild`: the same two writes the frame's
   // read/write discipline is observed at, so a park is never an invisible one.
+  state.traits?.(state, false);
   const anchor = element.ownerDocument.createComment(`blit ${element.id || ''}`);
   element.parentNode.insertBefore(anchor, element);
   element.parentNode.removeChild(element);
@@ -41,6 +44,7 @@ export function unpark(state) {
   if (!anchor.parentNode) return false;
   anchor.parentNode.insertBefore(state.el, anchor);
   anchor.parentNode.removeChild(anchor);
+  state.traits?.(state, true);
   return true;
 }
 
@@ -66,6 +70,7 @@ export function place(state, container) {
 
   dropAnchor(state);
   container.appendChild(state.el);
+  state.traits?.(state, true);
   return true;
 }
 
@@ -73,6 +78,7 @@ export function place(state, container) {
 export function detach(state) {
   dropAnchor(state);
   if (!state.el.parentNode) return false;
+  state.traits?.(state, false);
   state.el.parentNode.removeChild(state.el);
   return true;
 }

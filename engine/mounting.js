@@ -20,7 +20,7 @@
  * (`src/pins/reload.js`). These are the mechanics that carry the decision out.
  */
 import { stateOf } from '../core/state.js';
-import { park, place } from '../core/park.js';
+import { park, place } from '../addons/park.js';
 import { DORMANT_CLASS, RELOAD_MODES, resolveRenderMode } from '../pins/reload.js';
 
 /** Depth walk guard: a malformed parent cycle must not hang a frame. */
@@ -29,7 +29,7 @@ export const MAX_DEPTH = 4096;
 /**
  * Place a Pin's element in its parent's scope container, or on the canvas plane
  * when it is a root Pin. A parked element goes back at its anchor, so it keeps
- * its place among its siblings (`../core/park.js`).
+ * its place among its siblings (`../addons/park.js`).
  *
  * @returns {boolean} true when the element ended up inside a container
  */

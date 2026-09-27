@@ -75,9 +75,9 @@ export function readSpec(element) {
   return readAttributes(element, SPEC_PREFIX, SPEC_SKIP, SPEC_KINDS);
 }
 
-/** Write one spec key as a `data-*` attribute, stringified; null or undefined removes it. */
+/** One spec key as a `data-*` attribute: an object as JSON, else stringified; null or undefined removes it. */
 export function writeAttribute(element, key, value) {
   const name = `${SPEC_PREFIX}${kebabCase(key)}`;
   if (value === null || value === undefined) element.removeAttribute(name);
-  else element.setAttribute(name, String(value));
+  else element.setAttribute(name, typeof value === 'object' ? JSON.stringify(value) : String(value));
 }

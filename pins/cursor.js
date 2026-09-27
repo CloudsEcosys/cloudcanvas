@@ -447,9 +447,10 @@ const CURSOR_DEFINITIONS = Object.freeze([
 ]);
 
 /**
- * Register the built-in cursor definitions. Idempotent, so importing this module
- * from several entry points is safe, and a caller that has already re-registered
- * `cursor-focus` with its own class keeps it.
+ * Register the built-in cursor definitions. Idempotent, so a caller that has
+ * already re-registered `cursor-focus` with its own class keeps it. Installed
+ * as a default provider by `../defaults.js`, so `traitRegistry.clear()` brings
+ * the cursors back; nothing registers on import.
  */
 export function registerCursorTraits(registry = traitRegistry) {
   for (const [name, ctor] of CURSOR_DEFINITIONS) {
@@ -457,10 +458,6 @@ export function registerCursorTraits(registry = traitRegistry) {
   }
   return registry;
 }
-
-// Cursors are built-ins that happen to live outside the registry module, so they
-// are installed as a default provider: `traitRegistry.clear()` brings them back.
-traitRegistry.registerDefaults(registerCursorTraits);
 
 /**
  * Build the session's cursor Pin: one utility Pin carrying the three cursor

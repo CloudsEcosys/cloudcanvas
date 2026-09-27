@@ -7,14 +7,14 @@
  * Two ways out, and the difference is the hierarchy. An element that *unmounts*
  * (sleep, offload, demotion) is parked behind a Comment anchor, so the Pin keeps
  * its parent, its place among its siblings, and comes back to the same spot
- * (`../core/park.js`). An element that is *detached* (`removeChild`, `destroy`)
+ * (`../addons/park.js`). An element that is *detached* (`removeChild`, `destroy`)
  * leaves the tree entirely, anchor and all - that is what ends the parent link.
  *
  * Nothing here decides *whether* a Pin should be mounted - that is reload policy
  * (`./reload.js`). Every function takes the Pin as its first argument.
  */
 import { stateOf } from '../core/state.js';
-import { detach, park, place } from '../core/park.js';
+import { detach, park, place } from '../addons/park.js';
 import { DORMANT_CLASS, RELOAD_MODES, resolveReloadMode } from './reload.js';
 import { SCOPE_POPULATED_CLASS } from './pin-element.js';
 

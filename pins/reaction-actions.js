@@ -405,5 +405,5 @@ export function registerBuiltinActions(registry) {
   return registry;
 }
 
-/** The shared registry, built once with the built-in set. */
-export const actionRegistry = registerBuiltinActions(new ActionRegistry());
+/** The shared registry; empty until `../defaults.js` seeds it with the built-in set. */
+export const actionRegistry = new ActionRegistry();
