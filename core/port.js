@@ -1,10 +1,9 @@
 /**
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
- * The default port: the browser painting the element. A port is any
- * `(b, ctx) => void` the write phase calls for a dirty blit. This one writes
- * the transform and any declared size, each only when it moved: five floats
- * against the last write, so a still blit costs no DOM write and no string.
+ * The default port: the browser painting the element. A port is any `(b, ctx) => void` the write phase calls
+ * for a dirty blit. This one writes the transform and any declared size, each only when it moved (five floats
+ * against the last write), so a still blit costs no DOM write and no string.
  */
 import { stateOf } from './state.js';
 
@@ -22,39 +21,27 @@ export function forgetPlacement(element) {
   return APPLIED.delete(element);
 }
 
-/**
- * Paint a blit's placement onto its element. `b` is the handle, or any record
- * with `el x y z` (the engine's Pin state). @returns {boolean} whether it wrote
- */
+/** Paint a blit's placement: `b` is the handle, or any `{el, x, y, z}` (a Pin's state). @returns {boolean} wrote */
 export function defaultPort(b) {
   const element = b.el;
   if (!element.style) return false;
 
   const { x, y, z } = b;
-  let applied = APPLIED.get(element);
-  if (!applied) {
-    applied = new Float64Array(5).fill(NaN);
-    APPLIED.set(element, applied);
-  }
-
+  if (!APPLIED.has(element)) APPLIED.set(element, new Float64Array(5).fill(NaN));
+  const applied = APPLIED.get(element);
   let written = false;
   if (applied[0] !== x || applied[1] !== y || applied[2] !== z) {
     element.style.transform = formatTransform3D(x, y, z);
-    applied[0] = x;
-    applied[1] = y;
-    applied[2] = z;
+    applied.set([x, y, z]);
     written = true;
   }
-
-  if (writeSize(element, stateOf(element), applied)) written = true;
-  return written;
+  return writeSize(element, stateOf(element), applied) || written;
 }
 
 /** Write a declared width and height; an undeclared axis is left to the element. */
 function writeSize(element, state, applied) {
   const { w, h } = state;
   let written = false;
-
   if (w !== null && applied[3] !== w) {
     element.style.width = `${w}px`;
     applied[3] = w;

@@ -71,14 +71,10 @@ function leave(root, nodes) {
 
 /** The parked elements whose anchors are `node` or sit inside it. */
 function parkedIn(node) {
-  if (node.nodeType !== 1 && node.nodeType !== 8) return [];
   const walker = node.ownerDocument.createTreeWalker(node, NodeFilter.SHOW_COMMENT);
   const found = [];
-  for (let comment = node.nodeType === 8 ? node : walker.nextNode(); comment; comment = walker.nextNode()) {
-    const parked = parkedStateOf(comment);
-    if (parked) found.push(parked.el);
-  }
-  return found;
+  for (let each = node; each; each = walker.nextNode()) found.push(parkedStateOf(each)?.el);
+  return found.filter(Boolean);
 }
 
 /** Every element, ancestors first, still under the host joins: a new one is adopted, a known one re-attached. */

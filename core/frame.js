@@ -1,18 +1,11 @@
 /**
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
- * The frame: a structure phase, a read phase, a write phase, and the one loop
- * that runs them. Every root - a `blit('#app')` host or the legacy session -
- * runs on this loop and idles by this one rule.
- *
- * A root asks for a frame only while it has something to do - a dirty blit, a
- * pending measurement, a camera in flight, a pass that says it is busy - and
- * stops the moment it settles; `schedule` is the one way a frame is asked for.
- * The host box is read first, then structure passes may move elements, then
- * every layout read, then every write. Every pass is registered, a blit root's
- * own included (`./root.js`: measure, paint, the camera). Blits need no
- * structure pass - the DOM tree is the hierarchy, so structure happens at the
- * call - and the phase carries the passes an older engine registers.
+ * The frame: structure, read and write phases, and the one loop every root (a `blit('#app')` host or the legacy
+ * session) runs on. A root asks for a frame (`schedule`, the only way) while it has work - a dirty blit, a pending
+ * measurement, a camera in flight, a busy pass - and stops once settled. The host box is read first, then
+ * structure passes (the legacy engine's; blits need none), every layout read, then every write. Every pass is
+ * registered, a blit root's own included (`./root.js`).
  */
 import { defaultPort } from './port.js';
 import { scopeContainerOf } from './state.js';
@@ -37,21 +30,11 @@ export const DEFAULT_HOST_RECT = /* @__PURE__ */ Object.freeze({ width: 800, hei
  */
 export function createRoot(options = {}) {
   const root = {
-    host: options.host || null,
-    plane: options.plane || null,
-    overlay: options.overlay || null,
-    camera: options.camera,
-    hostRect: DEFAULT_HOST_RECT,
-    running: options.running !== false,
-    rafId: null,
-    _lastTs: null,
-    loop: null,
-    frameCount: 0,
-    applied: null,
-    /** @type {Set<object>} states queued for the next write phase */
-    dirty: new Set(),
-    /** @type {Set<object>} states queued for the next read phase */
-    measure: new Set(),
+    host: options.host || null, plane: options.plane || null, overlay: options.overlay || null,
+    camera: options.camera, hostRect: DEFAULT_HOST_RECT, running: options.running !== false,
+    rafId: null, _lastTs: null, loop: null, frameCount: 0, applied: null,
+    /** States queued for the next write (`dirty`) and read (`measure`) phases. */
+    dirty: new Set(), measure: new Set(),
     hooks: { structure: new Set(), read: new Set(), write: new Set(), busy: new Set() },
     /** The promoted view root (null: the host), the blit elements above it, and the id index (`./root.js`). */
     view: null, chain: null, ids: new Map()
@@ -61,30 +44,20 @@ export function createRoot(options = {}) {
 }
 
 /**
- * Frame delta in reference frames (1 = one 60Hz frame) from the rAF timestamp,
- * so motion runs at one rate on any refresh rate. A non-finite timestamp
- * resets the clock's `_lastTs` and counts as one frame.
+ * Frame delta in reference frames (1 = one 60Hz frame) from the rAF timestamp, so motion runs at one rate on
+ * any refresh rate. A non-finite timestamp resets the clock's `_lastTs` and counts as one frame.
  */
 export function frameDelta(clock, timestamp) {
-  if (!Number.isFinite(timestamp)) {
-    clock._lastTs = null;
-    return 1;
-  }
-
   const previous = clock._lastTs;
-  clock._lastTs = timestamp;
-  if (previous === null) return 1;
-
-  const elapsedMs = Math.min(Math.max(timestamp - previous, 0), MAX_FRAME_DELTA_MS);
-  return elapsedMs / FRAME_MS;
+  clock._lastTs = Number.isFinite(timestamp) ? timestamp : null;
+  if (previous === null || clock._lastTs === null) return 1;
+  return Math.min(Math.max(timestamp - previous, 0), MAX_FRAME_DELTA_MS) / FRAME_MS;
 }
 
 /** The idle rule: whether the root has any reason to run another frame. */
 export function needsFrame(root) {
   if (root.dirty.size > 0 || root.measure.size > 0 || root.camera.isAnimating === true) return true;
-  for (const busy of root.hooks.busy) {
-    if (busy()) return true;
-  }
+  for (const busy of root.hooks.busy) if (busy()) return true;
   return false;
 }
 
@@ -114,8 +87,7 @@ export function runFrame(root, dt = 1) {
   // A camera that moves on its own (the motion add-on's) steps here.
   root.camera.update?.(dt * FRAME_MS);
   const cameraMoved = syncCamera(root);
-  // A camera move is the cheapest reliable moment to re-read the host box, and
-  // it is read before any pass moves an element.
+  // A camera move is the cheapest reliable moment to re-read the host box, before any pass moves an element.
   if (cameraMoved && root.host) root.hostRect = root.host.getBoundingClientRect();
   const ctx = { dt, camera: root.camera, hostRect: root.hostRect, cameraMoved };
 
@@ -130,28 +102,19 @@ function syncCamera(root) {
   const { x, y, scale } = root.camera;
   const applied = root.applied;
   if (applied && applied.x === x && applied.y === y && applied.scale === scale) return false;
-
   root.applied = { x, y, scale };
   return true;
 }
 
-/**
- * Empty a queue and run `fn` on each blit still in the document: one removed
- * since it was queued, even by an earlier port in this pass, is skipped.
- */
+/** Empty a queue and run `fn` on each blit still in the document (one removed since, even by a port, is skipped). */
 function drain(queue, fn) {
   if (queue.size === 0) return;
   const states = Array.from(queue);
   queue.clear();
-  for (const state of states) {
-    if (state.el.isConnected) fn(state);
-  }
+  for (const state of states) if (state.el.isConnected) fn(state);
 }
 
-/**
- * A blit root's own read pass: measure every queued blit. Registered first in
- * the read phase by `./root.js`, so a hook's reads follow the root's.
- */
+/** A blit root's own read pass: measure every queued blit. First in the read phase (`./root.js`). */
 export function measureBlits(root) {
   drain(root.measure, measure);
 }
@@ -161,10 +124,7 @@ export function paintBlits(root) {
   drain(root.dirty, (state) => paint(root, state));
 }
 
-/**
- * Read one blit's layout box, and where its scope container sits inside it.
- * `offsetWidth/Height` are layout-space, unaffected by the plane's zoom.
- */
+/** Read one blit's layout box (`offset*`: layout space, unaffected by zoom) and its scope container's offset. */
 function measure(state) {
   const element = state.el;
   const width = element.offsetWidth;
@@ -181,10 +141,7 @@ function measure(state) {
   }
 }
 
-/**
- * Hand one blit to its port. A size the port wrote is re-read next frame, so
- * the declared and measured boxes never disagree for long.
- */
+/** Hand one blit to its port. A size the port wrote is re-read next frame, so declared and measured agree. */
 export function paint(root, state) {
   const port = state.port || defaultPort;
   const resized = state.changed.has('w') || state.changed.has('h');

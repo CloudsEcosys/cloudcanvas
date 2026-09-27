@@ -1,11 +1,9 @@
 /**
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
- * `data-*` <-> spec: the one conversion between attributes and the plain object
- * a blit is described by. Only declared kinds are coerced (placement is
- * numeric); a numeric key that does not parse throws rather than reaching the
- * port as `NaN`. Prefix and kinds are parameters so the legacy `data-cc-*`
- * hydration (`../engine/hydrate.js`) reads through the same code.
+ * `data-*` <-> spec: the one conversion between attributes and the plain object a blit is described by. Only
+ * declared kinds are coerced (placement is numeric); a numeric key that does not parse throws rather than reaching
+ * the port as `NaN`. Prefix and kinds are parameters so the legacy `data-cc-*` hydration reads through it too.
  */
 import { BLIT_ATTR, PLACEMENT_KEYS, ROOT_ATTR } from './state.js';
 
@@ -29,8 +27,6 @@ export const SPEC_PREFIX = 'data-';
 /** The markers that are flags on the element, never spec keys. */
 const SPEC_SKIP = /* @__PURE__ */ new Set([BLIT_ATTR, ROOT_ATTR]);
 
-const BOOLEAN_VALUES = /* @__PURE__ */ new Map([['true', true], ['false', false]]);
-
 /** `selectable-text` -> `selectableText`. */
 export function camelCase(name) {
   return name.replace(/-([a-z])/g, (_, character) => character.toUpperCase());
@@ -42,9 +38,8 @@ export function kebabCase(name) {
 }
 
 /**
- * A raw attribute value as its camel-cased key's declared kind. `kinds` is
- * required, so a caller that never uses the core's own never bundles them.
- * @param {AttributeKinds} kinds
+ * A raw attribute value as its camel-cased key's declared kind. `kinds` is required, so a caller that never uses
+ * the core's own never bundles them. @param {AttributeKinds} kinds
  * @throws {TypeError} when a numeric key does not hold a finite number
  */
 export function coerce(key, value, attributeName, kinds) {
@@ -53,13 +48,10 @@ export function coerce(key, value, attributeName, kinds) {
     if (Number.isFinite(number)) return number;
     throw new TypeError(`${kinds.label}: ${attributeName}="${value}" is not a number`);
   }
-  return kinds.boolean.has(key) && BOOLEAN_VALUES.has(value) ? BOOLEAN_VALUES.get(value) : value;
+  return kinds.boolean.has(key) && (value === 'true' || value === 'false') ? value === 'true' : value;
 }
 
-/**
- * Every attribute under `prefix`, except the `skip` flags, as a camel-cased,
- * coerced key. @returns {object}
- */
+/** Every attribute under `prefix`, except the `skip` flags, as a camel-cased, coerced key. @returns {object} */
 export function readAttributes(element, prefix, skip, kinds) {
   const spec = {};
   for (const attribute of element.attributes) {

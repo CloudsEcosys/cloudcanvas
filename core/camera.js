@@ -1,22 +1,14 @@
 /**
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
- * The camera: pan, zoom and the fit behind `view()`. Every move snaps.
- *
- * The view is a 4x4 column-major matrix (`matrix`), the shape the Phase 12
- * perspective camera fills; the plane's CSS transform reads the same numbers.
- * Eased moves and the screen <-> canvas projection are the motion add-on's
- * (`../addons/motion.js`), which the legacy `Viewport` extends.
+ * The camera: pan, zoom and the fit behind `view()`. Every move snaps. The view is a 4x4 column-major `matrix`,
+ * the shape the Phase 12 perspective camera fills; the plane's CSS transform reads the same numbers. Eased moves
+ * and the screen <-> canvas projection are the motion add-on's (`../addons/motion.js`), which `Viewport` extends.
  */
-
-/** The host box assumed when a caller has none. */
-const HOST = /* @__PURE__ */ Object.freeze({ width: 800, height: 600 });
 
 /** The first value that reads as a finite number (null never does), or null. */
 function firstFinite(...values) {
-  for (const value of values) {
-    if (value !== null && Number.isFinite(Number(value))) return Number(value);
-  }
+  for (const value of values) if (value !== null && Number.isFinite(Number(value))) return Number(value);
   return null;
 }
 
@@ -25,21 +17,14 @@ function span(far, near) {
   return far === null ? NaN : Number(far) - near;
 }
 
-/**
- * Read `{minX,minY,maxX,maxY}`, `{x,y,width,height}` or a DOMRect-like
- * `{left,top,right,bottom}`. A box that describes nothing throws rather than
- * framing the origin.
- */
+/** Read `{minX,minY,maxX,maxY}`, `{x,y,width,height}` or a DOMRect-like box; one describing nothing throws. */
 function readBox(bounds) {
-  if (!bounds || typeof bounds !== 'object') {
-    throw new TypeError('zoomToFit: bounds must be a box object');
-  }
+  if (!bounds || typeof bounds !== 'object') throw new TypeError('zoomToFit: bounds must be a box object');
   const x = firstFinite(bounds.minX, bounds.x, bounds.left);
   const y = firstFinite(bounds.minY, bounds.y, bounds.top);
   const w = firstFinite(bounds.width, span(bounds.maxX, x), span(bounds.right, x));
   const h = firstFinite(bounds.height, span(bounds.maxY, y), span(bounds.bottom, y));
-
-  if (x === null || y === null || w === null || h === null) {
+  if ([x, y, w, h].includes(null)) {
     throw new TypeError('zoomToFit: bounds needs {minX,minY,maxX,maxY}, {x,y,width,height} or a DOMRect');
   }
   return { x, y, w, h };
@@ -80,19 +65,17 @@ export class Camera {
     const oldScale = this.scale;
     const scale = this.clamp(oldScale * factor);
     if (scale === oldScale) return;
-
     this.x = focalX - ((focalX - this.x) / oldScale) * scale;
     this.y = focalY - ((focalY - this.y) / oldScale) * scale;
     this.scale = scale;
   }
 
   /**
-   * The camera that frames a box inside the host, centred, with `padding`
-   * (60) clearance and a `maxZoom` (2.5) ceiling. Moves nothing.
-   * @returns {{x: number, y: number, scale: number}}
+   * The camera that frames a box inside the host (800x600 by default), centred, with `padding` (60) clearance
+   * and a `maxZoom` (2.5) ceiling. Moves nothing. @returns {{x: number, y: number, scale: number}}
    * @throws {TypeError} when `bounds` describes no box at all
    */
-  fitTarget(bounds, hostRect = HOST, options = {}) {
+  fitTarget(bounds, hostRect = {}, options = {}) {
     const { x, y, w, h } = readBox(bounds);
     const padding = options.padding !== undefined ? Number(options.padding) : 60;
     const hostW = hostRect.width || 800;
@@ -112,11 +95,7 @@ export class Camera {
     return target;
   }
 
-  /**
-   * The view as a 4x4 column-major matrix (the WebGL / DOMMatrix layout),
-   * fresh per read so a caller may mutate it.
-   * @returns {Float64Array}
-   */
+  /** The view as a 4x4 column-major matrix (the WebGL / DOMMatrix layout), fresh per read. @returns {Float64Array} */
   get matrix() {
     const s = this.scale;
     return Float64Array.of(s, 0, 0, 0, 0, s, 0, 0, 0, 0, 1, 0, this.x, this.y, 0, 1);

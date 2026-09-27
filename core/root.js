@@ -1,31 +1,22 @@
 /**
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
- * The root: what `blit('#app')` does to its host element. Two layers go inside
- * the host - the plane, which carries the camera transform and every blit, and
- * the overlay, drawn in screen space on top - and the frame machinery lives on
- * the host's own state. Existing layers are adopted, so a second `blit()` over
- * the host is the same root. The host is itself a blit: `app.blits` are the
- * plane's direct blits.
- * A root renders one blit as its world (`view`) and indexes its blits by id, parked ones included.
+ * The root: what `blit('#app')` does to its host. Two layers go inside it - the plane, carrying the camera
+ * transform and every blit, and the screen-space overlay on top (existing layers are adopted) - and the frame
+ * machinery lives on the host's state. The host is itself a blit (`app.blits` are the plane's direct blits); it
+ * renders one blit as its world (`view`) and indexes its blits by id, parked ones included.
  */
 import { Camera } from './camera.js';
 import { OVERLAY_ATTR, PLANE_ATTR, injectCoreStyles } from './css.js';
 import { DEFAULT_HOST_RECT, createRoot, measureBlits, paintBlits, schedule } from './frame.js';
 import { formatTransform3D } from './port.js';
-import {
-  BLIT_ATTR, MAX_DEPTH, ROOT_ATTR, isWithin, parentElementOf, rootOf, stateOf
-} from './state.js';
+import { BLIT_ATTR, MAX_DEPTH, ROOT_ATTR, isWithin, parentElementOf, rootOf, stateOf } from './state.js';
 import { runTraits, stopTraits } from './use.js';
-
-/** @type {WeakMap<Element, string>} element -> the id its root indexes it under */
-const INDEXED = /* @__PURE__ */ new WeakMap();
 
 /** The existing direct child carrying `attribute`, or a fresh one appended. */
 function adoptOrCreate(host, attribute) {
   const existing = host.querySelector(`:scope > [${attribute}]`);
   if (existing) return existing;
-
   const element = document.createElement('div');
   element.setAttribute(attribute, '');
   host.appendChild(element);
@@ -38,17 +29,11 @@ export function mountRoot(state) {
   injectCoreStyles();
   host.setAttribute(ROOT_ATTR, '');
 
-  const root = createRoot({
-    host,
-    plane: adoptOrCreate(host, PLANE_ATTR),
-    overlay: adoptOrCreate(host, OVERLAY_ATTR),
-    camera: new Camera()
-  });
+  const plane = adoptOrCreate(host, PLANE_ATTR);
+  const root = createRoot({ host, plane, overlay: adoptOrCreate(host, OVERLAY_ATTR), camera: new Camera() });
   root.hostRect = hostRectOf(host);
   root.demoted = new Set();
-  // The root's own passes, registered before any hook can be: its blits are
-  // measured first in the read phase, painted first in the write phase, and the
-  // camera transform follows the ports.
+  // The root's own passes, registered before any hook: measure first, paint first, then the camera transform.
   root.hooks.read.add(() => measureBlits(root));
   root.hooks.write.add(() => paintBlits(root));
   root.hooks.write.add((ctx) => planePass(root, ctx));
@@ -73,9 +58,7 @@ function hostRectOf(host) {
 /** Join the root the element sits under; a top-level element moves onto the plane. Its traits start here. */
 export function attachBlit(state) {
   const root = rootOf(state);
-  if (parentElementOf(state.el) === root.host && state.el.parentElement !== root.plane) {
-    root.plane.appendChild(state.el);
-  }
+  if (parentElementOf(state.el) === root.host && state.el.parentElement !== root.plane) root.plane.appendChild(state.el);
   root.dirty.add(state);
   root.measure.add(state);
   indexBlit(root, state.el);
@@ -107,18 +90,19 @@ export function releaseBlits(root, element) {
   for (const indexed of parked) unindexBlit(root, indexed);
 }
 
-/** Index `element` under `id` (its own by default), replacing any entry it had; no id, no entry. */
+/** Index blit `element` under `id` (its own by default), replacing any entry it had; no id, no entry. */
 export function indexBlit(root, element, id = element.id) {
   unindexBlit(root, element);
-  if (!id) return;
+  const state = stateOf(element);
+  if (!id || !state) return;
   root.ids.set(String(id), element);
-  INDEXED.set(element, String(id));
+  state.id = String(id);
 }
 
-/** Drop `element`'s entry, if it still holds it (a stale id in `INDEXED` then matches nothing). */
+/** Drop `element`'s entry, if it still holds it (a stale `state.id` then matches nothing). */
 export function unindexBlit(root, element) {
-  const id = INDEXED.get(element);
-  if (id !== undefined && root.ids.get(id) === element) root.ids.delete(id);
+  const id = stateOf(element)?.id;
+  if (id && root.ids.get(id) === element) root.ids.delete(id);
 }
 
 /** The blit element indexed under `id`, else a `[data-blit]` under the host carrying it, else null. */

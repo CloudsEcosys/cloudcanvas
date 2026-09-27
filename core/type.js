@@ -22,10 +22,7 @@ const TRAITS = /* @__PURE__ */ new Map();
  * @throws {TypeError} on a bad name or `with`, or on redefining a name with other markup
  */
 export function defineType(name, definition = null) {
-  if (typeof name !== 'string' || name.length === 0) {
-    throw new TypeError('type: name must be a non-empty string');
-  }
-
+  if (typeof name !== 'string' || !name) throw new TypeError('type: name must be a non-empty string');
   const existing = findType(name);
   if (!definition) return existing;
 

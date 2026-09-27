@@ -13,9 +13,7 @@ import {
 } from './state.js';
 import { readSpec, writeAttribute } from './spec.js';
 import { PHASES, paint, schedule } from './frame.js';
-import {
-  allows, attachBlit, demoteOthers, findBlit, heldRootOf, mountRoot, releaseBlits, setViewRoot
-} from './root.js';
+import { allows, attachBlit, demoteOthers, findBlit, heldRootOf, mountRoot, releaseBlits, setViewRoot } from './root.js';
 import { defineType, findType, instantiate, isTemplate } from './type.js';
 import { runTraits, specTraits, use, writeTraitKey } from './use.js';
 
@@ -53,7 +51,7 @@ export class Blit {
     const element = this.#s.el;
     return Array.from(element.querySelectorAll(`[${BLIT_ATTR}]`))
       .filter((child) => parentElementOf(child) === element)
-      .map((child) => blit(child));
+      .map(blit);
   }
 
   /** `data-*` keys, placement, slot text, named traits and port: `parent.blit(b.spec)` reproduces it. */
@@ -62,17 +60,13 @@ export class Blit {
     const spec = readSpec(s.el);
     for (const key of PLACEMENT_KEYS) delete spec[key];
     specTraits(s, spec);
-
     spec.x = s.x;
     spec.y = s.y;
     if (s.z !== 0) spec.z = s.z;
     if (s.w !== null) spec.w = s.w;
     if (s.h !== null) spec.h = s.h;
-
-    const slots = ownSlots(s.el);
-    if (slots.length > 0) {
-      spec.fill = Object.fromEntries(slots.map((slot) => [slot.getAttribute(SLOT_ATTR), slotValue(slot)]));
-    }
+    const fill = ownSlots(s.el).map((slot) => [slot.getAttribute(SLOT_ATTR), slotValue(slot)]);
+    if (fill.length > 0) spec.fill = Object.fromEntries(fill);
     return spec;
   }
 
@@ -108,7 +102,6 @@ export class Blit {
     const s = this.#s;
     const template = spec.type === undefined ? null : findType(spec.type);
     if (spec.type !== undefined && !template) throw new TypeError(`blit: unknown type "${spec.type}"`);
-
     const element = instantiate(template);
     const child = new Blit(createState(element));
     const defaults = template ? blit(template).spec : {};
@@ -129,8 +122,7 @@ export class Blit {
 
   /** Dispatch a bubbling, cancelable `CustomEvent`, `detail = {payload, source}`; returned for `defaultPrevented`. */
   emit(type, payload = null) {
-    const detail = { payload, source: this };
-    const event = new CustomEvent(type, { bubbles: true, cancelable: true, detail });
+    const event = new CustomEvent(type, { bubbles: true, cancelable: true, detail: { payload, source: this } });
     this.#s.el.dispatchEvent(event);
     return event;
   }
@@ -193,8 +185,6 @@ export class Blit {
   }
 }
 
-/* ------------------ THE TWO EXPORTS ------------------ */
-
 /**
  * The handle for an element: the cached one; else a root over a host (a selector, or an element under no root),
  * a child adopted into the root it sits under, or a potential blit (detached, or a `<template>`).
@@ -203,9 +193,7 @@ export class Blit {
  */
 export function blit(target) {
   const element = typeof target === 'string' ? document.querySelector(target) : (target instanceof Blit ? target.el : target);
-  if (!element || element.nodeType !== 1) {
-    throw new TypeError(`blit: no element for ${String(target)}`);
-  }
+  if (!element || element.nodeType !== 1) throw new TypeError(`blit: no element for ${String(target)}`);
 
   // A record made without a handle (the Pin engine's element state) gets one here.
   const existing = stateOf(element);
@@ -213,15 +201,11 @@ export function blit(target) {
 
   const state = createState(element);
   const handle = new Blit(state);
-  if (isTemplate(element) || !element.isConnected) {
-    adoptPlacement(state);
-    return handle;
-  }
-
+  const potential = isTemplate(element) || !element.isConnected;
   const hostElement = element.parentElement?.closest(`[${ROOT_ATTR}]`);
-  if (hostElement && stateOf(hostElement)) {
+  if (potential || (hostElement && stateOf(hostElement))) {
     adoptPlacement(state);
-    attachBlit(state);
+    if (!potential) attachBlit(state);
     return handle;
   }
 
@@ -241,7 +225,6 @@ export function blit(target) {
 export function type(name, definition) {
   const template = defineType(name, definition);
   if (!template) return null;
-
   const handle = blit(template);
   if (definition?.defaults) handle.set(definition.defaults);
   return handle;
@@ -250,17 +233,11 @@ export function type(name, definition) {
 /** Name traits and ports: `blit.use({drag: fn})`. The one static on `blit`. */
 blit.use = use;
 
-/* ------------------ HELPERS ------------------ */
-
 /** A placement key as a number; `w`/`h` also take null to undeclare a size. */
 function writePlacement(state, key, value) {
-  if ((key === 'w' || key === 'h') && (value === null || value === undefined)) {
-    state[key] = null;
-    return;
-  }
-  const number = Number(value);
-  if (!Number.isFinite(number)) throw new TypeError(`blit.set: ${key}=${String(value)} is not a number`);
-  state[key] = number;
+  const unset = (key === 'w' || key === 'h') && (value === null || value === undefined);
+  if (!unset && !Number.isFinite(Number(value))) throw new TypeError(`blit.set: ${key}=${String(value)} is not a number`);
+  state[key] = unset ? null : Number(value);
 }
 
 /** Text into the element's own slots; markup only into a slot its template marks `data-slot-html`. */

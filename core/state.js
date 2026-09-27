@@ -1,18 +1,13 @@
 /**
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
- * Per-blit engine state: one record per element in a module-level WeakMap, so
- * the browser owns the lifetime and nothing is ever unregistered. The handle
- * is cached on the record, which gives `blit(el)` its stable identity.
+ * Per-blit engine state: one record per element in a module WeakMap, so the browser owns the lifetime and nothing
+ * is ever unregistered. The handle is cached on the record, which gives `blit(el)` its stable identity.
  */
 
-/** The marker every blit element carries. */
+/** The markers: every blit; a root's host; where a blit's children go when its type declares a scope container. */
 export const BLIT_ATTR = 'data-blit';
-
-/** The extra marker on a root's host element. */
 export const ROOT_ATTR = 'data-blit-root';
-
-/** Where a blit's children go when its type declares a scope container. */
 export const SCOPE_ATTR = 'data-scope';
 
 /** The slots a `fill` write lands in, by name; as text unless the template marks the slot `data-slot-html`. */
@@ -49,6 +44,7 @@ const STATES = /* @__PURE__ */ new WeakMap();
  * @property {Function[]|null} with anonymous traits given by value (`./use.js`)
  * @property {Map<string|Function, Function|null>|null} cleanups the running traits, by name or function
  * @property {Function|null} traits `(state, run)` once indexed: run or stop the traits of its subtree (`./use.js`)
+ * @property {string|null} id the id its root indexes it under, not always `el.id` (`./root.js`)
  */
 
 /** The record for `element`, or undefined when it is not a blit. */
@@ -59,25 +55,8 @@ export function stateOf(element) {
 /** Create the record for an element and mark it `data-blit`; the caller decides what kind. */
 export function createState(element) {
   const state = {
-    el: element,
-    handle: null,
-    x: 0,
-    y: 0,
-    z: 0,
-    w: null,
-    h: null,
-    mw: 0,
-    mh: 0,
-    sx: 0,
-    sy: 0,
-    changed: new Set(),
-    painted: false,
-    port: null,
-    root: null,
-    anchor: null,
-    with: null,
-    cleanups: null,
-    traits: null
+    el: element, handle: null, x: 0, y: 0, z: 0, w: null, h: null, mw: 0, mh: 0, sx: 0, sy: 0, changed: new Set(),
+    painted: false, port: null, root: null, anchor: null, with: null, cleanups: null, traits: null, id: null
   };
   STATES.set(element, state);
   element.setAttribute(BLIT_ATTR, '');
@@ -86,16 +65,13 @@ export function createState(element) {
 
 /** The root record the element sits under, or null; read from the DOM, never cached. */
 export function rootOf(state) {
-  const host = state.el.closest ? state.el.closest(`[${ROOT_ATTR}]`) : null;
-  const hostState = host ? STATES.get(host) : null;
-  return hostState ? hostState.root : null;
+  const host = state.el.closest(`[${ROOT_ATTR}]`);
+  return (host && STATES.get(host)?.root) || null;
 }
 
 /** The node `element` hangs from: its anchor's parent while parked, else its own. */
 export function parentNodeOf(element) {
-  const state = STATES.get(element);
-  const anchor = state ? state.anchor : null;
-  return anchor && anchor.parentNode ? anchor.parentNode : element.parentNode;
+  return STATES.get(element)?.anchor?.parentNode || element.parentNode;
 }
 
 /** The nearest blit element above `element`, read through its anchor when parked, or null. */
