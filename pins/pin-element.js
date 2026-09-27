@@ -604,7 +604,7 @@ export function measureLayout(pin) {
   const width = pin.element.offsetWidth;
   const height = pin.element.offsetHeight;
   if (width > 0 && height > 0) {
-    pin.particle.setSize(width, height);
+    pin.particle.setMeasured(width, height);
     // Only a Pin with a real layout box has a live origin to read; an unlaid-out
     // one keeps `_flowOrigin` null and falls back to its particle in `globalBoundsOf`.
     captureFlowOrigin(pin);

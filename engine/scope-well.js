@@ -30,6 +30,7 @@
  * moment a value repeats.
  */
 import { SCOPE_POPULATED_CLASS } from '../pins/pin-element.js';
+import { forEachChild } from '../pins/pin-hierarchy.js';
 
 /**
  * Per-renderer scope-well state: what was last written, and which parents are
@@ -137,15 +138,18 @@ export function isFlowParent(parent) {
  * @returns {{height: number, populated: boolean}}
  */
 export function extentOf(parent, isLive) {
-  let extent = 0;
-  let populated = false;
+  // The allocation-free child walk, not the `children` Set; read-only, so it
+  // honours `forEachChild`'s no-reorder contract. One small accumulator per
+  // dirty parent replaces a whole Set of every child.
+  const acc = { extent: 0, populated: false };
+  forEachChild(parent, accumulateExtent, acc, isLive);
+  return { height: Math.ceil(acc.extent), populated: acc.populated };
+}
 
-  for (const child of parent.children) {
-    if (!isLive(child)) continue;
-    populated = true;
-    const bottom = child.particle.y + child.particle.height;
-    if (bottom > extent) extent = bottom;
-  }
-
-  return { height: Math.ceil(extent), populated };
+/** `forEachChild` visitor for `extentOf`: fold one live child into the extent. */
+function accumulateExtent(child, acc, isLive) {
+  if (!isLive(child)) return;
+  acc.populated = true;
+  const bottom = child.particle.y + child.particle.height;
+  if (bottom > acc.extent) acc.extent = bottom;
 }

@@ -2,47 +2,65 @@
  * CloudCanvas - NeoTec, LLC, Richard Christopher
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
- * The frame: one simulation-and-render step, the loop that repeats it, and the
- * context both are expressed in.
+ * The session on the core frame (`../core/frame.js`): the root it runs on, the
+ * passes it adds to the renderer's (`./passes.js`), the context every pass is
+ * expressed in, and the start/stop of the one loop.
  *
- * The session owns the loop's *state* - `running`, `rafId`, `_lastTs`, and the
- * `_appliedViewport` triple the camera is diffed against; this module owns the
- * transitions, the same way `./navigation.js` owns focus transitions and
- * `./pointer.js` owns gesture ones. Free functions taking the session first.
- *
- * The order inside `tick` is the whole of it: the camera is advanced and
- * published *before* the context is built, so every consumer of that frame -
- * traits, the render gating, the cursors - reads one camera rather than two.
- * `regraph` sits here for the same reason: it is a render pass over the graph,
- * expressed in the same context a frame is, just not driven by the clock.
+ * The session contributes three passes and one busy rule: physics and trait
+ * ticks in the read phase (before measurement), cursors last in the write phase
+ * (on top of final geometry), and a live physics drift as a reason to keep
+ * running. Everything else - waking on an edit, a move, a camera flight - is the
+ * core's `schedule`, reached through the renderer's `wake` and the camera's
+ * `onWake`. `regraph` sits here too: a render pass over the graph, expressed in
+ * the frame's context, just not driven by the clock.
  */
 import { renderSessionCursors } from './cursors.js';
-import { FRAME_MS, frameDelta } from '../core/frame.js';
+import { createRoot, runFrame, schedule } from '../core/frame.js';
 
 /**
- * The clock lives in the core frame (`../core/frame.js`): the two constants
- * and `frameDelta`, which reads and writes the session's `_lastTs` exactly as
- * it always did. Re-exported under their old names.
+ * The session's frame root: its viewport is the camera, and it is born stopped
+ * so a session constructed without a container renders only by hand until mount.
  */
-export { FRAME_MS, MAX_FRAME_DELTA_MS, frameDelta } from '../core/frame.js';
-
-/** Start the animation loop; a session already running is left alone. */
-export function start(session) {
-  if (session.running) return;
-  session.running = true;
-  session._lastTs = null;
-  if (typeof requestAnimationFrame !== 'undefined') {
-    session.rafId = requestAnimationFrame(session._loop);
-  }
+export function createSessionFrame(session) {
+  return createRoot({ camera: session.viewport, running: false });
 }
 
-/** Stop the animation loop and cancel the frame already asked for. */
+/** The passes the session threads into the renderer's registration (`./passes.js`). */
+export function sessionPasses(session) {
+  return {
+    context: () => frameContext(session),
+    read: [
+      (ctx) => stepPhysics(session, ctx.dt),
+      (ctx) => session.pinManager.tickAll(ctx.dt, session.renderer.context)
+    ],
+    write: [() => renderSessionCursors(session, session.renderer.context)],
+    busy: [() => hasLiveMotion(session)]
+  };
+}
+
+/** Start the loop; a session already running is left alone. */
+export function start(session) {
+  const root = session._frame;
+  if (root.running) return;
+  root.running = true;
+  root._lastTs = null;
+  // A freshly mounted session always has work; the loop idles once it settles.
+  schedule(root);
+}
+
+/** Stop the loop and cancel the frame already asked for. */
 export function stop(session) {
-  session.running = false;
-  if (session.rafId && typeof cancelAnimationFrame !== 'undefined') {
-    cancelAnimationFrame(session.rafId);
-    session.rafId = null;
+  const root = session._frame;
+  root.running = false;
+  if (root.rafId !== null && typeof cancelAnimationFrame !== 'undefined') {
+    cancelAnimationFrame(root.rafId);
   }
+  root.rafId = null;
+}
+
+/** Execute one frame by hand. `dt` is in reference frames (1 = one 60Hz frame). */
+export function tick(session, dt = 1) {
+  return runFrame(session._frame, dt);
 }
 
 /** The per-frame context handed to every trait, render pass, and cursor. */
@@ -50,7 +68,7 @@ export function frameContext(session) {
   return {
     session,
     viewport: session.viewport,
-    hostRect: session._hostRect,
+    hostRect: session.getHostRect(),
     svgLayer: session.svgLayerElement,
     overlay: session.overlayElement,
     focusedPin: session.focusedPin,
@@ -63,54 +81,26 @@ export function frameContext(session) {
 }
 
 /**
- * Execute one simulation & render frame.
- * `dt` is expressed in reference frames (1 = one 60Hz frame).
+ * Advance physics. A particle about to move (unpinned, with velocity) marks its
+ * Pin for placement first, so the write phase places exactly the Pins that moved.
  */
-export function tick(session, dt = 1) {
-  // 1. Advance camera animation (real milliseconds), then publish the result
-  //    so the frame's context and the render gating agree on one camera.
-  session.viewport.update(dt * FRAME_MS);
-  syncViewportVersion(session);
-
-  const context = frameContext(session);
-
-  // 2. Advance particle physics
-  session.particleEngine.tick(dt);
-
-  // 3. Step Pin traits & hierarchy
-  session.pinManager.tickAll(dt, context);
-
-  // 4. Conjugate render pass (structure -> batched reads -> writes), including
-  //    the canvas plane transform and the per-trait global SVG groups.
-  session.renderer.frame(context);
-
-  // 5. Cursors, in screen space on top of everything. Runs after the frame so
-  //    it sees final geometry, and while the frame's dirt is still readable.
-  renderSessionCursors(session, context);
+function stepPhysics(session, dt) {
+  const engine = session.particleEngine;
+  const manager = session.pinManager;
+  for (const particle of engine.pins.values()) {
+    if (particle.pinned || (particle.vx === 0 && particle.vy === 0)) continue;
+    const pin = manager.pins.get(manager.particleToPin.get(particle.id));
+    if (pin) session.renderer.invalidate(pin, 'placement');
+  }
+  engine.tick(dt);
 }
 
-/**
- * Tell the renderer the camera moved, by comparing the live viewport triple
- * against the one last handed over. Pan, zoom, and animation steps all land
- * here, so no call site has to remember to invalidate.
- *
- * A camera move is also the cheapest reliable moment to re-read the host box:
- * it is rare, and every screen-space projection downstream depends on it.
- *
- * @returns {boolean} true when the camera had in fact moved
- */
-export function syncViewportVersion(session) {
-  const { x, y, scale } = session.viewport;
-  const applied = session._appliedViewport;
-
-  if (applied && applied.x === x && applied.y === y && applied.scale === scale) {
-    return false;
+/** True when an awake, unpinned physics Pin is drifting and so owes a frame. */
+function hasLiveMotion(session) {
+  for (const pin of session.pinManager.indexedByCapability('floatable')) {
+    if (pin.active && pin.particle && !pin.particle.pinned) return true;
   }
-
-  session._appliedViewport = { x, y, scale };
-  session._refreshHostRect();
-  session.renderer.bumpViewportVersion();
-  return true;
+  return false;
 }
 
 /**
@@ -131,13 +121,4 @@ export function regraph(session, traitName, fn) {
   }
 
   return pins;
-}
-
-/** One turn of the loop: tick this frame, then ask for the next. */
-export function loopStep(session, timestamp) {
-  if (!session.running) return;
-  session.tick(frameDelta(session, timestamp));
-  if (typeof requestAnimationFrame !== 'undefined') {
-    session.rafId = requestAnimationFrame(session._loop);
-  }
 }

@@ -17,7 +17,15 @@ export function formatTransform3D(x, y, z = 0, scale = 1) {
   return scale === 1 ? translate : `${translate} scale(${scale.toFixed(4)})`;
 }
 
-/** Paint a blit's placement onto its element. @returns {boolean} whether it wrote */
+/** Forget the last placement written for an element, so the next port call writes it in full. */
+export function forgetPlacement(element) {
+  return APPLIED.delete(element);
+}
+
+/**
+ * Paint a blit's placement onto its element. `b` is the handle, or any record
+ * with `el x y z` (the engine's Pin state). @returns {boolean} whether it wrote
+ */
 export function defaultPort(b) {
   const element = b.el;
   if (!element.style) return false;

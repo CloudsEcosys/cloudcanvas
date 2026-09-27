@@ -109,7 +109,7 @@ export function runOffloadSweep(renderer, context) {
 
   const session = renderer.session;
   const viewport = context.viewport || (session ? session.viewport : null);
-  const hostRect = context.hostRect || (session ? session._hostRect : null);
+  const hostRect = context.hostRect || (session ? session.getHostRect() : null);
 
   const changed = renderer.offloadPass.sweep({
     renderer,

@@ -1,15 +1,20 @@
 /**
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
- * The frame: one read phase, one write phase, and the loop that runs them.
+ * The frame: a structure phase, a read phase, a write phase, and the one loop
+ * that runs them. Every root - a `blit('#app')` host or the legacy session -
+ * runs on this loop and idles by this one rule.
  *
  * A root asks for a frame only while it has something to do - a dirty blit, a
- * pending measurement, a camera in flight - and stops the moment it settles.
- * Every layout read comes before the first port write. Structure (creating and
- * removing elements) is not a phase: it happens at the call, because the DOM
- * tree is the hierarchy. The clock is shared with `../engine/frame.js`.
+ * pending measurement, a camera in flight, a pass that says it is busy - and
+ * stops the moment it settles; `schedule` is the one way a frame is asked for.
+ * The host box is read first, then structure passes may move elements, then
+ * every layout read, then every write. Every pass is registered, a blit root's
+ * own included (`./root.js`: measure, paint, the camera). Blits need no
+ * structure pass - the DOM tree is the hierarchy, so structure happens at the
+ * call - and the phase carries the passes an older engine registers.
  */
-import { defaultPort, formatTransform3D } from './port.js';
+import { defaultPort } from './port.js';
 import { scopeContainerOf } from './state.js';
 
 /** Duration of one reference frame at 60Hz, in milliseconds. */
@@ -20,6 +25,38 @@ export const MAX_FRAME_DELTA_MS = 50;
 
 /** The two phases an extension hook may join. */
 export const PHASES = /* @__PURE__ */ Object.freeze(['read', 'write']);
+
+/** The host box assumed until a root's own has been read. */
+export const DEFAULT_HOST_RECT = /* @__PURE__ */ Object.freeze({ width: 800, height: 600, left: 0, top: 0 });
+
+/**
+ * The loop's record. `hooks.structure`, `read` and `write` are passes, run in
+ * registration order within their phase; `hooks.busy` are predicates that keep
+ * the loop alive while any answers true. A root made with `running: false` is
+ * driven by hand until it is started.
+ */
+export function createRoot(options = {}) {
+  const root = {
+    host: options.host || null,
+    plane: options.plane || null,
+    overlay: options.overlay || null,
+    camera: options.camera,
+    hostRect: DEFAULT_HOST_RECT,
+    running: options.running !== false,
+    rafId: null,
+    _lastTs: null,
+    loop: null,
+    frameCount: 0,
+    applied: null,
+    /** @type {Set<object>} states queued for the next write phase */
+    dirty: new Set(),
+    /** @type {Set<object>} states queued for the next read phase */
+    measure: new Set(),
+    hooks: { structure: new Set(), read: new Set(), write: new Set(), busy: new Set() }
+  };
+  root.loop = (timestamp) => loopStep(root, timestamp);
+  return root;
+}
 
 /**
  * Frame delta in reference frames (1 = one 60Hz frame) from the rAF timestamp,
@@ -40,29 +77,34 @@ export function frameDelta(clock, timestamp) {
   return elapsedMs / FRAME_MS;
 }
 
-/** Whether the root has any reason to run another frame. */
+/** The idle rule: whether the root has any reason to run another frame. */
 export function needsFrame(root) {
-  return root.dirty.size > 0 || root.measure.size > 0 || root.camera.isAnimating === true;
+  if (root.dirty.size > 0 || root.measure.size > 0 || root.camera.isAnimating === true) return true;
+  for (const busy of root.hooks.busy) {
+    if (busy()) return true;
+  }
+  return false;
 }
 
-/** Ask for a frame, unless one is already on its way. */
+/** Ask for a frame, unless one is already on its way or the root is stopped. */
 export function schedule(root) {
-  if (root.rafId !== null || typeof requestAnimationFrame === 'undefined') return false;
+  if (!root.running || root.rafId !== null || typeof requestAnimationFrame === 'undefined') return false;
   root.rafId = requestAnimationFrame(root.loop);
   return true;
 }
 
 /** One turn of the loop: run this frame, then ask for the next only if needed. */
 export function loopStep(root, timestamp) {
+  if (!root.running) return;
   root.rafId = null;
   runFrame(root, frameDelta(root, timestamp));
 
   if (needsFrame(root)) schedule(root);
-  else root._lastTs = null;
+  if (root.rafId === null) root._lastTs = null;
 }
 
 /**
- * Execute one frame synchronously: camera, reads, writes.
+ * Execute one frame synchronously: camera, structure, reads, writes.
  * @param {object} root the root record
  * @param {number} [dt] elapsed time in reference frames
  */
@@ -70,10 +112,14 @@ export function runFrame(root, dt = 1) {
   // A camera that moves on its own (the motion add-on's) steps here.
   root.camera.update?.(dt * FRAME_MS);
   const cameraMoved = syncCamera(root);
-  const ctx = { dt, camera: root.camera, hostRect: root.hostRect };
+  // A camera move is the cheapest reliable moment to re-read the host box, and
+  // it is read before any pass moves an element.
+  if (cameraMoved && root.host) root.hostRect = root.host.getBoundingClientRect();
+  const ctx = { dt, camera: root.camera, hostRect: root.hostRect, cameraMoved };
 
-  readPhase(root, cameraMoved, ctx);
-  writePhase(root, cameraMoved, ctx);
+  for (const pass of root.hooks.structure) pass(ctx);
+  for (const pass of root.hooks.read) pass(ctx);
+  for (const pass of root.hooks.write) pass(ctx);
   root.frameCount += 1;
 }
 
@@ -100,15 +146,17 @@ function drain(queue, fn) {
   }
 }
 
-/** Every layout read of the frame, before any write. */
-function readPhase(root, cameraMoved, ctx) {
-  // A camera move is the cheapest reliable moment to re-read the host box.
-  if (cameraMoved) {
-    root.hostRect = root.host.getBoundingClientRect();
-    ctx.hostRect = root.hostRect;
-  }
+/**
+ * A blit root's own read pass: measure every queued blit. Registered first in
+ * the read phase by `./root.js`, so a hook's reads follow the root's.
+ */
+export function measureBlits(root) {
   drain(root.measure, measure);
-  for (const hook of root.hooks.read) hook(ctx);
+}
+
+/** A blit root's own write pass: every dirty blit through its port. First in the write phase. */
+export function paintBlits(root) {
+  drain(root.dirty, (state) => paint(root, state));
 }
 
 /**
@@ -129,16 +177,6 @@ function measure(state) {
     state.sx = Number(scope.offsetLeft) || 0;
     state.sy = Number(scope.offsetTop) || 0;
   }
-}
-
-/** Ports for dirty blits, the plane transform for a moved camera, then hooks. */
-function writePhase(root, cameraMoved, ctx) {
-  drain(root.dirty, (state) => paint(root, state));
-  if (cameraMoved) {
-    const { x, y, scale } = root.camera;
-    root.plane.style.transform = formatTransform3D(x, y, 0, scale);
-  }
-  for (const hook of root.hooks.write) hook(ctx);
 }
 
 /**

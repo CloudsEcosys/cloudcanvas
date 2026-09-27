@@ -10,11 +10,9 @@
  */
 import { Camera } from './camera.js';
 import { OVERLAY_ATTR, PLANE_ATTR, injectCoreStyles } from './css.js';
-import { loopStep } from './frame.js';
+import { DEFAULT_HOST_RECT, createRoot, measureBlits, paintBlits } from './frame.js';
+import { formatTransform3D } from './port.js';
 import { BLIT_ATTR, ROOT_ATTR } from './state.js';
-
-/** Camera framing used when the host has no measurable box yet. */
-const DEFAULT_HOST_RECT = /* @__PURE__ */ Object.freeze({ width: 800, height: 600, left: 0, top: 0 });
 
 /** The existing direct child carrying `attribute`, or a fresh one appended. */
 function adoptOrCreate(host, attribute) {
@@ -33,28 +31,29 @@ export function mountRoot(state) {
   injectCoreStyles();
   host.setAttribute(ROOT_ATTR, '');
 
-  const root = {
+  const root = createRoot({
     host,
     plane: adoptOrCreate(host, PLANE_ATTR),
     overlay: adoptOrCreate(host, OVERLAY_ATTR),
-    camera: new Camera(),
-    hostRect: hostRectOf(host),
-    rafId: null,
-    _lastTs: null,
-    loop: null,
-    frameCount: 0,
-    applied: null,
-    /** @type {Set<object>} states queued for the next write phase */
-    dirty: new Set(),
-    /** @type {Set<object>} states queued for the next read phase */
-    measure: new Set(),
-    /** Extension hooks, run every frame in their phase. */
-    hooks: { read: new Set(), write: new Set() }
-  };
-  root.loop = (timestamp) => loopStep(root, timestamp);
+    camera: new Camera()
+  });
+  root.hostRect = hostRectOf(host);
+  // The root's own passes, registered before any hook can be: its blits are
+  // measured first in the read phase, painted first in the write phase, and the
+  // camera transform follows the ports.
+  root.hooks.read.add(() => measureBlits(root));
+  root.hooks.write.add(() => paintBlits(root));
+  root.hooks.write.add((ctx) => planePass(root, ctx));
 
   state.root = root;
   return root;
+}
+
+/** Rewrite the plane's transform on the frames the camera moved. */
+function planePass(root, ctx) {
+  if (!ctx.cameraMoved) return;
+  const { x, y, scale } = root.camera;
+  root.plane.style.transform = formatTransform3D(x, y, 0, scale);
 }
 
 /** The host's client box, or the default framing box without one. */

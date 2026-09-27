@@ -34,6 +34,8 @@ export function mountCursors(session) {
   destroyCursors(session);
   session.cursorPin = createCursorPin(session);
   session._unsubscribeSignals = session.pinManager.onSignal(session._onPinSignal);
+  // A fresh cursor Pin draws on the next frame; ask for one.
+  session.renderer.wake();
   return session.cursorPin;
 }
 
@@ -127,7 +129,10 @@ function releaseCursorIfOn(session, name, pin) {
 export function setCursorTarget(session, name, pin) {
   const trait = cursorTrait(session, name);
   if (!trait || typeof trait.setTarget !== 'function') return false;
-  return trait.setTarget(pin || null);
+  if (!trait.setTarget(pin || null)) return false;
+  // A moved target is redrawn by the cursor pass, in the frame this asks for.
+  session.renderer.wake();
+  return true;
 }
 
 /** The Pin a cursor currently points at, or null. */
@@ -153,6 +158,7 @@ function releaseCursorsFor(session, pin) {
     if (typeof trait.setTarget !== 'function' || trait.target !== pin) continue;
     released = trait.setTarget(null) || released;
   }
+  if (released) session.renderer.wake();
   return released;
 }
 

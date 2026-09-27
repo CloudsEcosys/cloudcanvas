@@ -18,8 +18,8 @@ import { deferRender } from './pin-edit.js';
 import { forEachChild, hasChildren } from './pin-hierarchy.js';
 import { RELOAD_MODES, resolveReloadMode } from './reload.js';
 
-/** The two invalidation kinds the conjugate renderer understands. */
-const INVALIDATION_KINDS = new Set(['content', 'structure']);
+/** The three invalidation kinds the conjugate renderer understands. */
+const INVALIDATION_KINDS = new Set(['content', 'structure', 'placement']);
 
 /**
  * Declare that a Pin needs work on the next frame.

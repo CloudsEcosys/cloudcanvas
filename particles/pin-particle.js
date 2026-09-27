@@ -236,11 +236,22 @@ export class PinParticle {
   }
 
   /**
-   * Set dimensions for bounds and spatial queries
+   * Declare a size: the box the element is told to have (an option, a resize).
+   * Declared and measured at once, so the size reads back before the next frame.
    */
   setSize(width, height) {
     this.width = Math.max(0, Number(width));
     this.height = Math.max(0, Number(height));
+  }
+
+  /**
+   * Record a measured size: the box the element turned out to have. Only the
+   * measured pair moves, so an auto-sized element keeps no declared size and
+   * the port never writes its box back onto it.
+   */
+  setMeasured(width, height) {
+    this.#state.mw = Math.max(0, Number(width));
+    this.#state.mh = Math.max(0, Number(height));
   }
 
   /**
@@ -327,11 +338,9 @@ export function particleFromOptions(id, options = {}, element = undefined) {
     metadata: options.metadata || {}
   });
 
-  if (options.width !== undefined || options.height !== undefined) {
-    particle.setSize(
-      options.width !== undefined ? options.width : particle.width,
-      options.height !== undefined ? options.height : particle.height
-    );
-  }
+  // Only the axes given are declared: a `width`-only card keeps an auto height,
+  // and the port writes back exactly the sizes that were declared.
+  if (options.width !== undefined) particle.width = Math.max(0, Number(options.width));
+  if (options.height !== undefined) particle.height = Math.max(0, Number(options.height));
   return particle;
 }

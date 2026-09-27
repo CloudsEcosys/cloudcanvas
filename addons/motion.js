@@ -9,6 +9,7 @@
  * its `view()` flies. The legacy `Viewport` (`../engine/viewport.js`) extends it.
  */
 import { Camera } from '../core/camera.js';
+import { schedule } from '../core/frame.js';
 import { rootOf, stateOf } from '../core/state.js';
 import { createLogger } from '../log.js';
 
@@ -96,13 +97,25 @@ export class MotionCamera extends Camera {
     super(options);
     /** The in-flight eased move, or null. */
     this.animation = null;
+    /**
+     * Owner wake hook, fired whenever the camera is moved programmatically. The
+     * session and `motion()` point it at the root's `schedule`, so a fit or a
+     * flight started on the camera directly still wakes an idle loop.
+     * @type {(() => void)|null}
+     */
+    this.onWake = null;
+  }
+
+  /** Fire the owner wake hook, if one is set. */
+  _wake() {
+    if (typeof this.onWake === 'function') this.onWake();
   }
 
   // A direct move cancels an eased one.
-  panBy(dx, dy) { this.stopAnimation(); super.panBy(dx, dy); }
-  panTo(x, y) { this.stopAnimation(); super.panTo(x, y); }
-  setZoom(scale) { this.stopAnimation(); super.setZoom(scale); }
-  zoomAt(factor, focalX, focalY) { this.stopAnimation(); super.zoomAt(factor, focalX, focalY); }
+  panBy(dx, dy) { this.stopAnimation(); super.panBy(dx, dy); this._wake(); }
+  panTo(x, y) { this.stopAnimation(); super.panTo(x, y); this._wake(); }
+  setZoom(scale) { this.stopAnimation(); super.setZoom(scale); this._wake(); }
+  zoomAt(factor, focalX, focalY) { this.stopAnimation(); super.zoomAt(factor, focalX, focalY); this._wake(); }
 
   /**
    * Frame a box: fly there, or jump with `{immediate: true}`. Adds `duration`
@@ -113,6 +126,7 @@ export class MotionCamera extends Camera {
     if (options.immediate) {
       const target = super.fit(bounds, hostRect, options);
       this.stopAnimation();
+      this._wake();
       return target;
     }
     const target = this.fitTarget(bounds, hostRect, options);
@@ -134,6 +148,7 @@ export class MotionCamera extends Camera {
       this.y = Number(targetY);
       this.scale = Number(targetScale);
       if (onComplete) onComplete();
+      this._wake();
       return;
     }
     this.animation = {
@@ -148,6 +163,7 @@ export class MotionCamera extends Camera {
       elapsed: 0,
       onComplete
     };
+    this._wake();
   }
 
   stopAnimation() {
@@ -207,5 +223,7 @@ export function motion(b) {
   const root = rootOf(stateOf(b.el));
   if (!root) throw new TypeError('motion: a potential blit has no root');
   if (!(root.camera instanceof MotionCamera)) root.camera = new MotionCamera(root.camera);
+  // A flight started on the camera directly wakes the root's loop, as `view()` does.
+  root.camera.onWake = () => schedule(root);
   return root.camera;
 }

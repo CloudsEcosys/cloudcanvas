@@ -325,16 +325,37 @@ export class SvgStateTrait extends PinTrait {
   }
 
   /**
-   * Frame tick handler: optionally maps bound particle vectors to 3D rotation or state.
+   * Frame tick handler: map a bound particle vector to a 3D tilt.
+   *
+   * The read phase only *computes* the orientation here; the DOM write it implies
+   * is deferred to {@link onRender} (the write phase) and gated on an actual
+   * change, so a bound vector that did not move costs no write and the read phase
+   * never writes a style. A change asks for a content frame, which is where the
+   * write lands (with no renderer, `invalidate` renders synchronously, so the
+   * orientation is applied in the same call).
    */
   onTick(pin, dt, context) {
     if (this.bindVector === null || !pin.particle || !pin.particle.vectors) return;
 
     const val = pin.particle.getVector(this.bindVector);
-    if (typeof val === 'number') {
-      // Map float vector to 3D tilt
-      this.ry = (val * 45) % 360;
-      this.setTransform3D(pin, { ry: this.ry });
-    }
+    if (typeof val !== 'number') return;
+
+    const ry = (val * 45) % 360;
+    if (ry === this.ry) return;
+
+    this.ry = ry;
+    this._orientationDirty = true;
+    pin.invalidate('content');
+  }
+
+  /**
+   * Write phase: apply a bound-vector orientation computed in `onTick`, once.
+   * The content funnel calls this on the frames a Pin is dirty, so the tilt is
+   * written where every other placement write is - never during the read phase.
+   */
+  onRender(pin) {
+    if (!this._orientationDirty) return;
+    this._orientationDirty = false;
+    this.setTransform3D(pin, { ry: this.ry });
   }
 }

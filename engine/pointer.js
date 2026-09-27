@@ -300,3 +300,20 @@ export function onWheel(session, event) {
   session.viewport.panBy(-dx, -dy);
   return true;
 }
+
+/**
+ * Seed the session's gesture state. `activePointers` is the live set of gesture
+ * pointers (one for a drag or a pan, two for a pinch); `pinch` is the
+ * separation/midpoint pair the last pinch step was measured against; and
+ * `_pendingCapture` is the armed-but-untaken pointer capture -
+ * `{pointerId, x, y, declined}` from the press until the gesture crosses the
+ * drag threshold (or ends). See `armCapture` for why capture is deferred at all.
+ */
+export function initPointerState(session) {
+  session.isPanning = false;
+  session.activeDragPin = null;
+  session.lastPointer = { x: 0, y: 0 };
+  session.activePointers = new Map();
+  session.pinch = null;
+  session._pendingCapture = null;
+}

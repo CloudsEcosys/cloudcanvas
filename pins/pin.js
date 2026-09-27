@@ -404,9 +404,9 @@ export class Pin extends DeprecatedPinAliases {
    */
   setPosition(x, y, z = this.particle.z) {
     this.particle.setPosition(x, y, z);
-    // Attached Pins get their transform from the renderer's position diff;
-    // unattached ones still write it immediately.
-    if (!this._renderer) this.renderPosition();
+    // Attached: the next frame's placement pass writes it through the core port.
+    if (this._renderer) this._renderer.invalidate(this, 'placement');
+    else this.renderPosition();
   }
 
   /** Canvas-space position, as the spatial node holds it. */

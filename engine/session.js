@@ -39,6 +39,7 @@ import {
 import { mountContextMenu, unmountContextMenu } from './context-menu.js';
 import {
   cancelDrag,
+  initPointerState,
   onContextMenu,
   onPointerDown,
   onPointerMove,
@@ -54,13 +55,12 @@ import {
   setCursorTarget
 } from './cursors.js';
 import {
+  createSessionFrame,
   frameContext,
-  frameDelta,
-  loopStep,
   regraph,
+  sessionPasses,
   start,
   stop,
-  syncViewportVersion,
   tick
 } from './frame.js';
 import {
@@ -115,21 +115,23 @@ export class CloudCanvasSession {
       loadChildren: options.loadChildren
     });
 
-    // Single authority over DOM membership and per-frame render work.
-    // `offloadMargin` is session-level offload policy; a per-Pin `offloadMargin`
-    // overrides it (see `./offload.js`).
+    // The core frame root this session runs on (`./frame.js`): the viewport is
+    // its camera, the host box lives on it, and the renderer's passes plus the
+    // session's own are registered on it. `offloadMargin` is session-level
+    // offload policy; a per-Pin `offloadMargin` overrides it (see `./offload.js`).
+    this._frame = createSessionFrame(this);
+    const passes = sessionPasses(this);
     this.renderer = new ConjugateRenderer({
       session: this,
+      root: this._frame,
+      context: passes.context,
+      passes,
       offloadMargin: options.offloadMargin
     });
     this.pinManager.setRenderer(this.renderer);
-
-    // Last camera triple handed to the renderer (null = never applied)
-    this._appliedViewport = null;
-
-    // Host geometry is read once and cached: it changes on mount, on a resize,
-    // and on a camera move - never once per frame.
-    this._hostRect = DEFAULT_HOST_RECT;
+    // Any programmatic camera move - a fit or flight started on `session.viewport`
+    // directly included - wakes the loop through the one scheduler.
+    this.viewport.onWake = () => this.renderer.wake();
 
     this.hostElement = null;
     this.svgLayerElement = null;
@@ -141,12 +143,6 @@ export class CloudCanvasSession {
     // What this session added *to the host* - and so all `destroy()` may take
     // back off it - is recorded at mount by the modules that own the additions:
     // `_hostClassAdded` (./host.js), `_hostAriaAttributes` (./announcer.js).
-
-    this.running = false;
-    this.rafId = null;
-
-    // Timestamp of the previous animation frame (null = next frame is the first)
-    this._lastTs = null;
 
     // Focus & Scope navigation history. `focusStack` is Back, `_forwardStack`
     // is Forward: every new navigation empties the latter (see `./navigation.js`).
@@ -165,19 +161,9 @@ export class CloudCanvasSession {
     this._participates = (pin) => this.renderer.participates(pin);
     this._cursorDirty = (pin) => this.renderer.isGlobalDirty(pin);
 
-    // Interaction tracking. `activePointers` is the live set of gesture
-    // pointers (one for a drag or a pan, two for a pinch); `pinch` is the
-    // separation/midpoint pair the last pinch step was measured against.
-    this.isPanning = false;
-    this.activeDragPin = null;
-    this.lastPointer = { x: 0, y: 0 };
-    this.activePointers = new Map();
-    this.pinch = null;
-
-    // The armed-but-untaken pointer capture: `{pointerId, x, y, declined}` from
-    // the press until the gesture crosses the drag threshold (or ends). See
-    // `armCapture` in `./pointer.js` for why capture is deferred at all.
-    this._pendingCapture = null;
+    // Gesture state - the live pointers, the drag, the pinch, the armed capture -
+    // is the pointer router's (see `./pointer.js`).
+    initPointerState(this);
 
     // Bound event handlers
     this._onPointerDown = this._onPointerDown.bind(this);
@@ -186,7 +172,6 @@ export class CloudCanvasSession {
     this._onContextMenu = this._onContextMenu.bind(this);
     this._onWheel = this._onWheel.bind(this);
     this._onResize = this._onResize.bind(this);
-    this._loop = this._loop.bind(this);
 
     if (options.autoInjectStyles !== false) {
       injectCanvasStyles();
@@ -221,6 +206,7 @@ export class CloudCanvasSession {
     }
 
     this.hostElement = host;
+    this._frame.host = host;
 
     // 1. The four layers, in paint order (see `./host.js`).
     mountLayers(this);
@@ -279,17 +265,20 @@ export class CloudCanvasSession {
 
   /* ------------------ HOST GEOMETRY ------------------ */
 
-  /** The cached host rectangle every screen-space calculation frames against. */
+  /**
+   * The cached host rectangle every screen-space calculation frames against. It
+   * lives on the frame root, which re-reads it on the frames the camera moved.
+   */
   getHostRect() {
-    return this._hostRect;
+    return this._frame.hostRect;
   }
 
-  /** Re-read the host box. The only place the session measures the host. */
+  /** Re-read the host box now: at mount and on a resize. */
   _refreshHostRect() {
-    this._hostRect = this.hostElement
+    this._frame.hostRect = this.hostElement
       ? this.hostElement.getBoundingClientRect()
       : DEFAULT_HOST_RECT;
-    return this._hostRect;
+    return this._frame.hostRect;
   }
 
   /**
@@ -434,23 +423,23 @@ export class CloudCanvasSession {
 
   /* ------------------ SIMULATION & RENDERING (see `./frame.js`) ------------------ */
 
-  /** Begin driving frames from `requestAnimationFrame`. */
+  /** Begin driving frames from `requestAnimationFrame`; the loop idles when settled. */
   start() { return start(this); }
 
   /** Stop the frame loop, cancelling the frame already asked for. */
   stop() { return stop(this); }
 
+  /** Whether the loop is running (it may be idle: running and settled). */
+  get running() { return this._frame.running; }
+
   /** The per-frame context traits and render passes are handed. */
   getContext() { return frameContext(this); }
 
   /**
-   * Execute one simulation & render frame.
+   * Execute one simulation & render frame by hand.
    * `dt` is expressed in reference frames (1 = one 60Hz frame).
    */
   tick(dt = 1) { return tick(this, dt); }
-
-  /** Publish the live camera to the renderer; true when it had moved. */
-  _syncViewportVersion() { return syncViewportVersion(this); }
 
   /**
    * Re-run a trait across the graph: apply `fn` to every Pin carrying
@@ -459,11 +448,6 @@ export class CloudCanvasSession {
    * @returns {Pin[]} the Pins that were regraphed
    */
   regraph(traitName, fn) { return regraph(this, traitName, fn); }
-
-  /** Frame delta in reference frames, derived from the rAF timestamp. */
-  _frameDelta(timestamp) { return frameDelta(this, timestamp); }
-
-  _loop(timestamp) { return loopStep(this, timestamp); }
 
   createPin(options) {
     return this.pinManager.createPin(options);
