@@ -1,19 +1,18 @@
 /**
- * CloudCanvas - NeoTec, LLC, Richard Christopher
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
- * 
+ *
  * CloudCanvasSession: the client-side runtime - host mounting, scoping, focus
  * navigation, the four render layers, and the trait-driven frame loop.
  *
  * The session is the state and the public surface; the transitions live beside
  * it, as free functions taking the session as their first argument:
  *
- *   ./host.js       - the host's four layers and the listeners bound to them
+ *   ./host.js       - the four layers, and the input add-ons installed on the host
  *   ./navigation.js - focus, promotion, and the back/forward history
- *   ./context-menu.js - the right-click command registry and its overlay
- *   ./pointer.js    - pointer gestures routed to traits or to the camera
- *   ./keyboard.js   - the single tab stop and the roving order inside it
- *   ./announcer.js  - the host's ARIA identity and its polite live region
+ *   ./pointer.js    - the pan add-on, with Pin drags claimed for their traits
+ *   ./context-menu.js - the menu add-on over the shared command registry
+ *   ./keyboard.js   - the keyboard add-on, roving over Pins
+ *   ./announcer.js  - the layers' ARIA, and the announce add-on's live region
  *   ./cursors.js    - the cursor Pin's lifecycle and its target wiring
  *   ./frame.js      - the frame loop, its context, and the graph-wide re-render
  *   ./placement.js  - a free canvas spot for a new Pin
@@ -26,57 +25,15 @@ import { ParticleEngine } from '../particles/engine.js';
 import { PinManager } from '../pins/manager.js';
 import { ConjugateRenderer } from './renderer.js';
 import {
-  DEFAULT_HOST_RECT,
-  canGoForward,
-  focus,
-  focusParent,
-  goForward,
-  popFocus,
-  promoteToRoot,
-  pushFocus,
-  unfocus
+  DEFAULT_HOST_RECT, canGoForward, focus, focusParent, goForward, popFocus, promoteToRoot, pushFocus, unfocus
 } from './navigation.js';
-import { mountContextMenu, unmountContextMenu } from './context-menu.js';
+import { cancelDrag, initPointerState } from './pointer.js';
 import {
-  cancelDrag,
-  initPointerState,
-  onContextMenu,
-  onPointerDown,
-  onPointerMove,
-  onPointerUp,
-  onWheel
-} from './pointer.js';
-import {
-  destroyCursors,
-  getCursorTarget,
-  handlePinSignal,
-  mountCursors,
-  remountCursors,
-  setCursorTarget
+  destroyCursors, getCursorTarget, handlePinSignal, mountCursors, remountCursors, setCursorTarget
 } from './cursors.js';
-import {
-  createSessionFrame,
-  frameContext,
-  regraph,
-  sessionPasses,
-  start,
-  stop,
-  tick
-} from './frame.js';
-import {
-  bindSessionEvents,
-  mountLayers,
-  unbindSessionEvents,
-  unmountLayers
-} from './host.js';
-import {
-  announceEdit,
-  announceFocus,
-  applyHostAria,
-  mountAnnouncer,
-  removeHostAria,
-  unmountAnnouncer
-} from './announcer.js';
+import { createSessionFrame, frameContext, regraph, sessionPasses, start, stop, tick } from './frame.js';
+import { bindSessionEvents, mountLayers, unbindSessionEvents, unmountLayers } from './host.js';
+import { announceEdit, announceFocus } from './announcer.js';
 import { place } from './placement.js';
 import { adopt, hydrate } from './hydrate.js';
 import { zoomToFit } from './framing.js';
@@ -97,28 +54,58 @@ export class CloudCanvasSession {
   constructor(options = {}) {
     assertKnownOptions(options);
     this.options = options;
-
-    /**
-     * Session-level event stream. Native `EventTarget` rather than a bespoke
-     * emitter: `addEventListener` / `removeEventListener` are what a consumer
-     * already knows, and `AbortSignal` unsubscribes a whole page's worth at once.
-     * @type {EventTarget}
-     */
+    /** The session's DOM-native event stream (`focus:changed`). @type {EventTarget} */
     this.events = new EventTarget();
     this.viewport = new Viewport(options.viewport || {});
     this.particleEngine = new ParticleEngine();
-    // `defaultReload` and `loadChildren` are session-level policy; the manager
-    // owns their per-Pin application.
+    // `defaultReload` and `loadChildren` are session policy; the manager applies them per Pin.
     this.pinManager = new PinManager({
       particleEngine: this.particleEngine,
       defaultReload: options.defaultReload,
       loadChildren: options.loadChildren
     });
+    this._wireFrame(options);
 
-    // The core frame root this session runs on (`./frame.js`): the viewport is
-    // its camera, the host box lives on it, and the renderer's passes plus the
-    // session's own are registered on it. `offloadMargin` is session-level
-    // offload policy; a per-Pin `offloadMargin` overrides it (see `./offload.js`).
+    this.hostElement = null;
+    this.svgLayerElement = null;
+    this.planeElement = null;
+    this.overlayElement = null;
+    this.focusVeilElement = null;
+    // What this session adds to the host is recorded by the module that adds it
+    // (`_hostClassAdded`, `_hostAriaAttributes`), so `destroy()` takes back only that.
+
+    // Navigation history: `focusStack` is Back, `_forwardStack` Forward (`./navigation.js`).
+    this.focusedPin = null;
+    this.focusStack = [];
+    this._forwardStack = [];
+
+    // The null Pin carrying the cursors, built at mount: it draws into the overlay.
+    this.cursorPin = null;
+    this._unsubscribeSignals = null;
+    this._onPinSignal = this._onPinSignal.bind(this);
+
+    // Gesture state is the pan add-on's, kept on the session (`./pointer.js`).
+    initPointerState(this);
+    this._onResize = this._onResize.bind(this);
+
+    if (options.autoInjectStyles !== false) injectCanvasStyles();
+    // Per-session author CSS, in its own element so `destroy()` can take it away.
+    this._sessionStyleEl = options.customCSS ? injectSessionStyles(options.customCSS) : null;
+
+    // `container` is optional; supplied, it is validated - `{container: null}` is an error, not a no-op.
+    if ('container' in options) {
+      assertValidContainer(options.container);
+      this.mount(options.container);
+    }
+  }
+
+  /**
+   * The core frame root this session runs on (`./frame.js`) - the viewport its
+   * camera - and the renderer registered on it; `offloadMargin` is session-level
+   * offload policy a per-Pin one overrides. Any camera move wakes the loop, and
+   * the per-frame closures are bound once so `getContext()` allocates none.
+   */
+  _wireFrame(options) {
     this._frame = createSessionFrame(this);
     const passes = sessionPasses(this);
     this.renderer = new ConjugateRenderer({
@@ -129,68 +116,9 @@ export class CloudCanvasSession {
       offloadMargin: options.offloadMargin
     });
     this.pinManager.setRenderer(this.renderer);
-    // Any programmatic camera move - a fit or flight started on `session.viewport`
-    // directly included - wakes the loop through the one scheduler.
     this.viewport.onWake = () => this.renderer.wake();
-
-    this.hostElement = null;
-    this.svgLayerElement = null;
-    this.planeElement = null;
-    this.overlayElement = null;
-    // Dimming layer inside the plane, raised by the focus transitions.
-    this.focusVeilElement = null;
-
-    // What this session added *to the host* - and so all `destroy()` may take
-    // back off it - is recorded at mount by the modules that own the additions:
-    // `_hostClassAdded` (./host.js), `_hostAriaAttributes` (./announcer.js).
-
-    // Focus & Scope navigation history. `focusStack` is Back, `_forwardStack`
-    // is Forward: every new navigation empties the latter (see `./navigation.js`).
-    this.focusedPin = null;
-    this.focusStack = [];
-    this._forwardStack = [];
-
-    // The null Pin carrying the focus / selection / activation cursors, built at
-    // mount time because it draws into the overlay layer (see `../pins/cursor.js`).
-    this.cursorPin = null;
-    this._unsubscribeSignals = null;
-    this._onPinSignal = this._onPinSignal.bind(this);
-
-    // Stable per-frame closures. Both are read once per frame, so binding them
-    // here keeps `getContext()` allocation-free of function objects.
     this._participates = (pin) => this.renderer.participates(pin);
     this._cursorDirty = (pin) => this.renderer.isGlobalDirty(pin);
-
-    // Gesture state - the live pointers, the drag, the pinch, the armed capture -
-    // is the pointer router's (see `./pointer.js`).
-    initPointerState(this);
-
-    // Bound event handlers
-    this._onPointerDown = this._onPointerDown.bind(this);
-    this._onPointerMove = this._onPointerMove.bind(this);
-    this._onPointerUp = this._onPointerUp.bind(this);
-    this._onContextMenu = this._onContextMenu.bind(this);
-    this._onWheel = this._onWheel.bind(this);
-    this._onResize = this._onResize.bind(this);
-
-    if (options.autoInjectStyles !== false) {
-      injectCanvasStyles();
-    }
-
-    // Per-session author CSS, kept in its own element so `destroy()` can take
-    // it away again without touching the shared canvas stylesheet.
-    this._sessionStyleEl = options.customCSS
-      ? injectSessionStyles(options.customCSS)
-      : null;
-
-    // `container` is optional - omit it to mount later. Supplied, it is validated
-    // now rather than skipped when falsy: `{container: null}` was a silent no-op,
-    // a session that mounted, rendered, and reported nothing (see
-    // `./session-options.js`).
-    if ('container' in options) {
-      assertValidContainer(options.container);
-      this.mount(options.container);
-    }
   }
 
   /**
@@ -208,20 +136,10 @@ export class CloudCanvasSession {
     this.hostElement = host;
     this._frame.host = host;
 
-    // 1. The four layers, in paint order (see `./host.js`).
+    // The four layers in paint order and the cursor Pin drawing into the overlay,
+    // then the root add-ons - ARIA and live region, pan, menu, keyboard (`./host.js`).
     mountLayers(this);
-
-    // 2. The cursor Pin and the context menu, both of which draw into the
-    //    overlay layer (see `./cursors.js`, `./context-menu.js`).
     mountCursors(this);
-    mountContextMenu(this);
-
-    // 3. Accessibility: the host's role and name, the decorative layers taken
-    //    out of the tree (the cursor layer exists only after `mountCursors`),
-    //    and the polite live region every transition is announced through.
-    applyHostAria(this);
-    mountAnnouncer(this);
-
     this._refreshHostRect();
     bindSessionEvents(this);
     this.start();
@@ -249,12 +167,8 @@ export class CloudCanvasSession {
   }
 
   /**
-   * The session's sink for the manager's Pin signals.
-   *
-   * Two consumers, one subscription (`mountCursors` in `./cursors.js`): the edit
-   * lock is announced, everything else moves a cursor. Kept here rather than in
-   * either module because the split is the session's, and a second subscription
-   * would be a second place a signal type has to be remembered.
+   * The session's one sink for the manager's Pin signals (`mountCursors`): the
+   * edit lock is announced, everything else moves a cursor.
    */
   _onPinSignal(event) {
     if (event && event.type === 'edit') {
@@ -293,17 +207,10 @@ export class CloudCanvasSession {
   /* ------------------ FOCUS & NAVIGATION API ------------------ */
 
   /**
-   * Zoom into a Pin: promote it to render root and focus it (see
-   * `./navigation.js`).
-   *
-   * Promotion is the default outcome since 0.4.0 - "focus this Pin" and "make
-   * this Pin the view" were always the same gesture, and having them be two
-   * calls meant the interesting one was the one nobody reached for. Pass
-   * `{promote: false}` for the plain camera move.
-   *
-   * Every wrapper that changes focus announces it *and* publishes it: a camera
-   * move is silent to anyone not watching it, and this layer is the one place
-   * every route to a focus change - pointer, keyboard, or API - passes through.
+   * Zoom into a Pin: promote it to render root and focus it (`./navigation.js`);
+   * `{promote: false}` is the plain camera move. Every focus wrapper announces
+   * and publishes its transition: every route to a focus change - pointer,
+   * keyboard, API - passes through this layer.
    */
   focus(pinOrId, options = {}) {
     const pin = focus(this, pinOrId, options);
@@ -332,13 +239,7 @@ export class CloudCanvasSession {
     return pin;
   }
 
-  /**
-   * Re-apply the state the last `popFocus` left behind - Forward to its Back.
-   *
-   * A no-op with nothing to go forward to, rather than a reset: an empty forward
-   * stack means the history ends here, and ending it *again* is not a transition
-   * worth announcing.
-   */
+  /** Re-apply the state the last `popFocus` left behind; with nothing to go forward to, a silent no-op. */
   goForward(options = {}) {
     if (!canGoForward(this)) return null;
 
@@ -354,11 +255,7 @@ export class CloudCanvasSession {
     return cleared;
   }
 
-  /**
-   * Focus the parent scope of the focused Pin.
-   * Announced like every other wrapper, including the step out to the canvas,
-   * which resolves to no focused Pin at all.
-   */
+  /** Focus the parent scope of the focused Pin; the step out to the canvas is announced too. */
   focusParent(options = {}) {
     const pin = focusParent(this, options);
     this._focusChanged(pin);
@@ -366,15 +263,9 @@ export class CloudCanvasSession {
   }
 
   /**
-   * Say a focus transition out loud, twice: once to assistive technology and
-   * once to the page.
-   *
-   * `focus:changed` carries the whole navigational state rather than the Pin
-   * alone, because a breadcrumb bar needs the trail and a title needs the render
-   * root, and reading them back off the session afterwards is a second source of
-   * truth that can disagree with the event that woke it.
-   *
-   * @param {Pin|null} pin the newly focused Pin, or null at the canvas root
+   * Say a focus transition twice: to assistive technology, and to the page as
+   * `focus:changed` carrying the whole navigational state (the Pin, the render
+   * root, the trail), so chrome never reads a second source of truth back.
    * @returns {boolean} true when the event was dispatched
    */
   _focusChanged(pin) {
@@ -391,29 +282,6 @@ export class CloudCanvasSession {
   /** Root-first trail to the current render root, or [] at the canvas root. */
   breadcrumb() {
     return this.renderer.rootScope.breadcrumb();
-  }
-
-  /* ------------------ POINTER EVENT ROUTING (see `./pointer.js`) ------------------ */
-
-  _onPointerDown(event) {
-    return onPointerDown(this, event);
-  }
-
-  _onPointerMove(event) {
-    return onPointerMove(this, event);
-  }
-
-  _onPointerUp(event) {
-    return onPointerUp(this, event);
-  }
-
-  _onWheel(event) {
-    return onWheel(this, event);
-  }
-
-  /** Raise the canvas menu, or leave the platform's alone (see `./pointer.js`). */
-  _onContextMenu(event) {
-    return onContextMenu(this, event);
   }
 
   /** End the active drag without a pointer event (the renderer calls this). */
@@ -518,10 +386,7 @@ export class CloudCanvasSession {
   destroy() {
     this.stop();
     unbindSessionEvents(this);
-    unmountContextMenu(this);
     destroyCursors(this);
-    unmountAnnouncer(this);
-    removeHostAria(this);
     this.pinManager.clear();
     this.renderer.clear();
     unmountLayers(this);

@@ -19,7 +19,7 @@
  * `env.point(event)` is the press in canvas coordinates. Hooks only a core blit
  * runs go in `defineTrait`'s second argument, so the legacy class never carries them.
  */
-import { BLIT_ATTR } from '../core/state.js';
+import { BLIT_ATTR, stateOf } from '../core/state.js';
 
 /** Pointer travel (px) a press must exceed before it moves anything. */
 export const DRAG_THRESHOLD_PX = 3;
@@ -83,6 +83,19 @@ export function ownsEvent(b, event) {
 /** The primary pointer's main button: the only press that starts a gesture. */
 export function isPrimaryPress(event) {
   return event.isPrimary !== false && event.button === 0;
+}
+
+/** Add `listener` for each of `types` on `target`. @returns {() => void} off */
+export function listen(target, types, listener, options) {
+  for (const type of types) target.addEventListener(type, listener, options);
+  return () => { for (const type of types) target.removeEventListener(type, listener, options); };
+}
+
+/** The root a root add-on runs on - the one given, else the host's own - or a TypeError naming `name`. */
+export function requireRootOf(b, root, name) {
+  const found = root ?? stateOf(b.el)?.root;
+  if (!found || found.host !== b.el) throw new TypeError(`${name}: expected a root collection, blit('#app')`);
+  return found;
 }
 
 /** A root's projection: client coordinates to canvas coordinates through its camera. */

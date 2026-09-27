@@ -2,18 +2,16 @@
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
  * Everything the session does *to its host element*: the four layers it builds
- * inside it, the listeners it binds to it, and taking both away again.
- *
- * Split out of `./session.js` for the reason every other engine module was: the
- * session is the state and the public surface, and each transition it performs
- * lives beside it as free functions taking the session first. This one is the
- * DOM-membership transition - the only place a layer element is created or
- * removed, and the only place `addEventListener` is called on the host.
+ * inside it, the root add-ons it installs on it (announce, pan, menu, keyboard), and
+ * taking both away again. The only place a layer element is created or removed.
  *
  * The layers are found before they are built, so a re-`mount()` onto a host that
  * already carries them adopts what is there instead of stacking a second set.
  */
 import { bindKeyboard, unbindKeyboard } from './keyboard.js';
+import { mountContextMenu, unmountContextMenu } from './context-menu.js';
+import { bindPointer } from './pointer.js';
+import { applyHostAria, mountAnnouncer, removeHostAria, unmountAnnouncer } from './announcer.js';
 
 /** SVG namespace for the vector layer. */
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -123,50 +121,33 @@ export function unmountLayers(session) {
 }
 
 /**
- * Register the session's input listeners.
- *
- * Pointer *down* is the host's, because a gesture starts inside the canvas;
- * move and up are the window's, because a gesture that leaves the box is still
- * that gesture. Resize is what keeps the cached host rect honest. The wheel
- * listener is explicitly `passive: false`: the handler owns the wheel inside
- * the box and calls `preventDefault` unconditionally.
- *
- * @returns {boolean} true when the listeners were registered
+ * Install the root add-ons on the session's host: the ARIA identity and live
+ * region (`./announcer.js`), then pan before menu - so a right-click that
+ * cancels a gesture opens nothing - then keyboard, and the resize listener that
+ * keeps the cached host rect honest. A re-bind takes the previous set off first.
+ * @returns {boolean} true when the add-ons were installed
  */
 export function bindSessionEvents(session) {
-  const host = session.hostElement;
-  if (!host) return false;
+  if (!session.hostElement) return false;
+  unbindSessionEvents(session);
 
-  host.addEventListener('pointerdown', session._onPointerDown);
-  window.addEventListener('pointermove', session._onPointerMove);
-  window.addEventListener('pointerup', session._onPointerUp);
-  window.addEventListener('pointercancel', session._onPointerUp);
-  window.addEventListener('resize', session._onResize);
-  host.addEventListener('wheel', session._onWheel, { passive: false });
-  host.addEventListener('contextmenu', session._onContextMenu);
-
-  // Keyboard control keeps its own listener and its own roving state, both
-  // created here and taken away by `unbindKeyboard` (see `./keyboard.js`).
+  applyHostAria(session);
+  mountAnnouncer(session);
+  session._offPointer = bindPointer(session);
+  mountContextMenu(session);
   bindKeyboard(session);
+  window.addEventListener('resize', session._onResize);
   return true;
 }
 
-/** Remove every listener `bindSessionEvents` registered. */
+/** Take off everything `bindSessionEvents` installed. */
 export function unbindSessionEvents(session) {
   unbindKeyboard(session);
-
-  const host = session.hostElement;
-  if (host) {
-    host.removeEventListener('pointerdown', session._onPointerDown);
-    host.removeEventListener('wheel', session._onWheel);
-    host.removeEventListener('contextmenu', session._onContextMenu);
-  }
-
-  if (typeof window !== 'undefined') {
-    window.removeEventListener('pointermove', session._onPointerMove);
-    window.removeEventListener('pointerup', session._onPointerUp);
-    window.removeEventListener('pointercancel', session._onPointerUp);
-    window.removeEventListener('resize', session._onResize);
-  }
+  unmountContextMenu(session);
+  if (session._offPointer) session._offPointer();
+  session._offPointer = null;
+  unmountAnnouncer(session);
+  removeHostAria(session);
+  if (typeof window !== 'undefined') window.removeEventListener('resize', session._onResize);
   return true;
 }

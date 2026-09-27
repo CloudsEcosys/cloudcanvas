@@ -73,12 +73,12 @@ function elementStackAt(event) {
   return event.target ? [event.target] : [];
 }
 
-/** The Pin a DOM node belongs to, resolved by class and registered id. */
-function pinFromElement(session, element) {
+/** The Pin a DOM node belongs to, resolved by class and registered id, or null. */
+export function pinFromElement(session, element) {
   if (!element || typeof element.closest !== 'function') return null;
   const pinElement = element.closest(PIN_SELECTOR);
   const id = pinElement ? pinElement.getAttribute('data-pin-id') : null;
-  return id ? session.getPin(id) : null;
+  return id ? session.getPin(id) ?? null : null;
 }
 
 /** Whether `pin` is `subject` itself, or sits somewhere in its subtree. */
