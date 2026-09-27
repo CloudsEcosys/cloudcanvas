@@ -355,6 +355,20 @@ records the migration surface, not the commit history.
 
 ### Changed
 
+- **Sandbox save format v2.** (Breaking for `cloudcanvas/sandbox`.) `serializeSession` writes
+  `version: 2`: nested blit specs (`blits`, `w`/`h`, `fill`, traits as `name: true`, every
+  default left out) plus `reactions` (`source`, `action.target`), `pages` (`id`) and `theme`;
+  the schema heads `.addons/sandbox/format.js`. v1 saves, v1 exports and bare v1 arrays keep
+  loading through the pure `migrateV1`; an unknown version is logged and throws
+  `SandboxFormatError` (`loadSandbox` returns `null`). The loader now also drops reserved
+  slot-field keys and URL values `safeUrl` refuses. `serialize.js` is split into format,
+  migrate-v1, write, restore-tree and session-parts. Custom types, the slotted type and the
+  page store moved to the site; the reserved-key rule is exported from
+  `cloudcanvas/sandbox` (`reserved-keys.js`). A v2 export now promotes its Home page on
+  boot (the v1 boot script read `pages[].id`, which v1 never wrote).
+  *Migration*: read `blits`/`fill`/`reactions` where you read `pins`/`contents`/`bindings`;
+  import custom-type helpers from the site, the reserved keys from `cloudcanvas/sandbox`.
+
 - **The session and the Pin manager are facades over the core root.** (Breaking.) Pins are registered in the root's id index. `manager.pins` / `session.pins` are now a read-only view: it keeps Map reads (`get`, `has`, `size`, iteration), but it is no longer `instanceof Map`, and writes throw. `PinManager.tickAll()` and `renderAll()` are removed; the frame's registered passes do that work. `pin.destroy()` now also deregisters the Pin, so `getPin` stops finding it. An unknown session option now logs a warning on the `session` logger instead of throwing. Container aliases (`element`, `host`, `hostElement`, `target`) still throw.
 
 - **Every Pin has an element; headless (no-document) construction is gone.** (Breaking.)
