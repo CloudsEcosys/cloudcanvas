@@ -52,7 +52,9 @@ export function createRoot(options = {}) {
     dirty: new Set(),
     /** @type {Set<object>} states queued for the next read phase */
     measure: new Set(),
-    hooks: { structure: new Set(), read: new Set(), write: new Set(), busy: new Set() }
+    hooks: { structure: new Set(), read: new Set(), write: new Set(), busy: new Set() },
+    /** The promoted view root (null: the host), the blit elements above it, and the id index (`./root.js`). */
+    view: null, chain: null, ids: new Map()
   };
   root.loop = (timestamp) => loopStep(root, timestamp);
   return root;

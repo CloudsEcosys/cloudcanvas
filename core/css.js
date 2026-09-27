@@ -20,6 +20,7 @@ export const CORE_CSS = `
 [${OVERLAY_ATTR}] { position: absolute; inset: 0; pointer-events: none; }
 [data-blit-root] [data-blit] { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 [data-blit] [data-scope] { position: relative; }
+[data-blit-root] [data-blit][hidden] { display: none; }
 `;
 
 /**

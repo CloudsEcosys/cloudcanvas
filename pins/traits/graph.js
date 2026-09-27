@@ -16,6 +16,7 @@ import {
   writeConnector
 } from '../../addons/connect.js';
 import { pinOf } from '../pin-hierarchy.js';
+import { findBlit } from '../../core/root.js';
 
 /**
  * TransmitterTrait: Programmable event dispatcher, message broadcaster, and telemetry router
@@ -83,7 +84,7 @@ export class TransmitterTrait extends PinTrait {
    * of recursing forever. Relayed events never bubble - the relay is the propagation.
    *
    * A target is resolved by id (`relayTarget`): the element carrying that
-   * `data-pin-id` in the source's own tree, else the source's manager, else a
+   * `data-pin-id` in the source's own tree, else the root's id index, else a
    * `context.pinMap` handed to `transmit`.
    */
   _relayToConnections(pin, event, context) {
@@ -108,9 +109,9 @@ export class TransmitterTrait extends PinTrait {
 }
 
 /**
- * The Pin `id` names: in `pin`'s tree, else in its manager (a parked or
- * offloaded Pin is out of the tree but still registered - until S5 gives the
- * root an id index that includes parked blits), else in `context.pinMap`.
+ * The Pin `id` names: in `pin`'s tree, else in the id index of the root it
+ * renders on (a parked or offloaded Pin is out of the tree but still indexed),
+ * else in `context.pinMap`.
  */
 function relayTarget(pin, id, context) {
   const root = pin.element && typeof pin.element.getRootNode === 'function' ? pin.element.getRootNode() : null;
@@ -120,7 +121,8 @@ function relayTarget(pin, id, context) {
     : null;
   const found = element ? pinOf(element) : null;
   if (found) return found;
-  const registered = pin._manager && pin._manager.pins instanceof Map ? pin._manager.pins.get(id) : null;
+  const indexed = pin._renderer ? findBlit(pin._renderer.frameRoot, id) : null;
+  const registered = indexed ? pinOf(indexed) : null;
   if (registered) return registered;
   return context.pinMap instanceof Map ? context.pinMap.get(id) || null : null;
 }

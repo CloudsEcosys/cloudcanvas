@@ -20,6 +20,7 @@
  * (`src/pins/reload.js`). These are the mechanics that carry the decision out.
  */
 import { stateOf } from '../core/state.js';
+import { allows, setViewRoot } from '../core/root.js';
 import { park, place } from '../addons/park.js';
 import { DORMANT_CLASS, RELOAD_MODES, resolveRenderMode } from '../pins/reload.js';
 
@@ -180,13 +181,17 @@ export function depthOf(pin) {
  *
  * With no root promoted every Pin participates, which is exactly the unpromoted
  * canvas: one code path, two configurations.
+ *
+ * The promotion itself is the core root's (`../core/root.js`): this scope sets
+ * the Pin's element as the frame root's view root and asks it the question, so
+ * the Pin engine and a `blit('#app')` share one definition of participation.
  */
 export class RenderRootScope {
-  constructor() {
+  /** @param {object} frameRoot the core frame root the promotion is held on */
+  constructor(frameRoot) {
+    this.frameRoot = frameRoot;
     /** @type {Pin|null} */
     this.pin = null;
-    /** @type {Set<Pin>|null} the root plus every ancestor above it */
-    this._chain = null;
   }
 
   /**
@@ -199,7 +204,7 @@ export class RenderRootScope {
     if (next === this.pin) return false;
 
     this.pin = next;
-    this._chain = next ? new Set([next, ...next.ancestors()]) : null;
+    setViewRoot(this.frameRoot, next ? next.element : null);
 
     // A breadcrumb must be live to be navigable: wake the chain outermost first,
     // so each scope exists before the one nested inside it wakes.
@@ -212,15 +217,8 @@ export class RenderRootScope {
 
   /** Whether the current root lets a Pin take part in rendering at all. */
   allows(pin) {
-    if (!this.pin || !pin) return true;
-    if (this._chain.has(pin)) return true;
-
-    let node = pin.parent;
-    for (let depth = 0; node && depth < MAX_DEPTH; depth += 1) {
-      if (node === this.pin) return true;
-      node = node.parent;
-    }
-    return false;
+    if (!this.pin || !pin || pin === this.pin) return true;
+    return Boolean(pin.element) && allows(this.frameRoot, pin.element);
   }
 
   /** Root-first trail to the promoted Pin, or [] at the canvas root. */
@@ -230,6 +228,6 @@ export class RenderRootScope {
 
   clear() {
     this.pin = null;
-    this._chain = null;
+    setViewRoot(this.frameRoot, null);
   }
 }

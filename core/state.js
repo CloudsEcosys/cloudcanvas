@@ -104,6 +104,13 @@ export function parentElementOf(element) {
   return parent && typeof parent.closest === 'function' ? parent.closest(`[${BLIT_ATTR}]`) : null;
 }
 
+/** Whether `element` sits inside `ancestor`, read through anchors: a parked blit is still inside. */
+export function isWithin(ancestor, element) {
+  let node = parentElementOf(element);
+  for (let depth = 0; node && node !== ancestor && depth < MAX_DEPTH; depth += 1) node = parentElementOf(node);
+  return Boolean(node) && node === ancestor;
+}
+
 /** The size in force: the last measured box, or the declared one until then. */
 export function sizeOf(state) {
   return { w: state.mw > 0 ? state.mw : (state.w ?? 0), h: state.mh > 0 ? state.mh : (state.h ?? 0) };

@@ -25,6 +25,7 @@
  */
 import { createRoot, runFrame, schedule } from '../core/frame.js';
 import { forgetPlacement } from '../core/port.js';
+import { indexBlit, unindexBlit } from '../core/root.js';
 import { SvgGroupLayer } from './svg-groups.js';
 import { MotionHintSet } from './motion-hint.js';
 import { ScopeWellPass } from './scope-well.js';
@@ -102,9 +103,6 @@ export class ConjugateRenderer {
     /** Persistent `<g data-trait>` groups in the session's SVG layer. */
     this.svgLayer = new SvgGroupLayer({ element: options.svgLayerElement || null });
 
-    /** Promoted render root (empty = the whole canvas). */
-    this.rootScope = new RenderRootScope();
-
     initQueues(this);
     initPassState(this, options);
 
@@ -117,6 +115,9 @@ export class ConjugateRenderer {
     this.frameRoot = options.root
       || createRoot({ plane: this.planeElement, camera: STILL_CAMERA, running: false });
     registerPasses(this, this.frameRoot, options.passes);
+
+    /** Promoted render root (empty = the whole canvas), held on the frame root. */
+    this.rootScope = new RenderRootScope(this.frameRoot);
   }
 
   /* ------------------ MEMBERSHIP ------------------ */
@@ -130,6 +131,8 @@ export class ConjugateRenderer {
 
     this.activeSet.add(pin);
     pin._renderer = this;
+    // Indexed by Pin id while owned, parked or not: the relay's lookup (`../pins/traits/graph.js`).
+    if (pin.element) indexBlit(this.frameRoot, pin.element, pin.id);
 
     // An offload Pin joins the sweep and forces one evaluation next frame, so a
     // Pin created off-screen is torn down without waiting for the first pan.
@@ -164,7 +167,10 @@ export class ConjugateRenderer {
     this.measureQueue.delete(pin);
     this._offloadPins.delete(pin);
     this.motionHints.delete(pin);
-    if (pin.element) forgetPlacement(pin.element);
+    if (pin.element) {
+      forgetPlacement(pin.element);
+      unindexBlit(this.frameRoot, pin.element);
+    }
     // A vanished child still changes the well it was sitting in.
     this.scopeWells.invalidate(pin.parent);
     if (pin._renderer === this) pin._renderer = null;

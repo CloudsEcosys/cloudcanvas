@@ -6,9 +6,12 @@
  * logical ancestry readable (`parentElementOf` walks through it) and its
  * position among its siblings, so the element returns to exactly where it was.
  * A core blit's traits stop on the way out and run again on the way back
- * (`state.traits`, set by `../core/use.js` once it is indexed).
+ * (`state.traits`, set by `../core/use.js` once it is indexed). A core blit and
+ * the blits inside it are (re)indexed under their current ids on the way out, so
+ * their root still finds them.
  */
-import { stateOf } from '../core/state.js';
+import { BLIT_ATTR, rootOf, stateOf } from '../core/state.js';
+import { indexBlit } from '../core/root.js';
 
 /** @type {WeakMap<Comment, import('../core/state.js').BlitState>} anchor -> the record it holds a place for */
 const OWNERS = /* @__PURE__ */ new WeakMap();
@@ -23,6 +26,10 @@ export function park(state) {
   const element = state.el;
   if (state.anchor || !element.parentNode) return false;
 
+  const root = rootOf(state);
+  if (root) {
+    for (const each of [element, ...element.querySelectorAll(`[${BLIT_ATTR}]`)]) indexBlit(root, each);
+  }
   // Two plain moves rather than `replaceChild`: the same two writes the frame's
   // read/write discipline is observed at, so a park is never an invisible one.
   state.traits?.(state, false);

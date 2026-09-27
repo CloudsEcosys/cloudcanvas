@@ -7,12 +7,19 @@
  * the host's own state. Existing layers are adopted, so a second `blit()` over
  * the host is the same root. The host is itself a blit: `app.blits` are the
  * plane's direct blits.
+ * A root renders one blit as its world (`view`) and indexes its blits by id, parked ones included.
  */
 import { Camera } from './camera.js';
 import { OVERLAY_ATTR, PLANE_ATTR, injectCoreStyles } from './css.js';
-import { DEFAULT_HOST_RECT, createRoot, measureBlits, paintBlits } from './frame.js';
+import { DEFAULT_HOST_RECT, createRoot, measureBlits, paintBlits, schedule } from './frame.js';
 import { formatTransform3D } from './port.js';
-import { BLIT_ATTR, ROOT_ATTR } from './state.js';
+import {
+  BLIT_ATTR, MAX_DEPTH, ROOT_ATTR, isWithin, parentElementOf, rootOf, stateOf
+} from './state.js';
+import { runTraits, stopTraits } from './use.js';
+
+/** @type {WeakMap<Element, string>} element -> the id its root indexes it under */
+const INDEXED = /* @__PURE__ */ new WeakMap();
 
 /** The existing direct child carrying `attribute`, or a fresh one appended. */
 function adoptOrCreate(host, attribute) {
@@ -38,6 +45,7 @@ export function mountRoot(state) {
     camera: new Camera()
   });
   root.hostRect = hostRectOf(host);
+  root.demoted = new Set();
   // The root's own passes, registered before any hook can be: its blits are
   // measured first in the read phase, painted first in the write phase, and the
   // camera transform follows the ports.
@@ -62,7 +70,89 @@ function hostRectOf(host) {
   return rect.width > 0 && rect.height > 0 ? rect : DEFAULT_HOST_RECT;
 }
 
-/** Every `[data-blit]` under the host, in document order: ancestors come first. */
-export function scanRoot(root) {
-  return Array.from(root.host.querySelectorAll(`[${BLIT_ATTR}]`));
+/** Join the root the element sits under; a top-level element moves onto the plane. Its traits start here. */
+export function attachBlit(state) {
+  const root = rootOf(state);
+  if (parentElementOf(state.el) === root.host && state.el.parentElement !== root.plane) {
+    root.plane.appendChild(state.el);
+  }
+  root.dirty.add(state);
+  root.measure.add(state);
+  indexBlit(root, state.el);
+  if (root.view) demoteOne(root, state.el);
+  schedule(root);
+  runTraits(state);
+}
+
+/** The root a blit belongs to, read through anchors, so a parked blit's is found too. */
+export function heldRootOf(element) {
+  let node = element;
+  for (let depth = 0; node && !stateOf(node)?.root && depth < MAX_DEPTH; depth += 1) node = parentElementOf(node);
+  return node ? stateOf(node)?.root ?? null : null;
+}
+
+/** Take `element` and every blit inside it, parked ones included, out of the root's frame, traits and index. */
+export function releaseBlits(root, element) {
+  for (const each of [element, ...element.querySelectorAll(`[${BLIT_ATTR}]`)]) {
+    const state = stateOf(each);
+    root.demoted?.delete(each);
+    unindexBlit(root, each);
+    root.dirty.delete(state);
+    root.measure.delete(state);
+    if (state) stopTraits(state);
+  }
+  // A parked blit hangs behind an anchor comment: no comment inside, nothing parked inside.
+  if (!element.ownerDocument.createTreeWalker(element, NodeFilter.SHOW_COMMENT).nextNode()) return;
+  const parked = Array.from(root.ids.values()).filter((indexed) => !indexed.isConnected && isWithin(element, indexed));
+  for (const indexed of parked) unindexBlit(root, indexed);
+}
+
+/** Index `element` under `id` (its own by default), replacing any entry it had; no id, no entry. */
+export function indexBlit(root, element, id = element.id) {
+  unindexBlit(root, element);
+  if (!id) return;
+  root.ids.set(String(id), element);
+  INDEXED.set(element, String(id));
+}
+
+/** Drop `element`'s entry, if it still holds it (a stale id in `INDEXED` then matches nothing). */
+export function unindexBlit(root, element) {
+  const id = INDEXED.get(element);
+  if (id !== undefined && root.ids.get(id) === element) root.ids.delete(id);
+}
+
+/** The blit element indexed under `id`, else a `[data-blit]` under the host carrying it, else null. */
+export function findBlit(root, id) {
+  const key = String(id);
+  return root.ids.get(key) ?? root.host?.querySelector(`[${BLIT_ATTR}][id="${key.replace(/["\\]/g, '\\$&')}"]`) ?? null;
+}
+
+/** Promote `element` as the rendered world; null or the host is the whole root. @returns {boolean} changed */
+export function setViewRoot(root, element) {
+  const next = element && element !== root.host ? element : null;
+  if (next === root.view) return false;
+  root.view = next;
+  root.chain = next ? new Set() : null;
+  for (let node = next, depth = 0; node && depth < MAX_DEPTH; depth += 1, node = parentElementOf(node)) root.chain.add(node);
+  return true;
+}
+
+/** Whether the view root lets `element` take part: inside it, or on the branch above it. */
+export function allows(root, element) {
+  return !root.view || root.chain.has(element) || isWithin(root.view, element);
+}
+
+/** Show what the last promotion hid, then hide the top of every branch the view root does not allow. */
+export function demoteOthers(root) {
+  for (const element of root.demoted) element.hidden = false;
+  root.demoted.clear();
+  if (!root.view) return;
+  for (const element of root.host.querySelectorAll(`[${BLIT_ATTR}]`)) demoteOne(root, element);
+}
+
+/** Hide a disallowed blit whose parent is allowed; one hidden by its author stays the author's. */
+function demoteOne(root, element) {
+  if (element.hidden || allows(root, element) || !allows(root, parentElementOf(element))) return;
+  element.hidden = true;
+  root.demoted.add(element);
 }

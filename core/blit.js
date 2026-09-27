@@ -9,13 +9,15 @@
  */
 import {
   BLIT_ATTR, PLACEMENT_KEYS, ROOT_ATTR, SLOT_ATTR, SLOT_HTML_ATTR,
-  boundsOf, createState, parentElementOf, rootOf, scopeContainerOf, sizeOf, stateOf
+  boundsOf, createState, isWithin, parentElementOf, rootOf, scopeContainerOf, sizeOf, stateOf
 } from './state.js';
 import { readSpec, writeAttribute } from './spec.js';
 import { PHASES, paint, schedule } from './frame.js';
-import { mountRoot, scanRoot } from './root.js';
+import {
+  allows, attachBlit, demoteOthers, findBlit, heldRootOf, mountRoot, releaseBlits, setViewRoot
+} from './root.js';
 import { defineType, findType, instantiate, isTemplate } from './type.js';
-import { runTraits, specTraits, stopTraits, use, writeTraitKey } from './use.js';
+import { runTraits, specTraits, use, writeTraitKey } from './use.js';
 
 const PLACEMENT = /* @__PURE__ */ new Set(PLACEMENT_KEYS);
 
@@ -115,7 +117,7 @@ export class Blit {
     child.set(patch);
 
     (s.root ? s.root.plane : scopeContainerOf(s.el)).appendChild(element);
-    attach(child.#s);
+    attachBlit(child.#s);
     return child;
   }
 
@@ -133,32 +135,49 @@ export class Blit {
     return event;
   }
 
-  /** Take the element, and every blit inside it, out of the document and the frame. */
+  /** Take the element, and every blit inside it, out of the document, the frame and the id index. */
   remove() {
     const s = this.#s;
-    const root = rootOf(s);
-    if (root) {
-      for (const element of [s.el, ...s.el.querySelectorAll(`[${BLIT_ATTR}]`)]) {
-        const state = stateOf(element);
-        root.dirty.delete(state);
-        root.measure.delete(state);
-        if (state) stopTraits(state);
-      }
-    }
+    const root = heldRootOf(s.el);
+    if (root) releaseBlits(root, s.el);
+    s.anchor?.remove();
+    s.anchor = null;
     s.el.remove();
   }
 
+  /** On a root collection, the blit it renders as its world: the host until another is promoted; else null. */
+  get root() { return this.#s.root ? blit(this.#s.root.view || this.#s.el) : null; }
+
+  /** Promote a blit of this root (null: the host again); every blit off its branch is hidden until it changes. */
+  set root(target) {
+    const root = this.#s.root;
+    if (!root) throw new TypeError('blit.root: only a root collection has a root to set');
+    const element = blit(target ?? root.host).el;
+    if (element !== root.host && !isWithin(root.host, element)) throw new TypeError('blit.root: not a blit of this root');
+    if (setViewRoot(root, element)) demoteOthers(root);
+  }
+
+  /** The blit this blit's root indexes under `id`, a parked one included, or null. */
+  find(id) {
+    const element = findBlit(requireRoot(this.#s, 'find'), id);
+    return element ? blit(element) : null;
+  }
+
   /**
-   * Frame a blit in this blit's root: the camera snaps to fit its global
-   * bounds (the motion add-on makes it fly).
-   * @param {Blit|Element|string} target
+   * Frame a blit in this blit's root - by default its current root; the host is the identity camera.
+   * The camera snaps to fit the global bounds (the motion add-on makes it fly).
+   * @param {Blit|Element|string} [target] a blit on the current root's branch
    * @param {object} [options] `padding`, `maxZoom`; with motion also `immediate`, `duration`, `easing`
    * @returns {{x: number, y: number, scale: number}} the resolved camera
    */
   view(target, options) {
     const root = requireRoot(this.#s, 'view');
-    const { x, y, w, h } = (target instanceof Blit ? target : blit(target)).bounds;
-    const resolved = root.camera.fit({ x, y, width: w, height: h }, root.hostRect, options);
+    const handle = blit(target === undefined ? root.view || root.host : target);
+    if (!allows(root, handle.el)) throw new TypeError('blit.view: the target is hidden by the current root');
+    const atHost = handle.el === root.host;
+    const { x, y, w, h } = atHost ? { x: 0, y: 0, w: root.hostRect.width, h: root.hostRect.height } : handle.bounds;
+    const resolved = root.camera.fit({ x, y, width: w, height: h }, root.hostRect,
+      atHost ? { ...options, padding: 0, maxZoom: 1 } : options);
     schedule(root);
     return resolved;
   }
@@ -179,11 +198,11 @@ export class Blit {
 /**
  * The handle for an element: the cached one; else a root over a host (a selector, or an element under no root),
  * a child adopted into the root it sits under, or a potential blit (detached, or a `<template>`).
- * @param {string|Element} target
+ * @param {string|Element|Blit} target a handle answers itself
  * @returns {Blit}
  */
 export function blit(target) {
-  const element = typeof target === 'string' ? document.querySelector(target) : target;
+  const element = typeof target === 'string' ? document.querySelector(target) : (target instanceof Blit ? target.el : target);
   if (!element || element.nodeType !== 1) {
     throw new TypeError(`blit: no element for ${String(target)}`);
   }
@@ -202,13 +221,13 @@ export function blit(target) {
   const hostElement = element.parentElement?.closest(`[${ROOT_ATTR}]`);
   if (hostElement && stateOf(hostElement)) {
     adoptPlacement(state);
-    attach(state);
+    attachBlit(state);
     return handle;
   }
 
   const root = mountRoot(state);
   runTraits(state);
-  for (const found of scanRoot(root)) blit(found);
+  for (const found of root.host.querySelectorAll(`[${BLIT_ATTR}]`)) blit(found);
   return handle;
 }
 
@@ -288,14 +307,3 @@ function adoptPlacement(state) {
   }
 }
 
-/** Join the root the element sits under; a top-level element moves onto the plane. Its traits start here. */
-function attach(state) {
-  const root = rootOf(state);
-  if (parentElementOf(state.el) === root.host && state.el.parentElement !== root.plane) {
-    root.plane.appendChild(state.el);
-  }
-  root.dirty.add(state);
-  root.measure.add(state);
-  schedule(root);
-  runTraits(state);
-}
