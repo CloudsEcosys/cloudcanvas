@@ -5,7 +5,10 @@
  * declared kinds are coerced (placement is numeric); a numeric key that does not parse throws rather than reaching
  * the port as `NaN`. Prefix and kinds are parameters so the legacy `data-cc-*` hydration reads through it too.
  */
+import { createLogger } from '../log.js';
 import { BLIT_ATTR, PLACEMENT_KEYS, ROOT_ATTR } from './state.js';
+
+const logger = /* @__PURE__ */ createLogger('blit');
 
 /**
  * @typedef {object} AttributeKinds
@@ -67,10 +70,27 @@ export function readSpec(element) {
   return readAttributes(element, SPEC_PREFIX, SPEC_SKIP, SPEC_KINDS);
 }
 
-/** A `data-*` value read back as trait options: bare or `"true"` is `true`, JSON is parsed. */
-export function decodeAttribute(value) {
+/** Keys a parsed attribute never carries: through a consumer's merge each could reach a prototype. */
+const UNSAFE_KEYS = /* @__PURE__ */ new Set(['__proto__', 'constructor', 'prototype']);
+
+/**
+ * A `data-*` value read back as trait options: bare or `"true"` is `true`, JSON is parsed with its prototype keys
+ * dropped. Authored HTML is untrusted, so JSON that does not parse is warned about and read as `undefined`.
+ * @param {string} name the attribute, for the warning
+ */
+export function decodeAttribute(value, name = 'data-*') {
   if (value === '' || value === 'true') return true;
-  return /^[[{]/.test(value) ? JSON.parse(value) : value;
+  if (!/^[[{]/.test(value)) return value;
+  try {
+    return JSON.parse(value, (key, each) => {
+      if (!UNSAFE_KEYS.has(key)) return each;
+      logger.warn(`blit: ${name} drops the key "${key}"`);
+      return undefined;
+    });
+  } catch (error) {
+    logger.warn(`blit: ${name} is not valid JSON and is ignored (${error.name})`);
+    return undefined;
+  }
 }
 
 /** One spec key as a `data-*` attribute: an object as JSON, else stringified; null or undefined removes it. */

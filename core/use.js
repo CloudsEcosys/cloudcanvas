@@ -60,10 +60,12 @@ function setWith(state, value) {
   state.with = next;
 }
 
-/** The traits and port of `state` into `spec` by name; an anonymous one is left out, with a warning. */
+/** The traits and port of `state` into `spec` by name; an anonymous one, or a value that does not decode, is
+ * left out with a warning. */
 export function specTraits(state, spec) {
   for (const key of Object.keys(spec)) {
-    if (NAMED.has(key)) spec[key] = decodeAttribute(spec[key]);
+    if (NAMED.has(key)) spec[key] = decodeAttribute(spec[key], `data-${kebabCase(key)}`);
+    if (spec[key] === undefined) delete spec[key];
   }
   for (const fn of [...(state.with ?? []), ...(state.port ? [state.port] : [])]) {
     const kind = fn === state.port ? 'port' : 'trait';
@@ -74,7 +76,8 @@ export function specTraits(state, spec) {
   }
 }
 
-/** Run every trait `state` declares and is not running: its type's `with`, its own, then each named `data-*`. */
+/** Run every trait `state` declares and is not running: its type's `with`, its own, then each named `data-*`
+ * whose value decodes. */
 export function runTraits(state) {
   const root = rootOf(state);
   if (!root || !state.handle) return;
@@ -83,7 +86,8 @@ export function runTraits(state) {
   for (const fn of anonymous) start(state, root, fn, fn, true);
   for (const { name, value } of Array.from(state.el.attributes)) {
     const key = name.startsWith('data-') ? camelCase(name.slice(5)) : '';
-    if (NAMED.has(key)) start(state, root, key, NAMED.get(key), decodeAttribute(value));
+    const opts = NAMED.has(key) ? decodeAttribute(value, name) : undefined;
+    if (opts !== undefined) start(state, root, key, NAMED.get(key), opts);
   }
 }
 

@@ -49,120 +49,16 @@
  */
 
 /**
- * The bevel presets, as the `box-shadow` values they write.
- *
- * A bevel here is a soft, shadow-drawn one - an outer drop plus an inset top
- * highlight and inset bottom shadow - not `border-style: outset/inset`. It
- * matches the sheet's own `inset 0 1px 0 rgba(255,255,255,...)` highlight
- * tokens and the flat aesthetic, and it occupies no layout, where a real
- * border style would eat into the card's border-box and fight its 1px border
- * (the same reason `is-borderless` is a transparent border, not `border: none`).
- *
- * Literal values, deliberately: this is one Pin's inline style, not the
- * framework stylesheet the style-discipline gate lints, so no token read is
- * owed. The empty value is the default - clearing the override.
+ * The bevel presets and the property table live with the style add-on
+ * (`../addons/style.js`), the one copy both shells read; re-exported here.
  */
-export const BEVEL_PRESETS = /* @__PURE__ */ Object.freeze([
-  { value: '', label: 'None (default)' },
-  {
-    value: '0 4px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 -1px 0 rgba(0, 0, 0, 0.25)',
-    label: 'Raised'
-  },
-  {
-    value: 'inset 0 2px 4px rgba(0, 0, 0, 0.45), inset 0 -1px 0 rgba(255, 255, 255, 0.06)',
-    label: 'Inset (pressed)'
-  },
-  {
-    value: '0 12px 32px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
-    label: 'Floating'
-  }
-]);
+import { stylePropertyInfo, STYLE_PROPERTIES } from '../addons/style.js';
 
-/** Font-weight choices, as the values written. */
-const FONT_WEIGHTS = /* @__PURE__ */ Object.freeze([
-  { value: '', label: '(default)' },
-  { value: '400', label: 'Regular (400)' },
-  { value: '500', label: 'Medium (500)' },
-  { value: '600', label: 'Semibold (600)' },
-  { value: '700', label: 'Bold (700)' }
-]);
-
-/** Font-family stacks, as the values written. */
-const FONT_FAMILIES = /* @__PURE__ */ Object.freeze([
-  { value: '', label: '(default)' },
-  { value: 'var(--cc-font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif)', label: 'System' },
-  { value: 'Georgia, "Times New Roman", serif', label: 'Serif' },
-  { value: 'var(--cc-font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace)', label: 'Monospace' }
-]);
-
-/** Text-alignment choices. */
-const TEXT_ALIGN = /* @__PURE__ */ Object.freeze([
-  { value: '', label: '(default)' },
-  { value: 'left', label: 'Left' },
-  { value: 'center', label: 'Center' },
-  { value: 'right', label: 'Right' },
-  { value: 'justify', label: 'Justify' }
-]);
-
-/** The flow-placement keyword set `align-self` / `justify-self` are offered as. */
-const SELF_ALIGN = /* @__PURE__ */ Object.freeze([
-  { value: 'start', label: 'Start' },
-  { value: 'center', label: 'Center' },
-  { value: 'end', label: 'End' },
-  { value: 'stretch', label: 'Stretch' }
-]);
-
-/**
- * The one table both the allow-list and any editor iterate.
- *
- * Reuses `THEMABLE_PROPERTY`'s vocabulary (colour, background, box-shadow,
- * font-*, border-radius, padding, margin) plus the three placement properties
- * (`text-align`, `align-self`, `justify-self`). Adding a knob later is one line
- * here, not a parallel edit in a mutator and a form.
- *
- * Per entry:
- *   - `property` : the CSS property written, and its allow-list key
- *   - `label`    : the human name an editor shows
- *   - `control`  : the control kind an editor builds - 'color', 'length'
- *                  (a number of px), 'select' (one of `options`), or 'presets'
- *                  (a button per `options` value)
- *   - `options`  : the value set for 'select' / 'presets'
- *   - `reflow`   : true when a change moves the Pin's layout box, so the mutator
- *                  owes the renderer a re-measure (the same call `setChrome`
- *                  makes); false for a paint-only property like colour or radius
- *   - `flowOnly` : true for a property inert unless the Pin is a flow child
- */
-export const STYLE_PROPERTIES = /* @__PURE__ */ Object.freeze([
-  Object.freeze({ property: 'color', label: 'Text colour', control: 'color', reflow: false }),
-  Object.freeze({ property: 'background-color', label: 'Background', control: 'color', reflow: false }),
-  Object.freeze({ property: 'border-radius', label: 'Corner radius', control: 'length', reflow: false }),
-  Object.freeze({ property: 'box-shadow', label: 'Bevel / shadow', control: 'select', options: BEVEL_PRESETS, reflow: false }),
-  Object.freeze({ property: 'padding', label: 'Padding', control: 'length', reflow: true }),
-  Object.freeze({ property: 'margin', label: 'Margin', control: 'length', reflow: true }),
-  Object.freeze({ property: 'font-size', label: 'Font size', control: 'length', reflow: true }),
-  Object.freeze({ property: 'font-weight', label: 'Font weight', control: 'select', options: FONT_WEIGHTS, reflow: true }),
-  Object.freeze({ property: 'font-family', label: 'Font family', control: 'select', options: FONT_FAMILIES, reflow: true }),
-  Object.freeze({ property: 'text-align', label: 'Text align', control: 'select', options: TEXT_ALIGN, reflow: false }),
-  Object.freeze({ property: 'align-self', label: 'Align self', control: 'presets', options: SELF_ALIGN, reflow: true, flowOnly: true }),
-  Object.freeze({ property: 'justify-self', label: 'Justify self', control: 'presets', options: SELF_ALIGN, reflow: true, flowOnly: true })
-]);
-
-/** Property -> entry, built once, for O(1) validation. */
-const ENTRY_BY_PROPERTY = /* @__PURE__ */ new Map(/* @__PURE__ */ STYLE_PROPERTIES.map((entry) => [entry.property, entry]));
-
-/** Whether a property is one this mutator will write. */
-export function isStyleProperty(property) {
-  return ENTRY_BY_PROPERTY.has(property);
-}
-
-/** The table entry for a property, or undefined. */
-export function stylePropertyInfo(property) {
-  return ENTRY_BY_PROPERTY.get(property);
-}
+export { BEVEL_PRESETS, STYLE_PROPERTIES, isStyleProperty, stylePropertyInfo } from '../addons/style.js';
 
 /** The allow-listed entry, or a thrown rejection - the one gate every write passes. */
 function requireEntry(property) {
-  const entry = ENTRY_BY_PROPERTY.get(property);
+  const entry = stylePropertyInfo(property);
   if (!entry) {
     throw new TypeError(
       `setPinStyle: "${property}" is not a styleable property; `
@@ -271,7 +167,7 @@ export function pinStyleMap(pin) {
 export function applyPinStyleMap(pin, map) {
   if (!map || typeof map !== 'object') return;
   for (const [property, value] of Object.entries(map)) {
-    if (isStyleProperty(property) && typeof value === 'string' && value !== '') {
+    if (stylePropertyInfo(property) && typeof value === 'string' && value !== '') {
       setPinStyle(pin, property, value);
     }
   }

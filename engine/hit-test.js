@@ -25,6 +25,9 @@
  * itself or into one of its own descendants.
  */
 
+/* The element stack under a point is the place add-on's (`../addons/place.js`). */
+import { elementsAt } from '../addons/place.js';
+
 /** The one selector every layer resolves a Pin's root element by. */
 const PIN_SELECTOR = '.cloudcanvas-pin';
 
@@ -41,36 +44,13 @@ export function droppablePinAt(session, event, options = {}) {
   if (!session || !event) return null;
   const ignore = options.ignore || null;
 
-  for (const element of elementStackAt(event)) {
+  for (const element of elementsAt(event)) {
     const pin = pinFromElement(session, element);
     if (!pin) continue;
     if (ignore && isSelfOrDescendant(pin, ignore)) continue;
     return pin;
   }
   return null;
-}
-
-/**
- * The element stack under a point, topmost first.
- *
- * The real answer is `document.elementsFromPoint`; a layout-less DOM has no
- * stack to return, so the event's own target stands in - which is how a caller
- * with no geometry (the unit suite) names the element a drop landed on.
- *
- * @returns {EventTarget[]}
- */
-function elementStackAt(event) {
-  const x = event.clientX;
-  const y = event.clientY;
-
-  if (typeof document !== 'undefined'
-    && typeof document.elementsFromPoint === 'function'
-    && Number.isFinite(x) && Number.isFinite(y)) {
-    const stack = document.elementsFromPoint(x, y);
-    if (stack && stack.length) return stack;
-  }
-
-  return event.target ? [event.target] : [];
 }
 
 /** The Pin a DOM node belongs to, resolved by class and registered id, or null. */

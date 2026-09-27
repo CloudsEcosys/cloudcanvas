@@ -18,6 +18,7 @@
  * (`./reload.js`) - and nothing here runs a trait hook.
  */
 import { stateOf } from '../core/state.js';
+import { FLOW_CHILD_CLASS, LAYOUT_CLASS, LAYOUT_GAP_PROPERTY, LAYOUT_MODES } from '../addons/layout.js';
 import { MAX_DEPTH } from '../engine/mounting.js';
 import { formatTransform3D } from '../graphics/styles.js';
 import { CLS } from './traits/display-templates.js';
@@ -43,12 +44,8 @@ export const CONTENT_CLASS = 'cloudcanvas-pin-content';
 /** Class of the child-Pin container; never rewritten by display rendering. */
 export const SCOPE_CLASS = 'cloudcanvas-pin-scope';
 
-/**
- * Class granting a scope container its well: the box, the border, the gap and
- * the clipping. Written only when a live child is actually inside, so an empty
- * scope - which every Pin has - takes up no space and shows nothing.
- */
-export const SCOPE_POPULATED_CLASS = 'cc-populated';
+/** Class granting a scope container its well, only while a live child is inside (`../addons/layout.js`). */
+export { SCOPE_POPULATED_CLASS } from '../addons/layout.js';
 
 /**
  * Class granting a Pin's content node real text selection (`selectableText`).
@@ -69,39 +66,13 @@ export const SELECTABLE_TEXT_CLASS = 'is-selectable-text';
 export const BORDERLESS_CLASS = 'is-borderless';
 
 /**
- * How a Pin arranges its CHILDREN. `free` is today's behaviour - every child
- * absolutely positioned by its own transform - and is the default; the other
- * three lay the scope well out with flex or grid so the children flow.
+ * How a Pin arranges its CHILDREN (`free`, the default, or a flow mode), the
+ * scope-element class each flow mode is written as, the flow-child class and
+ * the gap property: one copy, the layout add-on's (`../addons/layout.js`).
  */
-export const LAYOUT_MODES = /* @__PURE__ */ Object.freeze({
-  FREE: 'free',
-  ROW: 'row',
-  COLUMN: 'column',
-  GRID: 'grid'
-});
+export { LAYOUT_MODES, LAYOUT_CLASS, FLOW_CHILD_CLASS, LAYOUT_GAP_PROPERTY } from '../addons/layout.js';
 
 const LAYOUT_VALUES = /* @__PURE__ */ new Set(/* @__PURE__ */ Object.values(LAYOUT_MODES));
-
-/**
- * The scope-element class each non-`free` layout mode is expressed by. Layout is
- * a property of how a Pin arranges its children, so the class lives on the well
- * that holds them (`SCOPE_CLASS`), never on the Pin's own root.
- */
-export const LAYOUT_CLASS = /* @__PURE__ */ Object.freeze({
-  row: 'is-layout-row',
-  column: 'is-layout-column',
-  grid: 'is-layout-grid'
-});
-
-/**
- * Class a child carries while its parent lays it out in flow (any non-`free`
- * layout). Its half of the contract is `position: relative` - the child drops out
- * of absolute positioning and the renderer stops writing it a transform.
- */
-export const FLOW_CHILD_CLASS = 'is-flow-child';
-
-/** Custom property the `gap` option is written to; read by all three flow modes. */
-export const LAYOUT_GAP_PROPERTY = '--cc-layout-gap';
 
 /**
  * The platform controls a press on a Pin stands down for - the router declines

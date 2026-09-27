@@ -21,6 +21,7 @@
  * conversion is the whole of what this module adds, through `scopeOriginOf`
  * (`./pin-element.js`) - the inverse of the sum `getGlobalBounds` walks.
  */
+import { siblingBefore } from '../addons/layout.js';
 import { nodeOf } from '../addons/park.js';
 import { captureScopeOffset, scopeOriginOf } from './pin-element.js';
 import { placeElement, syncScopePopulation } from './pin-membership.js';
@@ -156,31 +157,16 @@ function reorderChildElement(container, pin, beforeSibling) {
  * `column` or `grid` (which auto-flows into rows). A drop before the midpoint of a
  * sibling on that axis lands before it; the first sibling whose midpoint the drop
  * has not yet reached is the insertion point, and a drop past all of them appends.
- * Read straight off `getBoundingClientRect` because a flow child's particle x/y no
- * longer describes where it renders - the flex/grid box does.
+ * Read straight off `getBoundingClientRect` (`siblingBefore`, `../addons/layout.js`)
+ * because a flow child's particle x/y no longer describes where it renders.
  *
  * @returns {Pin|null} the reference sibling, or null to append
  */
 export function insertionSiblingFor(container, pin, event) {
-  const horizontal = container && container.layout === 'row';
-  const point = horizontal ? event && event.clientX : event && event.clientY;
-  if (!Number.isFinite(point)) return null;
-
-  for (const sibling of container.children) {
-    if (sibling === pin || !sibling.element) continue;
-    const rect = boundsOf(sibling.element);
-    if (!rect) continue;
-
-    const mid = horizontal ? (rect.left + rect.right) / 2 : (rect.top + rect.bottom) / 2;
-    if (point < mid) return sibling;
-  }
-  return null;
-}
-
-/** A live bounding box, or null when the element cannot report one. */
-function boundsOf(element) {
-  if (!element || typeof element.getBoundingClientRect !== 'function') return null;
-  return element.getBoundingClientRect();
+  const horizontal = Boolean(container) && container.layout === 'row';
+  const siblings = Array.from(container.children).filter((sibling) => sibling !== pin && sibling.element);
+  const found = siblingBefore(siblings.map((sibling) => sibling.element), horizontal ? event?.clientX : event?.clientY, horizontal);
+  return found ? siblings.find((sibling) => sibling.element === found) : null;
 }
 
 /** Whether `candidate` sits somewhere in `ancestor`'s subtree. */

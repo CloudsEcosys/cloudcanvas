@@ -36,6 +36,8 @@ const STATES = /* @__PURE__ */ new WeakMap();
  * @property {number} mh
  * @property {number} sx the scope container's layout offset inside the element
  * @property {number} sy
+ * @property {number|null} [fx] a flow child's offset as flex/grid placed it, read over x/y (`../addons/layout.js`)
+ * @property {number|null} [fy]
  * @property {Set<string>} changed keys written since the last port call
  * @property {boolean} painted whether a port has run for this blit yet
  * @property {Function|null} port a custom port, or null for the default
@@ -98,16 +100,17 @@ export function sizeOf(state) {
   return { w: state.mw > 0 ? state.mw : (state.w ?? 0), h: state.mh > 0 ? state.mh : (state.h ?? 0) };
 }
 
-/** The global box: local placement summed over every ancestor blit, up to a root. */
+/** The global box: local placement (a flow child's flow origin while it has one) summed over every ancestor blit. */
 export function boundsOf(state) {
-  let { x, y } = state;
+  let x = state.fx ?? state.x;
+  let y = state.fy ?? state.y;
   let node = parentElementOf(state.el);
 
   for (let depth = 0; node && depth < MAX_DEPTH; depth += 1) {
     const above = STATES.get(node);
     if (!above || above.root) break;
-    x += above.x + above.sx;
-    y += above.y + above.sy;
+    x += (above.fx ?? above.x) + above.sx;
+    y += (above.fy ?? above.y) + above.sy;
     node = parentElementOf(node);
   }
   return { x, y, ...sizeOf(state) };

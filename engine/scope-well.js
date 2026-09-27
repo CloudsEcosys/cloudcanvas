@@ -29,7 +29,7 @@
  * settles once, and the whole-pixel change gate below stops the cascade the
  * moment a value repeats.
  */
-import { SCOPE_POPULATED_CLASS } from '../pins/pin-element.js';
+import { isFlowLayout, writeWell } from '../addons/layout.js';
 import { forEachChild } from '../pins/pin-hierarchy.js';
 
 /**
@@ -107,8 +107,8 @@ export class ScopeWellPass {
     // measured from positions the child left behind, and must not size the well.
     // The flow itself sizes it: no written min-height at all, leaving the
     // stylesheet's own floor (`--cc-scope-min-height`) as the only one.
-    scope.style.minHeight = populated && !flow ? `${height}px` : '';
-    if (scope.classList) scope.classList.toggle(SCOPE_POPULATED_CLASS, populated);
+    // The one well rule, shared with the core layout add-on.
+    writeWell(scope, { height, populated, flow });
     return true;
   }
 
@@ -127,7 +127,7 @@ export class ScopeWellPass {
  * existed, or a test double - is free, which is the pre-8.2 behaviour exactly.
  */
 export function isFlowParent(parent) {
-  return Boolean(parent && parent.layout && parent.layout !== 'free');
+  return Boolean(parent) && isFlowLayout(parent.layout);
 }
 
 /**

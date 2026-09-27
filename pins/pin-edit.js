@@ -26,10 +26,11 @@
  *
  * Every function takes the Pin as its first argument.
  */
+import { EDIT_EVENT } from '../addons/edit.js';
 import { emitPinSignal } from './traits/base.js';
 
-/** The signal type announcing an edit lock transition; payload is the new state. */
-export const EDIT_SIGNAL = 'edit';
+/** The signal type announcing an edit lock transition; payload is the new state. One name, the edit add-on's. */
+export { EDIT_EVENT as EDIT_SIGNAL } from '../addons/edit.js';
 
 /** Install the lock's state on a freshly constructed Pin. */
 export function initEditState(pin) {
@@ -61,7 +62,7 @@ export function beginEdit(pin, node = null) {
   pin._editNode = node || null;
   pin._editDirty = false;
 
-  emitPinSignal(pin, EDIT_SIGNAL, true);
+  emitPinSignal(pin, EDIT_EVENT, true);
   return true;
 }
 
@@ -86,7 +87,7 @@ export function endEdit(pin) {
   pin._editDirty = false;
 
   if (owed) pin.invalidate('content');
-  emitPinSignal(pin, EDIT_SIGNAL, false);
+  emitPinSignal(pin, EDIT_EVENT, false);
   return true;
 }
 
