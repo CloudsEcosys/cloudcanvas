@@ -98,7 +98,7 @@ export class PinEvent extends CustomEvent {
  * `edit` is the edit lock's transition, payload `true` on entry and `false` on
  * exit; the session announces both (`../../engine/announcer.js`).
  */
-export const PIN_SIGNAL_TYPES = Object.freeze([
+export const PIN_SIGNAL_TYPES = /* @__PURE__ */ Object.freeze([
   'activate',
   'deactivate',
   'select',

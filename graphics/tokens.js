@@ -39,7 +39,7 @@ import { TOKEN_PREFIX, LIGHT_THEME } from './theme.js';
  * (control heights, blur radii, max-widths) that are themable knobs but are
  * neither a spacing step nor a corner radius.
  */
-export const TOKEN_CATEGORY = Object.freeze({
+export const TOKEN_CATEGORY = /* @__PURE__ */ Object.freeze({
   COLOR: 'color',
   SPACE: 'space',
   RADIUS: 'radius',
@@ -59,7 +59,7 @@ const C = TOKEN_CATEGORY;
  * tense, describing what the value paints or sizes - enough for an editor to
  * label a control without opening the stylesheet.
  */
-export const TOKENS = Object.freeze({
+export const TOKENS = /* @__PURE__ */ Object.freeze({
   /* ---- foundations: colour ---- */
   '--cc-bg': { category: C.COLOR, purpose: 'Canvas background fill' },
   '--cc-grid-dot': { category: C.COLOR, purpose: 'Dot colour of the background grid' },
@@ -159,7 +159,7 @@ export const TOKENS = Object.freeze({
 });
 
 /** Every catalogued token name. */
-export const TOKEN_NAMES = Object.freeze(Object.keys(TOKENS));
+export const TOKEN_NAMES = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.keys(TOKENS));
 
 /**
  * Whether `name` is a catalogued `--cc-*` token.

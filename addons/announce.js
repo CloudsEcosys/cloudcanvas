@@ -14,7 +14,8 @@
  * (payload the text). A root change is read each frame from `b.root`. A blit
  * is named by its `aria-label`, `data-title`, then id.
  */
-import { listen, requireRootOf } from './trait.js';
+import { LIVE_REGION_CSS } from '../graphics/css/announce.js';
+import { injectAddonCss, listen, requireRootOf } from './trait.js';
 
 /** Class of the live region; the canvas stylesheet hides it visually. */
 export const LIVE_REGION_CLASS = 'cloudcanvas-live-region';
@@ -83,6 +84,7 @@ function hearing(region, host) {
 /** The root trait. @returns {() => void} off, which takes the region away */
 export function announce(b, _opts, root) {
   requireRootOf(b, root, 'announce');
+  injectAddonCss('announce', LIVE_REGION_CSS);
   const host = b.el;
   const region = createLiveRegion(host);
   const off = listen(host, ['focus:change', 'edit', 'announce'], hearing(region, host));

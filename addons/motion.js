@@ -14,7 +14,7 @@ import { schedule } from '../core/frame.js';
 import { rootOf, stateOf } from '../core/state.js';
 import { createLogger } from '../log.js';
 
-const logger = createLogger('motion');
+const logger = /* @__PURE__ */ createLogger('motion');
 
 /**
  * Named easing curves for `options.easing`: normalised time `t` (0..1) to

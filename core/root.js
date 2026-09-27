@@ -7,7 +7,7 @@
  * renders one blit as its world (`view`) and indexes its blits by id, parked ones included.
  */
 import { Camera } from './camera.js';
-import { OVERLAY_ATTR, PLANE_ATTR, injectCoreStyles } from './css.js';
+import { CORE_CSS, CORE_STYLE_ID, OVERLAY_ATTR, PLANE_ATTR, injectStyle } from './css.js';
 import { DEFAULT_HOST_RECT, createRoot, measureBlits, paintBlits, schedule } from './frame.js';
 import { formatTransform3D } from './port.js';
 import { BLIT_ATTR, MAX_DEPTH, ROOT_ATTR, isWithin, parentElementOf, rootOf, stateOf } from './state.js';
@@ -26,7 +26,7 @@ function adoptOrCreate(host, attribute) {
 /** Turn a host's state into a root - layers, camera, frame loop - kept as `state.root`. */
 export function mountRoot(state) {
   const host = state.el;
-  injectCoreStyles();
+  injectStyle(CORE_STYLE_ID, CORE_CSS);
   host.setAttribute(ROOT_ATTR, '');
 
   const plane = adoptOrCreate(host, PLANE_ATTR);

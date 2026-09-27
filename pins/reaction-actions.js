@@ -29,7 +29,7 @@ import { STYLE_PROPERTIES, setPinStyle } from './pin-style.js';
  * widget, this map reads it to turn a raw form value into the typed one `run`
  * expects. Adding a kind is one entry here and one branch in the editor.
  */
-export const PARAM_CONTROLS = Object.freeze(['text', 'number', 'checkbox', 'select']);
+export const PARAM_CONTROLS = /* @__PURE__ */ Object.freeze(['text', 'number', 'checkbox', 'select']);
 
 /**
  * Coerce one raw parameter value to its declared control kind.
@@ -203,12 +203,12 @@ export class ActionRegistry {
 /* ------------------ BUILT-IN ACTIONS ------------------ */
 
 /** The style properties, offered to the `set-style` action as its `property` set. */
-const STYLE_PARAM_OPTIONS = Object.freeze(
+const STYLE_PARAM_OPTIONS = /* @__PURE__ */ Object.freeze(
   STYLE_PROPERTIES.map((entry) => Object.freeze({ value: entry.property, label: entry.label }))
 );
 
 /** How `toggle-visibility` may act: flip, or force one way. */
-const VISIBILITY_MODES = Object.freeze([
+const VISIBILITY_MODES = /* @__PURE__ */ Object.freeze([
   Object.freeze({ value: 'toggle', label: 'Toggle' }),
   Object.freeze({ value: 'hide', label: 'Hide' }),
   Object.freeze({ value: 'show', label: 'Show' })
@@ -406,4 +406,4 @@ export function registerBuiltinActions(registry) {
 }
 
 /** The shared registry; empty until `../defaults.js` seeds it with the built-in set. */
-export const actionRegistry = new ActionRegistry();
+export const actionRegistry = /* @__PURE__ */ new ActionRegistry();

@@ -87,7 +87,7 @@ export class CursorSelectedTrait extends builtInCursor(CURSOR_SELECTED) {}
 export class CursorActivatedTrait extends builtInCursor(CURSOR_ACTIVATED) {}
 
 /** The built-in cursor definitions, in registry form. */
-const CURSOR_DEFINITIONS = Object.freeze([
+const CURSOR_DEFINITIONS = /* @__PURE__ */ Object.freeze([
   [CURSOR_FOCUS, CursorFocusTrait],
   [CURSOR_SELECTED, CursorSelectedTrait],
   [CURSOR_ACTIVATED, CursorActivatedTrait]

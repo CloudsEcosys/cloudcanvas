@@ -23,16 +23,17 @@ export const CORE_CSS = `
 `;
 
 /**
- * Put the core stylesheet in the document, exactly once: rewriting a live `<style>` invalidates every matched rule.
+ * Put `css` in the document as the `<style id>` `id`, exactly once: rewriting a live `<style>` invalidates every
+ * matched rule. The core's sheet goes in this way, and so does each add-on's CSS chunk.
  * @returns {HTMLStyleElement|null} the element, or null without a document
  */
-export function injectCoreStyles() {
+export function injectStyle(id, css) {
   if (typeof document === 'undefined') return null;
-  let element = document.getElementById(CORE_STYLE_ID);
+  let element = document.getElementById(id);
   if (!element) {
     element = document.createElement('style');
-    element.id = CORE_STYLE_ID;
-    element.textContent = CORE_CSS;
+    element.id = id;
+    element.textContent = css;
     document.head.appendChild(element);
   }
   return element;

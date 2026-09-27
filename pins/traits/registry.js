@@ -124,4 +124,4 @@ export class TraitRegistry {
 }
 
 /** The registry `Pin.addTrait` resolves names through; empty until `../../defaults.js` fills it. */
-export const traitRegistry = new TraitRegistry();
+export const traitRegistry = /* @__PURE__ */ new TraitRegistry();

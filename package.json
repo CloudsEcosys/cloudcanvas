@@ -5,6 +5,10 @@
   "description": "Minimalist client-side GUI framework treating HTML elements as canvas pins",
   "type": "module",
   "main": "index.js",
+  "sideEffects": [
+    "./defaults.js",
+    "./index.js"
+  ],
   "keywords": [
     "canvas",
     "gui",

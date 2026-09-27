@@ -24,10 +24,10 @@ import { PIN_SIGNAL_TYPES } from './traits/base.js';
 import { actionRegistry as defaultActionRegistry } from './reaction-actions.js';
 import { createLogger } from '../log.js';
 
-const logger = createLogger('reactions');
+const logger = /* @__PURE__ */ createLogger('reactions');
 
 /** The signal a binding may fire on; the same closed set the bus relays. */
-const SIGNAL_SET = new Set(PIN_SIGNAL_TYPES);
+const SIGNAL_SET = /* @__PURE__ */ new Set(PIN_SIGNAL_TYPES);
 
 /** A short, collision-unlikely binding id. */
 function freshId() {

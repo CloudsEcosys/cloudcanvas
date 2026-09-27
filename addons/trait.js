@@ -19,7 +19,9 @@
  * `env.point(event)` is the press in canvas coordinates. Hooks only a core blit
  * runs go in `defineTrait`'s second argument, so the legacy class never carries them.
  */
+import { injectStyle } from '../core/css.js';
 import { BLIT_ATTR, stateOf } from '../core/state.js';
+import { BASE_STYLE_ID } from '../graphics/styles.js';
 
 /** Pointer travel (px) a press must exceed before it moves anything. */
 export const DRAG_THRESHOLD_PX = 3;
@@ -89,6 +91,16 @@ export function isPrimaryPress(event) {
 export function listen(target, types, listener, options) {
   for (const type of types) target.addEventListener(type, listener, options);
   return () => { for (const type of types) target.removeEventListener(type, listener, options); };
+}
+
+/**
+ * Put an add-on's CSS chunk (`../graphics/css/`) in the document once, as `<style id="blit-css-<name>">`. The
+ * legacy full sheet (`injectCanvasStyles`) already holds every chunk, so where it is present nothing is added.
+ * @returns {HTMLStyleElement|null} the chunk's element or the full sheet; null without a document
+ */
+export function injectAddonCss(name, css) {
+  if (typeof document === 'undefined') return null;
+  return document.getElementById(BASE_STYLE_ID) ?? injectStyle(`blit-css-${name}`, css);
 }
 
 /** The root a root add-on runs on - the one given, else the host's own - or a TypeError naming `name`. */

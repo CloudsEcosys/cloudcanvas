@@ -16,7 +16,7 @@
  */
 import { createLogger } from '../log.js';
 
-const logger = createLogger('session');
+const logger = /* @__PURE__ */ createLogger('session');
 
 /**
  * Every key something reads: the session's own, then the root add-ons

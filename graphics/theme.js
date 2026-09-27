@@ -23,7 +23,7 @@ export const TOKEN_PREFIX = '--cc-';
  * either by `CANVAS_DEFAULT_CSS` or by an SVG generator in `primitives/`, which
  * `tests/unit/styles.test.js` asserts.
  */
-export const LIGHT_THEME = Object.freeze({
+export const LIGHT_THEME = /* @__PURE__ */ Object.freeze({
   '--cc-bg': '#f4f5f7',
   '--cc-grid-dot': 'rgba(15, 23, 42, 0.14)',
   '--cc-text': '#1e293b',

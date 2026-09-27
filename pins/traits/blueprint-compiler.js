@@ -198,7 +198,7 @@ function writeValue(node, value) {
 }
 
 /** Binding type -> its diff-first write. */
-const BINDING_WRITERS = Object.freeze({
+const BINDING_WRITERS = /* @__PURE__ */ Object.freeze({
   text: writeText,
   class: writeClass,
   attr: writeAttribute,

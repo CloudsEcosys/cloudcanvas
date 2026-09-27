@@ -73,21 +73,21 @@ export const BORDERLESS_CLASS = 'is-borderless';
  * absolutely positioned by its own transform - and is the default; the other
  * three lay the scope well out with flex or grid so the children flow.
  */
-export const LAYOUT_MODES = Object.freeze({
+export const LAYOUT_MODES = /* @__PURE__ */ Object.freeze({
   FREE: 'free',
   ROW: 'row',
   COLUMN: 'column',
   GRID: 'grid'
 });
 
-const LAYOUT_VALUES = new Set(Object.values(LAYOUT_MODES));
+const LAYOUT_VALUES = /* @__PURE__ */ new Set(/* @__PURE__ */ Object.values(LAYOUT_MODES));
 
 /**
  * The scope-element class each non-`free` layout mode is expressed by. Layout is
  * a property of how a Pin arranges its children, so the class lives on the well
  * that holds them (`SCOPE_CLASS`), never on the Pin's own root.
  */
-export const LAYOUT_CLASS = Object.freeze({
+export const LAYOUT_CLASS = /* @__PURE__ */ Object.freeze({
   row: 'is-layout-row',
   column: 'is-layout-column',
   grid: 'is-layout-grid'
@@ -111,7 +111,7 @@ export const LAYOUT_GAP_PROPERTY = '--cc-layout-gap';
 export { CONTROL_ATTR, CONTROL_SELECTOR, isControlTarget } from '../addons/trait.js';
 
 /** Shared zero offset for Pins that were never measured. */
-const ORIGIN = Object.freeze({ x: 0, y: 0 });
+const ORIGIN = /* @__PURE__ */ Object.freeze({ x: 0, y: 0 });
 
 /**
  * A Pin's static ARIA identity.
@@ -121,7 +121,7 @@ const ORIGIN = Object.freeze({ x: 0, y: 0 });
  * does not implement is worse than claiming a generic one. The role description
  * is what makes a screen reader say "pin" instead of "group".
  */
-const PIN_ARIA = Object.freeze({
+const PIN_ARIA = /* @__PURE__ */ Object.freeze({
   role: 'group',
   'aria-roledescription': 'pin'
 });

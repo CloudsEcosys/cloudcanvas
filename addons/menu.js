@@ -22,8 +22,9 @@
  * listener already defaulted away (a gesture the pan add-on cancelled) opens nothing.
  */
 import { BLIT_ATTR, stateOf } from '../core/state.js';
+import { MENU_CSS } from '../graphics/css/menu.js';
 import { MenuRegistry, isTrigger, visibleItems } from './menu-registry.js';
-import { listen, requireRootOf } from './trait.js';
+import { injectAddonCss, listen, requireRootOf } from './trait.js';
 
 export { MenuRegistry, visibleItems } from './menu-registry.js';
 
@@ -347,6 +348,7 @@ export function installMenu(host, root, options) {
 export function menu(b, opts, root) {
   const options = opts && typeof opts === 'object' ? opts : {};
   const found = requireRootOf(b, root, 'menu');
+  injectAddonCss('menu', MENU_CSS);
   return installMenu(b.el, found, {
     registry: options.registry ?? registryOf(options.items),
     subject: b,

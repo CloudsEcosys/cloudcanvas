@@ -51,7 +51,7 @@ export function sendToBack(pin) {
 /* ------------------ REGISTRY ------------------ */
 
 /** The commands the framework ships, installed by `../defaults.js`: navigation, then the Pin-scoped z-order. */
-export const BUILT_IN_MENU_ITEMS = Object.freeze([
+export const BUILT_IN_MENU_ITEMS = /* @__PURE__ */ Object.freeze([
   {
     id: 'nav-back',
     label: 'Back',
@@ -83,7 +83,7 @@ export const BUILT_IN_MENU_ITEMS = Object.freeze([
 ]);
 
 /** The registry every session reads. One menu, however many canvases; empty until `../defaults.js` fills it. */
-export const menuRegistry = new MenuRegistry();
+export const menuRegistry = /* @__PURE__ */ new MenuRegistry();
 
 /** Add a command to the canvas menu (see {@link MenuRegistry#register}). */
 export function registerMenuItem(item) {

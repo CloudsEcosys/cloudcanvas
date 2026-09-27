@@ -17,7 +17,7 @@ import { applyHostAria, mountAnnouncer, removeHostAria, unmountAnnouncer } from 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 /** Layer classes, in paint order; each is also the selector it is found by. */
-export const LAYER_CLASSES = Object.freeze({
+export const LAYER_CLASSES = /* @__PURE__ */ Object.freeze({
   SVG: 'cloudcanvas-svg-layer',
   PLANE: 'cloudcanvas-plane',
   VEIL: 'cloudcanvas-focus-veil',

@@ -27,7 +27,7 @@ import { CURSOR_FOCUS } from '../pins/cursor.js';
 import { ELEVATED_CLASS, setElevationChain } from './elevation.js';
 
 /** Camera framing used when the session has no measurable host element. */
-export const DEFAULT_HOST_RECT = Object.freeze({ width: 800, height: 600, left: 0, top: 0 });
+export const DEFAULT_HOST_RECT = /* @__PURE__ */ Object.freeze({ width: 800, height: 600, left: 0, top: 0 });
 
 /** Class that makes the focus veil opaque; the element lives on the session. */
 export const VEIL_ACTIVE_CLASS = 'is-active';

@@ -17,7 +17,8 @@
  * Signals: `resize:start` `{width, height, direction}`, `resize:end`
  * `{width, height, cancelled}`. The element carries `is-resizing` while sizing.
  */
-import { CONTROL_ATTR, coordinate, defineTrait, passedThreshold, selectedOf } from './trait.js';
+import { RESIZE_CSS } from '../graphics/css/resize.js';
+import { CONTROL_ATTR, coordinate, defineTrait, injectAddonCss, passedThreshold, selectedOf } from './trait.js';
 
 /** Every edge and corner a box can be resized from. */
 export const RESIZE_DIRECTIONS = /* @__PURE__ */ Object.freeze(['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw']);
@@ -282,5 +283,8 @@ export const resizeBehaviour = {
  * particle takes the new size at once, so its shell reads that.
  */
 export const resize = /* @__PURE__ */ defineTrait(resizeBehaviour, {
-  mount: (s) => { s._reportApplied = true; }
+  mount: (s) => {
+    s._reportApplied = true;
+    injectAddonCss('resize', RESIZE_CSS);
+  }
 });

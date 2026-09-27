@@ -34,7 +34,7 @@
  */
 
 /** Rule identifiers carried by every violation. */
-export const STYLE_RULES = Object.freeze({
+export const STYLE_RULES = /* @__PURE__ */ Object.freeze({
   TOKEN: 'token',
   PREFIX: 'prefix',
   IMPORTANT: 'important'

@@ -8,7 +8,7 @@ import { camelCase, decodeAttribute, kebabCase, writeAttribute } from './spec.js
 import { BLIT_ATTR, PLACEMENT_KEYS, ROOT_ATTR, rootOf, stateOf } from './state.js';
 import { TYPE_ATTR, typeTraits } from './type.js';
 
-const logger = createLogger('blit');
+const logger = /* @__PURE__ */ createLogger('blit');
 
 /** A name round-trips through `data-*` unchanged and is no key or marker the core routes itself. */
 const NAME = /^[a-z][a-zA-Z0-9]*$/;

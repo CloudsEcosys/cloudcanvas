@@ -42,18 +42,24 @@ function tag(name, className, slot = '', inner = '', extra = '') {
   return `<${name} class="${className}"${slotAttr}${extra}>${inner}</${name}>`;
 }
 
-/** The header every display type but `raw` opens with: a title and a badge. */
-const HEADER = tag('div', CLS.HEADER, '', tag('div', CLS.TITLE, 'title') + tag('span', CLS.BADGE_SLOT, 'badge'));
+/**
+ * Name -> template markup. Every type but `raw` opens with the header, a title and a badge; the badge, needle and
+ * meter are graphic slots the legacy renderer draws. Built by a call so the table is one pure expression.
+ */
+function displayTypeMarkup() {
+  const header = tag('div', CLS.HEADER, '', tag('div', CLS.TITLE, 'title') + tag('span', CLS.BADGE_SLOT, 'badge'));
+  return Object.freeze({
+    card: header + tag('div', CLS.BODY, 'body') + tag('div', CLS.FOOTER, '',
+      tag('span', CLS.AUTHOR, 'author') + tag('button', CLS.ACTION_BTN, 'action', '', ' type="button"')),
+    media: header + tag('div', CLS.BODY, '', `<img class="${CLS.MEDIA}">` + tag('p', CLS.CAPTION, 'caption')),
+    'vector-pointer': header + tag('div', `${CLS.BODY} ${CLS.GAUGE_ROW}`, '', tag('div', CLS.NEEDLE_SLOT, 'needle')
+      + tag('div', CLS.GAUGE, '', tag('div', CLS.LABEL, 'label') + tag('div', CLS.METER_SLOT, 'meter'))),
+    raw: `<div ${SLOT_ATTR}="html" data-slot-html></div>`
+  });
+}
 
-/** Name -> template markup. The badge, needle and meter are graphic slots the legacy renderer draws. */
-export const DISPLAY_TYPES = /* @__PURE__ */ Object.freeze({
-  card: HEADER + tag('div', CLS.BODY, 'body') + tag('div', CLS.FOOTER, '',
-    tag('span', CLS.AUTHOR, 'author') + tag('button', CLS.ACTION_BTN, 'action', '', ' type="button"')),
-  media: HEADER + tag('div', CLS.BODY, '', `<img class="${CLS.MEDIA}">` + tag('p', CLS.CAPTION, 'caption')),
-  'vector-pointer': HEADER + tag('div', `${CLS.BODY} ${CLS.GAUGE_ROW}`, '', tag('div', CLS.NEEDLE_SLOT, 'needle')
-    + tag('div', CLS.GAUGE, '', tag('div', CLS.LABEL, 'label') + tag('div', CLS.METER_SLOT, 'meter'))),
-  raw: `<div ${SLOT_ATTR}="html" data-slot-html></div>`
-});
+/** Name -> template markup, frozen. */
+export const DISPLAY_TYPES = /* @__PURE__ */ displayTypeMarkup();
 
 /** Set once every display type is registered, so the legacy build path parses the markup once. */
 let registered = false;

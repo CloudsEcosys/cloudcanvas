@@ -19,8 +19,9 @@
  */
 import { h } from '../graphics/primitives/element.js';
 import { normalizePathTopology } from '../graphics/vectorizer.js';
+import { SVG_STATE_CSS } from '../graphics/css/svg-state.js';
 import { MOVING_CLASS, prefersReducedMotion } from './motion.js';
-import { defineTrait } from './trait.js';
+import { defineTrait, injectAddonCss } from './trait.js';
 
 export const SVG_STATE_WRAPPER_CLASS = 'cloudcanvas-svg-state-wrapper';
 export const SVG_STATE_HOST_CLASS = 'cloudcanvas-svg-state-host';
@@ -236,6 +237,7 @@ export const svgState = /* @__PURE__ */ defineTrait(svgStateBehaviour, {
   attach: (s, b) => mountSvgState(s, b, b.el),
   detach: unmountSvgState,
   mount: (s, b) => {
+    injectAddonCss('svg-state', SVG_STATE_CSS);
     RECORDS.set(b.el, s);
     return () => RECORDS.delete(b.el);
   }

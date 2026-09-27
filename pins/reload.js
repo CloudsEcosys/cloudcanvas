@@ -24,16 +24,16 @@ export const DORMANT_CLASS = 'is-dormant';
  *                   `loadChildren` provider at that point. Once provisioned it
  *                   behaves like `persistent` until `unload()` resets it.
  */
-export const RELOAD_STRATEGIES = Object.freeze({
+export const RELOAD_STRATEGIES = /* @__PURE__ */ Object.freeze({
   ACTIVE: 'active',
   PERSISTENT: 'persistent',
   LAZY: 'lazy'
 });
 
-const RELOAD_VALUES = new Set(Object.values(RELOAD_STRATEGIES));
+const RELOAD_VALUES = /* @__PURE__ */ new Set(/* @__PURE__ */ Object.values(RELOAD_STRATEGIES));
 
 /** The DOM states a reload strategy can resolve to. */
-export const RELOAD_MODES = Object.freeze({
+export const RELOAD_MODES = /* @__PURE__ */ Object.freeze({
   MOUNTED: 'mounted',
   DORMANT: 'dormant',
   UNMOUNTED: 'unmounted'

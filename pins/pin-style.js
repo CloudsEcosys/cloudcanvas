@@ -62,7 +62,7 @@
  * framework stylesheet the style-discipline gate lints, so no token read is
  * owed. The empty value is the default - clearing the override.
  */
-export const BEVEL_PRESETS = Object.freeze([
+export const BEVEL_PRESETS = /* @__PURE__ */ Object.freeze([
   { value: '', label: 'None (default)' },
   {
     value: '0 4px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 -1px 0 rgba(0, 0, 0, 0.25)',
@@ -79,7 +79,7 @@ export const BEVEL_PRESETS = Object.freeze([
 ]);
 
 /** Font-weight choices, as the values written. */
-const FONT_WEIGHTS = Object.freeze([
+const FONT_WEIGHTS = /* @__PURE__ */ Object.freeze([
   { value: '', label: '(default)' },
   { value: '400', label: 'Regular (400)' },
   { value: '500', label: 'Medium (500)' },
@@ -88,7 +88,7 @@ const FONT_WEIGHTS = Object.freeze([
 ]);
 
 /** Font-family stacks, as the values written. */
-const FONT_FAMILIES = Object.freeze([
+const FONT_FAMILIES = /* @__PURE__ */ Object.freeze([
   { value: '', label: '(default)' },
   { value: 'var(--cc-font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif)', label: 'System' },
   { value: 'Georgia, "Times New Roman", serif', label: 'Serif' },
@@ -96,7 +96,7 @@ const FONT_FAMILIES = Object.freeze([
 ]);
 
 /** Text-alignment choices. */
-const TEXT_ALIGN = Object.freeze([
+const TEXT_ALIGN = /* @__PURE__ */ Object.freeze([
   { value: '', label: '(default)' },
   { value: 'left', label: 'Left' },
   { value: 'center', label: 'Center' },
@@ -105,7 +105,7 @@ const TEXT_ALIGN = Object.freeze([
 ]);
 
 /** The flow-placement keyword set `align-self` / `justify-self` are offered as. */
-const SELF_ALIGN = Object.freeze([
+const SELF_ALIGN = /* @__PURE__ */ Object.freeze([
   { value: 'start', label: 'Start' },
   { value: 'center', label: 'Center' },
   { value: 'end', label: 'End' },
@@ -132,7 +132,7 @@ const SELF_ALIGN = Object.freeze([
  *                  makes); false for a paint-only property like colour or radius
  *   - `flowOnly` : true for a property inert unless the Pin is a flow child
  */
-export const STYLE_PROPERTIES = Object.freeze([
+export const STYLE_PROPERTIES = /* @__PURE__ */ Object.freeze([
   Object.freeze({ property: 'color', label: 'Text colour', control: 'color', reflow: false }),
   Object.freeze({ property: 'background-color', label: 'Background', control: 'color', reflow: false }),
   Object.freeze({ property: 'border-radius', label: 'Corner radius', control: 'length', reflow: false }),
@@ -148,7 +148,7 @@ export const STYLE_PROPERTIES = Object.freeze([
 ]);
 
 /** Property -> entry, built once, for O(1) validation. */
-const ENTRY_BY_PROPERTY = new Map(STYLE_PROPERTIES.map((entry) => [entry.property, entry]));
+const ENTRY_BY_PROPERTY = /* @__PURE__ */ new Map(/* @__PURE__ */ STYLE_PROPERTIES.map((entry) => [entry.property, entry]));
 
 /** Whether a property is one this mutator will write. */
 export function isStyleProperty(property) {

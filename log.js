@@ -10,7 +10,7 @@
  */
 
 /** The four levels, by rank; a sink at `warn` receives `warn` and `error`. */
-export const LOG_LEVELS = Object.freeze({ debug: 10, info: 20, warn: 30, error: 40 });
+export const LOG_LEVELS = /* @__PURE__ */ Object.freeze({ debug: 10, info: 20, warn: 30, error: 40 });
 
 /**
  * The default sink: each level to its `console` method, falling back to `console.log`. The console is looked up
