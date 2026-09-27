@@ -68,7 +68,7 @@ export {
 export class Pin extends DeprecatedPinAliases {
   constructor(options = {}) {
     super();
-    this.id = options.id || `pin_${Math.random().toString(36).slice(2, 9)}`;
+    this.id = options.id || options.element?.id || `pin_${Math.random().toString(36).slice(2, 9)}`;
 
     // A utility Pin is machinery, not content: traits and a spatial node on a
     // detached element, no display, no interaction, and filtered out of every

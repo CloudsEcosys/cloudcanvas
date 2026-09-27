@@ -15,15 +15,22 @@
  * the frame's context, just not driven by the clock.
  */
 import { renderSessionCursors } from './cursors.js';
-import { createRoot, runFrame, schedule } from '../core/frame.js';
+import { createRoot, measureBlits, paintBlits, runFrame, schedule } from '../core/frame.js';
 import { pinOf } from '../pins/pin-hierarchy.js';
 
 /**
  * The session's frame root: its viewport is the camera, and it is born stopped
  * so a session constructed without a container renders only by hand until mount.
+ * It is a core root too (`./host.js` adopts it onto the host at mount), so a core
+ * blit made inside it is measured and painted by the core's own passes, first in
+ * their phases as on a `blit('#app')` root (`../core/root.js`).
  */
 export function createSessionFrame(session) {
-  return createRoot({ camera: session.viewport, running: false });
+  const root = createRoot({ camera: session.viewport, running: false });
+  root.demoted = new Set();
+  root.hooks.read.add(() => measureBlits(root));
+  root.hooks.write.add(() => paintBlits(root));
+  return root;
 }
 
 /** The passes the session threads into the renderer's registration (`./passes.js`). */

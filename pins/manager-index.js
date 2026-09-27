@@ -15,7 +15,10 @@
  * Every function takes the manager as its first argument.
  */
 import { indexBlit, unindexBlit } from '../core/root.js';
+import { createLogger } from '../log.js';
 import { pinOf } from './pin-hierarchy.js';
+
+const logger = /* @__PURE__ */ createLogger('pins');
 
 /** The Pin `element` belongs to, when that Pin is registered with `manager`. */
 export function registeredPin(manager, element) {
@@ -25,8 +28,18 @@ export function registeredPin(manager, element) {
 
 /** Index a Pin under its id, and under every trait name it carries. */
 export function indexPin(manager, pin) {
+  warnDuplicateId(pin);
   indexBlit(manager.root, pin.element, pin.id);
   indexTraits(manager, pin);
+}
+
+/** A Pin id is its element's `id` too: another element in the document holding it is a duplicate id, warned. */
+export function warnDuplicateId(pin) {
+  if (typeof document === 'undefined' || !pin.element) return false;
+  const other = document.getElementById(pin.id);
+  if (!other || other === pin.element) return false;
+  logger.warn(`Pin "${pin.id}" shares its id with another element in the document; element ids must be unique`);
+  return true;
 }
 
 /** Drop a Pin from the root index and from every trait bucket. */

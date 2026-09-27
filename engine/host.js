@@ -12,6 +12,8 @@ import { bindKeyboard, unbindKeyboard } from './keyboard.js';
 import { mountContextMenu, unmountContextMenu } from './context-menu.js';
 import { bindPointer } from './pointer.js';
 import { applyHostAria, mountAnnouncer, removeHostAria, unmountAnnouncer } from './announcer.js';
+import { ROOT_ATTR, createState, dropState, stateOf } from '../core/state.js';
+import { injectStyle } from '../core/css.js';
 
 /** SVG namespace for the vector layer. */
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -23,6 +25,18 @@ export const LAYER_CLASSES = /* @__PURE__ */ Object.freeze({
   VEIL: 'cloudcanvas-focus-veil',
   OVERLAY: 'cloudcanvas-overlay-layer'
 });
+
+/**
+ * The bridge's sheet: a core blit in a session is placed as the core places it, and a flow-child Pin
+ * stays in flow on a page that also carries the core sheet (its `[data-blit-root] [data-blit]`).
+ */
+const BRIDGE_STYLE_ID = 'blit-css-session';
+const BRIDGE_CSS = `
+.cloudcanvas-host [data-blit]:not(.cloudcanvas-pin):not([data-blit-root]) {
+  position: absolute; top: 0; left: 0; transform-origin: 0 0;
+}
+[data-blit-root] .cloudcanvas-pin.is-flow-child { position: relative; top: auto; left: auto; }
+`;
 
 /** Class the session puts on its host element while it is mounted. */
 export const HOST_CLASS = 'cloudcanvas-host';
@@ -93,7 +107,43 @@ export function mountLayers(session) {
     return element;
   });
 
+  adoptHostRoot(session);
   return true;
+}
+
+/**
+ * Make the session's frame root the host's core root: the host is marked
+ * `data-blit-root` and its record holds the frame, so `blit(host)` answers this
+ * root, and a Pin element (already `data-blit`, `id` = Pin id) resolves inside
+ * it - one canvas for Pins and blits. A host some other root already owns throws.
+ */
+function adoptHostRoot(session) {
+  const host = session.hostElement;
+  const root = session._frame;
+  const existing = stateOf(host);
+  if (existing?.root && existing.root !== root) {
+    throw new TypeError('CloudCanvasSession.mount: the host is already a blit root');
+  }
+  root.plane = session.planeElement;
+  root.overlay = session.overlayElement;
+  if (session.options?.autoInjectStyles !== false) injectStyle(BRIDGE_STYLE_ID, BRIDGE_CSS);
+  if (existing?.root === root) return;
+  session._hostStateAdded = !existing;
+  session._hostRootAttrAdded = !host.hasAttribute(ROOT_ATTR);
+  (existing || createState(host)).root = root;
+  host.setAttribute(ROOT_ATTR, '');
+}
+
+/** Hand the host's core record back: what `adoptHostRoot` added goes, nothing else. */
+function releaseHostRoot(session) {
+  const host = session.hostElement;
+  const state = host ? stateOf(host) : null;
+  if (!state || state.root !== session._frame) return;
+  if (session._hostRootAttrAdded) host.removeAttribute(ROOT_ATTR);
+  if (session._hostStateAdded) dropState(host);
+  else state.root = null;
+  session._hostStateAdded = false;
+  session._hostRootAttrAdded = false;
 }
 
 /**
@@ -105,6 +155,7 @@ export function mountLayers(session) {
  * away leaves the attribute empty - an empty `class=""` is residue too.
  */
 export function unmountLayers(session) {
+  releaseHostRoot(session);
   for (const key of ['focusVeilElement', 'planeElement', 'svgLayerElement', 'overlayElement']) {
     const element = session[key];
     if (element && element.parentNode) element.parentNode.removeChild(element);

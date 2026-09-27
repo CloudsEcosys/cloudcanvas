@@ -179,9 +179,8 @@ function rootClassName(options) {
 }
 
 /**
- * Tag the element with its Pin identity, build the child structure, measure once.
- *
- * `PIN_CLASS` is written here, not only in `createDefaultElement`, because an
+ * Tag the element with its Pin identity (`id` and `data-pin-id`, both the Pin id: the
+ * core root finds it by `id`), build the child structure, measure once. `PIN_CLASS` is written here, not only in `createDefaultElement`, because an
  * adopted element (`options.element`) never passes through that builder - it
  * arrives with the caller's markup and the caller's classes. Every layer that
  * resolves a Pin from a DOM node does it by `.cloudcanvas-pin` (the pointer
@@ -189,9 +188,8 @@ function rootClassName(options) {
  * so an adopted element without the class is a Pin none of them can see: its
  * drag, its selection, and its keyboard actions silently never fire.
  *
- * Additive through `classList`, never `className`: the caller's own classes are
- * theirs to keep, and a normally-constructed Pin already carries the class, so
- * the write is idempotent for every Pin.
+ * Additive through `classList`, never `className`: the caller's classes are theirs
+ * to keep, and the write is idempotent for a Pin already carrying the class.
  */
 export function setupElement(pin) {
   if (!pin.element) return;
@@ -199,6 +197,7 @@ export function setupElement(pin) {
   if (pin.element.classList) pin.element.classList.add(PIN_CLASS);
   if (pin.element.setAttribute) {
     pin.element.setAttribute('data-pin-id', pin.id);
+    pin.element.id = pin.id;
     applyPinAria(pin.element);
   }
   if (pin.selectableText && pin.element.classList) {

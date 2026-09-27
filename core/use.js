@@ -18,8 +18,9 @@ const TAKEN = /* @__PURE__ */ new Set(['blit', 'blitRoot', 'port', 'with', 'fill
 const NAMED = /* @__PURE__ */ new Map();
 
 /** `blit.use({name: fn})`: the same pair again is a no-op, another function under a taken name throws, and
- * a late name upgrades the `[data-<name>]` elements already under live roots. */
+ * a late name upgrades the `[data-<name>]` elements already under live roots. `blit.use()` lists the names. */
 export function use(entries) {
+  if (entries === undefined) return Object.freeze(Array.from(NAMED.keys()));
   if (!entries || typeof entries !== 'object') throw new TypeError('blit.use: expected {name: fn}');
   for (const [name, fn] of Object.entries(entries)) {
     if (!NAME.test(name) || TAKEN.has(name)) throw new TypeError(`blit.use: "${name}" cannot be a name`);

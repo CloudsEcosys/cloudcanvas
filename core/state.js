@@ -63,6 +63,12 @@ export function createState(element) {
   return state;
 }
 
+/** Forget the record for `element` and take its `data-blit` mark off: a host handed back as it was found. */
+export function dropState(element) {
+  STATES.delete(element);
+  element.removeAttribute(BLIT_ATTR);
+}
+
 /** The root record the element sits under, or null; read from the DOM, never cached. */
 export function rootOf(state) {
   const host = state.el.closest(`[${ROOT_ATTR}]`);

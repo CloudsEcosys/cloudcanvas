@@ -24,6 +24,9 @@
 
 import { PRESERVE_TYPE } from '../pins/traits/display-templates.js';
 import { readAttributes } from '../core/spec.js';
+import { createLogger } from '../log.js';
+
+const logger = /* @__PURE__ */ createLogger('hydrate');
 
 /** Namespace every hydration attribute lives under. */
 const ATTR_PREFIX = 'data-cc-';
@@ -80,7 +83,8 @@ function isElement(value) {
 }
 
 /**
- * Turn an existing element into a Pin without touching what is inside it.
+ * Turn an existing element into a Pin without touching what is inside it. Its own
+ * `id`, when it has one, is the Pin id unless `options.id` names another.
  *
  * Two defaults, both overridable by `options`: the `preserve` display type (the
  * markup is the content) and no chrome (the caller's element already looks the
@@ -99,6 +103,10 @@ export function adopt(session, element, options = {}) {
     throw new TypeError('adopt: a real DOM element is required');
   }
 
+  // A Pin's element carries the Pin id as its own `id`: an explicit id replaces the authored one.
+  if (element.id && options.id !== undefined && String(options.id) !== element.id) {
+    logger.warn(`adopt: the element's id "${element.id}" is replaced by the Pin id "${options.id}"`);
+  }
   const config = { chrome: false, ...options, element };
   if (!config.type && !config.displayTrait) {
     config.type = PRESERVE_TYPE;
