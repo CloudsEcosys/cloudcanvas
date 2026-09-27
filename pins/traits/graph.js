@@ -124,7 +124,7 @@ function relayTarget(pin, id, context) {
   const indexed = pin._renderer ? findBlit(pin._renderer.frameRoot, id) : null;
   const registered = indexed ? pinOf(indexed) : null;
   if (registered) return registered;
-  return context.pinMap instanceof Map ? context.pinMap.get(id) || null : null;
+  return typeof context.pinMap?.get === 'function' ? context.pinMap.get(id) || null : null;
 }
 
 /**

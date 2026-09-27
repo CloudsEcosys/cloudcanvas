@@ -109,8 +109,9 @@ export function mountContextMenu(session) {
 
   const state = {};
   state.off = installMenu(session.hostElement, session._frame, {
-    state,
     registry: menuRegistry,
+    ...session.options?.menu,
+    state,
     subject: session,
     overlay: session.overlayElement,
     resolve: (event) => ({ pin: pinFromElement(session, event.target), x: event.clientX, y: event.clientY })

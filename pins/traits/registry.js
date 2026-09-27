@@ -8,8 +8,8 @@
  * instances: every `create()` yields a fresh trait, so two Pins declaring the same
  * trait name never share mutable state (connections, selection, drag flags).
  *
- * The instance index lives on PinManager (`traitIndex` / `capabilityIndex`), which
- * is the only component that knows which Pins actually exist.
+ * The instance index lives on PinManager (`traitIndex`, over the root's id
+ * index), the only component that knows which Pins actually exist.
  *
  * A registry is empty on construction. The built-in definitions are installed by
  * `../../defaults.js` through `registerDefaults`, so nothing registers on import.

@@ -203,7 +203,7 @@ export function setFocused(pin, focused, session) {
  * it - gets to let go. Then the subtree, the traits' own `onDetach`, the
  * renderer (which still reads `parent` to invalidate the well above), the
  * element - detached outright, which is what ends the parent link - and
- * finally the manager's indices.
+ * finally the manager: a destroyed Pin is no longer registered anywhere.
  *
  * @returns {Pin} the Pin, now detached from everything
  */
@@ -224,7 +224,7 @@ export function destroy(pin) {
 
   if (pin._renderer) pin._renderer.forget(pin);
   detachElement(pin);
-  if (pin._manager) pin._manager.reindexPin(pin);
+  if (pin._manager) pin._manager._deregister(pin);
 
   return pin;
 }

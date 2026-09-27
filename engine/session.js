@@ -1,13 +1,16 @@
 /**
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
- * CloudCanvasSession: the client-side runtime - host mounting, scoping, focus
- * navigation, the four render layers, and the trait-driven frame loop.
+ * CloudCanvasSession: the legacy runtime, as a compatibility facade over a core
+ * root (`../core/frame.js`, `./frame.js`) - its camera the viewport, its id index
+ * the Pin registry (`../pins/manager.js`), its view root the promoted Pin - plus
+ * the root add-ons it installs on the container (pan, keyboard, menu, announce),
+ * the Pin hooks, and the public API it has always had.
  *
  * The session is the state and the public surface; the transitions live beside
  * it, as free functions taking the session as their first argument:
  *
- *   ./host.js       - the four layers, and the input add-ons installed on the host
+ *   ./host.js       - the four layers, and the root add-ons installed on the host
  *   ./navigation.js - focus, promotion, and the back/forward history
  *   ./pointer.js    - the pan add-on, with Pin drags claimed for their traits
  *   ./context-menu.js - the menu add-on over the shared command registry
@@ -18,7 +21,7 @@
  *   ./placement.js  - a free canvas spot for a new Pin
  *   ./framing.js    - which box a `zoomToFit` should frame
  *   ./renderer.js   - the per-frame conjugate render pass
- *   ./session-options.js - the closed list of options, and its enforcement
+ *   ./session-options.js - the open option surface: what is read, what is reported
  */
 import { Viewport } from './viewport.js';
 import { ParticleEngine } from '../particles/engine.js';
@@ -37,7 +40,7 @@ import { announceEdit, announceFocus } from './announcer.js';
 import { place } from './placement.js';
 import { adopt, hydrate } from './hydrate.js';
 import { zoomToFit } from './framing.js';
-import { assertKnownOptions, assertValidContainer } from './session-options.js';
+import { assertValidContainer, checkOptions } from './session-options.js';
 import { injectCanvasStyles, injectSessionStyles } from '../graphics/styles.js';
 
 /**
@@ -52,14 +55,17 @@ import { injectCanvasStyles, injectSessionStyles } from '../graphics/styles.js';
  */
 export class CloudCanvasSession {
   constructor(options = {}) {
-    assertKnownOptions(options);
+    checkOptions(options);
     this.options = options;
     /** The session's DOM-native event stream (`focus:changed`). @type {EventTarget} */
     this.events = new EventTarget();
     this.viewport = new Viewport(options.viewport || {});
     this.particleEngine = new ParticleEngine();
-    // `defaultReload` and `loadChildren` are session policy; the manager applies them per Pin.
+    // The core root the session runs on: born stopped, so an unmounted session renders only by hand.
+    this._frame = createSessionFrame(this);
+    // Its id index is the registry; `defaultReload` and `loadChildren` are session policy applied per Pin.
     this.pinManager = new PinManager({
+      root: this._frame,
       particleEngine: this.particleEngine,
       defaultReload: options.defaultReload,
       loadChildren: options.loadChildren
@@ -93,20 +99,15 @@ export class CloudCanvasSession {
     this._sessionStyleEl = options.customCSS ? injectSessionStyles(options.customCSS) : null;
 
     // `container` is optional; supplied, it is validated - `{container: null}` is an error, not a no-op.
-    if ('container' in options) {
-      assertValidContainer(options.container);
-      this.mount(options.container);
-    }
+    if ('container' in options) this.mount(options.container);
   }
 
   /**
-   * The core frame root this session runs on (`./frame.js`) - the viewport its
-   * camera - and the renderer registered on it; `offloadMargin` is session-level
-   * offload policy a per-Pin one overrides. Any camera move wakes the loop, and
-   * the per-frame closures are bound once so `getContext()` allocates none.
+   * The renderer registered on the root (`./frame.js`); `offloadMargin` is
+   * session-level offload policy a per-Pin one overrides. Any camera move wakes
+   * the loop, and the per-frame closures are bound once so `getContext()` allocates none.
    */
   _wireFrame(options) {
-    this._frame = createSessionFrame(this);
     const passes = sessionPasses(this);
     this.renderer = new ConjugateRenderer({
       session: this,
@@ -125,9 +126,9 @@ export class CloudCanvasSession {
    * Mount the session into a target DOM container
    */
   mount(container) {
+    assertValidContainer(container);
     if (typeof document === 'undefined') return this;
 
-    assertValidContainer(container);
     const host = typeof container === 'string' ? document.querySelector(container) : container;
     if (!host) {
       throw new Error(`CloudCanvasSession: Target container "${container}" not found`);
@@ -212,53 +213,29 @@ export class CloudCanvasSession {
    * and publishes its transition: every route to a focus change - pointer,
    * keyboard, API - passes through this layer.
    */
-  focus(pinOrId, options = {}) {
-    const pin = focus(this, pinOrId, options);
-    if (pin) this._focusChanged(pin);
-    return pin;
-  }
+  focus(pinOrId, options = {}) { return this._moved(focus(this, pinOrId, options)); }
 
   /** Push the current view state and focus a Pin; `promote` also promotes it. */
-  pushFocus(pinOrId, options = {}) {
-    const pin = pushFocus(this, pinOrId, options);
-    if (pin) this._focusChanged(pin);
-    return pin;
-  }
+  pushFocus(pinOrId, options = {}) { return this._moved(pushFocus(this, pinOrId, options)); }
 
   /** Promote a Pin to render root and focus it, stacking the outgoing state. */
-  promoteToRoot(pinOrId, options = {}) {
-    const pin = promoteToRoot(this, pinOrId, options);
-    if (pin) this._focusChanged(pin);
-    return pin;
-  }
+  promoteToRoot(pinOrId, options = {}) { return this._moved(promoteToRoot(this, pinOrId, options)); }
 
   /** Restore the previous focus, camera, and render root. */
-  popFocus(options = {}) {
-    const pin = popFocus(this, options);
-    this._focusChanged(pin);
-    return pin;
-  }
+  popFocus(options = {}) { return this._moved(popFocus(this, options), true); }
 
   /** Re-apply the state the last `popFocus` left behind; with nothing to go forward to, a silent no-op. */
-  goForward(options = {}) {
-    if (!canGoForward(this)) return null;
-
-    const pin = goForward(this, options);
-    this._focusChanged(pin);
-    return pin;
-  }
+  goForward(options = {}) { return canGoForward(this) ? this._moved(goForward(this, options), true) : null; }
 
   /** Drop all focus and promotion state, returning to the whole canvas. */
-  unfocus(options = {}) {
-    const cleared = unfocus(this, options);
-    this._focusChanged(cleared);
-    return cleared;
-  }
+  unfocus(options = {}) { return this._moved(unfocus(this, options), true); }
 
   /** Focus the parent scope of the focused Pin; the step out to the canvas is announced too. */
-  focusParent(options = {}) {
-    const pin = focusParent(this, options);
-    this._focusChanged(pin);
+  focusParent(options = {}) { return this._moved(focusParent(this, options), true); }
+
+  /** Publish a transition: always for the moves that may land on nothing, else only when a Pin was reached. */
+  _moved(pin, always = false) {
+    if (pin || always) this._focusChanged(pin);
     return pin;
   }
 
@@ -317,25 +294,17 @@ export class CloudCanvasSession {
    */
   regraph(traitName, fn) { return regraph(this, traitName, fn); }
 
-  createPin(options) {
-    return this.pinManager.createPin(options);
-  }
+  /* ------------------ PINS (the manager, over the root's index) ------------------ */
 
-  removePin(id) {
-    return this.pinManager.removePin(id);
-  }
+  createPin(options) { return this.pinManager.createPin(options); }
 
-  getPin(id) {
-    return this.pinManager.getPin(id);
-  }
+  removePin(id) { return this.pinManager.removePin(id); }
 
-  queryRadius(x, y, radius) {
-    return this.pinManager.queryRadius(x, y, radius);
-  }
+  getPin(id) { return this.pinManager.getPin(id); }
 
-  queryBox(minX, minY, maxX, maxY) {
-    return this.pinManager.queryBox(minX, minY, maxX, maxY);
-  }
+  queryRadius(x, y, radius) { return this.pinManager.queryRadius(x, y, radius); }
+
+  queryBox(minX, minY, maxX, maxY) { return this.pinManager.queryBox(minX, minY, maxX, maxY); }
 
   /**
    * A free canvas-space top-left corner for a box of the given size

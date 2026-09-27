@@ -16,6 +16,7 @@
  */
 import { renderSessionCursors } from './cursors.js';
 import { createRoot, runFrame, schedule } from '../core/frame.js';
+import { pinOf } from '../pins/pin-hierarchy.js';
 
 /**
  * The session's frame root: its viewport is the camera, and it is born stopped
@@ -31,7 +32,7 @@ export function sessionPasses(session) {
     context: () => frameContext(session),
     read: [
       (ctx) => stepPhysics(session, ctx.dt),
-      (ctx) => session.pinManager.tickAll(ctx.dt, session.renderer.context)
+      (ctx) => tickPins(session.pinManager, ctx.dt, session.renderer.context)
     ],
     write: [() => renderSessionCursors(session, session.renderer.context)],
     busy: [() => hasLiveMotion(session)]
@@ -80,16 +81,22 @@ export function frameContext(session) {
   };
 }
 
+/** Tick every root Pin, utility Pins included; each ticks its own active children. */
+function tickPins(manager, dt, context) {
+  for (const pin of manager.pins.values()) {
+    if (!pin.parent) pin.tick(dt, context);
+  }
+}
+
 /**
  * Advance physics. A particle about to move (unpinned, with velocity) marks its
  * Pin for placement first, so the write phase places exactly the Pins that moved.
  */
 function stepPhysics(session, dt) {
   const engine = session.particleEngine;
-  const manager = session.pinManager;
   for (const particle of engine.pins.values()) {
     if (particle.pinned || (particle.vx === 0 && particle.vy === 0)) continue;
-    const pin = manager.pins.get(manager.particleToPin.get(particle.id));
+    const pin = pinOf(particle.element);
     if (pin) session.renderer.invalidate(pin, 'placement');
   }
   engine.tick(dt);

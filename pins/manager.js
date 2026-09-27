@@ -1,22 +1,32 @@
 /**
  * CloudCanvas - NeoTec, LLC, Richard Christopher
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
- * 
- * PinManager manages the collection of Pins on the canvas,
- * hierarchical scopes, capability indexing, and synchronization with ParticleEngine.
+ *
+ * PinManager: the legacy registry, as a facade over the core root.
+ *
+ * Registration is the root's id index (`./manager-index.js`): `pins`, `getPin`
+ * and every query read it, the DOM tree answers parentage, and the one index
+ * kept here is the per-trait Set the global SVG pass reads each frame. What
+ * stays is Pin-shaped: reload defaults, lazy provisioning, the signal bus, the
+ * particle engine's spatial queries, and mounting root Pins into the plane.
+ * The per-frame tick is a pass the session registers (`../engine/frame.js`).
  */
 import { Pin } from './pin.js';
-import {
-  RELOAD_STRATEGIES,
-  RELOAD_MODES,
-  normalizeReloadStrategy,
-  resolveReloadMode
-} from './reload.js';
+import { RELOAD_STRATEGIES, RELOAD_MODES, normalizeReloadStrategy, resolveReloadMode } from './reload.js';
 import { LazyChildrenLoader } from './children-loader.js';
-import { indexPin, unindexPin } from './manager-index.js';
+import {
+  PinIndex, hasCapability, indexPin, indexTraits, registeredPin, unindexPin, unindexTraits
+} from './manager-index.js';
 import { announceProvision } from '../engine/announcer.js';
 import { PinSignalBus } from './pin-signals.js';
 import { ParticleEngine } from '../particles/engine.js';
+import { createRoot } from '../core/frame.js';
+
+/** A root Pin joins the container if its reload strategy mounts it, else settles into its own resting state. */
+function settle(pin, container) {
+  if (resolveReloadMode(pin) === RELOAD_MODES.MOUNTED) pin.mount(container);
+  else pin._reconcile();
+}
 
 /** Drop utility Pins from a result set; see `Pin.utility`. */
 function visible(pins) {
@@ -24,42 +34,27 @@ function visible(pins) {
 }
 
 export class PinManager {
+  /**
+   * @param {object} [options] `root` (the core root whose index is the registry;
+   *   a stopped one of its own without), `particleEngine`, `container`, `renderer`,
+   *   `session`, `defaultReload`, `loadChildren`
+   */
   constructor(options = {}) {
     this.options = options;
-
-    // Reload strategy applied to Pins created without one. Validated up front so
-    // a typo fails at construction, not silently per-Pin.
+    // Validated up front so a typo fails at construction, not silently per-Pin.
     this.defaultReload = normalizeReloadStrategy(options.defaultReload);
-
-    // Provisioning service for lazy scopes; `options.loadChildren` is the
-    // session-level provider every lazy Pin falls back to.
     this.childrenLoader = new LazyChildrenLoader(this);
 
-    this.pins = new Map();
+    this.root = options.root || createRoot({ running: false });
+    /** Every registered Pin by id, read through the root index: Map reads, no writes (`PinIndex`). */
+    this.pins = new PinIndex(this);
     this.particleEngine = options.particleEngine || new ParticleEngine();
     this.container = options.container || null;
-
-    // Conjugate renderer, supplied by the session. Null in headless use: every
-    // call site is guarded, so a manager without one still works synchronously.
+    // Null in headless use: every call site is guarded.
     this.renderer = options.renderer || null;
-
-    // Owning session, read back through `session` below. Held here rather than
-    // on every Pin: registration with this manager is what puts a Pin in a
-    // session, so this is the one place that fact lives (see `Pin#session`).
     this._session = options.session || null;
-
-    // Reverse indices: name -> Set<Pin>
-    this.capabilityIndex = new Map();
+    /** @type {Map<string, Set<Pin>>} trait name -> the Pins carrying it */
     this.traitIndex = new Map();
-
-    // particle.id -> pin.id. A Pin built around a pre-existing particle has
-    // particle.id !== pin.id, so spatial results cannot be keyed by particle id alone.
-    this.particleToPin = new Map();
-
-    // Per-pin record of the index keys it currently occupies
-    this._indexKeys = new WeakMap();
-
-    // Re-broadcast of every registered Pin's lifecycle signals (see `onSignal`).
     this.signals = new PinSignalBus();
   }
 
@@ -72,121 +67,62 @@ export class PinManager {
     return this.signals.subscribe(handler);
   }
 
-  /**
-   * Set the parent DOM container for all root Pins.
-   * Flushes the pre-mount queue: any root Pin registered before a container
-   * existed is mounted now.
-   */
+  /** Set the parent DOM container for root Pins, mounting any registered before it existed. */
   setContainer(container) {
     this.container = container;
-    if (container) {
-      this.mountAll(container);
-    }
+    if (container) this.mountAll(container);
   }
 
-  /**
-   * The session that owns this manager, or null in headless use.
-   *
-   * Falls back to the renderer's own back-reference, so a manager wired the way
-   * `CloudCanvasSession` wires one - `setRenderer` with a session-owned renderer
-   * - already answers correctly without a second call.
-   *
-   * @returns {CloudCanvasSession|null}
-   */
+  /** The owning session - declared, else the renderer's - or null in headless use. */
   get session() {
     if (this._session) return this._session;
     return (this.renderer && this.renderer.session) || null;
   }
 
-  /**
-   * Declare the owning session explicitly.
-   * @returns {CloudCanvasSession|null} the session now held
-   */
+  /** Declare the owning session explicitly. @returns {CloudCanvasSession|null} */
   setSession(session) {
     this._session = session || null;
     return this._session;
   }
 
-  /**
-   * Adopt a conjugate renderer. Pins registered before this call are handed over
-   * now, so registration order never decides whether a Pin gets rendered.
-   */
+  /** Adopt a renderer; Pins registered before it are handed over now. */
   setRenderer(renderer) {
     this.renderer = renderer || null;
     if (!this.renderer) return null;
-
-    for (const pin of this.pins.values()) {
-      this.renderer.attach(pin);
-    }
+    for (const pin of this.allPins()) this.renderer.attach(pin);
     return this.renderer;
   }
 
-  /**
-   * Create and register a new Pin.
-   * A Pin that declares neither `reload` nor the `lazy` alias inherits the
-   * manager's default strategy.
-   */
+  /** Create and register a Pin; one declaring neither `reload` nor `lazy` takes the default. */
   createPin(options = {}) {
     const declaresStrategy = options.reload !== undefined || options.lazy !== undefined;
     const pin = new Pin(declaresStrategy ? options : { ...options, reload: this.defaultReload });
     return this.registerPin(pin, options.parent);
   }
 
-  /**
-   * Register an existing Pin instance
-   */
+  /** Register an existing Pin instance. */
   registerPin(pin, parentPin = null) {
-    if (!(pin instanceof Pin)) {
-      throw new TypeError('Expected an instance of Pin');
-    }
+    if (!(pin instanceof Pin)) throw new TypeError('Expected an instance of Pin');
 
-    this.pins.set(pin.id, pin);
-    this.particleEngine.addPin(pin.particle);
-    if (pin.particle) {
-      this.particleToPin.set(pin.particle.id, pin.id);
-    }
     pin._manager = this;
-    this._indexPin(pin);
+    indexPin(this, pin);
+    this.particleEngine.addPin(pin.particle);
     this.signals.attach(pin);
-
-    // A utility Pin owns its own placement: it has no element on the canvas
-    // plane and no per-frame render work, so neither the container nor the
-    // renderer adopts it. Its creator (the session, for the cursor Pin) decides
-    // where it lives.
+    // A utility Pin owns its placement: neither the container nor the renderer adopts it.
     if (pin.utility) return pin;
 
-    if (parentPin instanceof Pin) {
-      parentPin.addChild(pin);
-    } else if (this.container && !pin.parent) {
-      // A root Pin joins the container only if its reload strategy says so.
-      if (resolveReloadMode(pin) === RELOAD_MODES.MOUNTED) pin.mount(this.container);
-      else pin._reconcile();
-    }
-
+    if (parentPin instanceof Pin) parentPin.addChild(pin);
+    else if (this.container && !pin.parent) settle(pin, this.container);
     // Attached last: the renderer mounts against the final parent linkage.
-    if (this.renderer) {
-      this.renderer.attach(pin);
-    }
-
+    if (this.renderer) this.renderer.attach(pin);
     // A lazy Pin born active is already required: provision it now.
-    if (pin.reload === RELOAD_STRATEGIES.LAZY && pin.active) {
-      this.loadChildrenFor(pin);
-    }
-
+    if (pin.reload === RELOAD_STRATEGIES.LAZY && pin.active) this.loadChildrenFor(pin);
     return pin;
   }
 
-  /* ------------------ LAZY CHILDREN PROVIDER ------------------ */
-
   /**
-   * Provision a lazy Pin's children exactly once (see `LazyChildrenLoader`).
-   *
-   * A provider run is a state change no sighted-only signal covers - the scope
-   * simply fills in - so the *first* run, and only the first, is announced.
-   * Callers that arrive while a flight is in progress, or after it finished,
-   * get the loader's own promise untouched, so single-flight identity and the
-   * cached-result path both behave exactly as before.
-   *
+   * Provision a lazy Pin's children exactly once (`LazyChildrenLoader`); the
+   * first run, and only the first, is announced.
    * @returns {Promise<Pin[]>} the Pins created by the provider
    */
   loadChildrenFor(pin, context = {}) {
@@ -200,269 +136,120 @@ export class PinManager {
     });
   }
 
-  /**
-   * Destroy every child subtree of a Pin, keeping the manager's registries and
-   * indices clean. The Pin itself is untouched.
-   *
-   * @returns {number} how many direct child subtrees were removed
-   */
+  /** Destroy every child subtree of a Pin - removed if registered, else destroyed; the Pin is untouched. */
   removeSubtreeChildren(pin) {
     if (!pin) return 0;
-
-    let removed = 0;
-    for (const child of Array.from(pin.children)) {
-      if (this.pins.has(child.id)) {
-        if (this.removePin(child.id)) removed += 1;
-      } else {
-        child.destroy();
-        removed += 1;
-      }
+    const children = Array.from(pin.children);
+    for (const child of children) {
+      if (!this.removePin(child.id)) child.destroy();
     }
-    return removed;
+    return children.length;
   }
 
-  /**
-   * Remove and destroy a Pin along with its entire subtree.
-   * Pin.destroy() recursively destroys children and detaches their elements,
-   * so the subtree is collected before destruction.
-   */
+  /** Remove and destroy a Pin; `destroy` takes its subtree, and each Pin deregisters as it goes. */
   removePin(id) {
-    const pin = this.pins.get(id);
+    const pin = this.getPin(id);
     if (!pin) return false;
 
-    const subtree = this._collectSubtree(pin);
-
-    if (pin.parent) {
-      pin.parent.removeChild(pin);
-    }
-
+    if (pin.parent) pin.parent.removeChild(pin);
     pin.destroy();
-
-    for (const member of subtree) {
-      this._deregister(member);
-    }
-
     return true;
   }
 
-  /**
-   * Collect a Pin and all of its descendants (depth-first, cycle-safe)
-   */
-  _collectSubtree(pin) {
-    const collected = [];
-    const seen = new Set();
-    const stack = [pin];
-
-    while (stack.length > 0) {
-      const current = stack.pop();
-      if (!current || seen.has(current)) continue;
-      seen.add(current);
-      collected.push(current);
-
-      if (current.children) {
-        for (const child of current.children) {
-          stack.push(child);
-        }
-      }
-    }
-
-    return collected;
-  }
-
-  /**
-   * Detach a single Pin from the manager, particle engine, and indices.
-   * The particle engine keys by particle.id, which may differ from pin.id
-   * when a pre-built particle is supplied.
-   */
+  /** Detach one Pin from the root index, the particle engine, the signals and the trait index; `destroy` ends here. */
   _deregister(pin) {
-    const particleId = pin.particle ? pin.particle.id : pin.id;
     this.signals.detach(pin);
     if (this.renderer) this.renderer.forget(pin);
-    this.pins.delete(pin.id);
-    this.particleEngine.removePin(particleId);
-    this.particleToPin.delete(particleId);
-    this._unindexPin(pin);
-    if (pin._manager === this) {
-      pin._manager = null;
-    }
+    unindexPin(this, pin);
+    this.particleEngine.removePin(pin.particle ? pin.particle.id : pin.id);
+    if (pin._manager === this) pin._manager = null;
   }
 
-  /**
-   * Retrieve a Pin by ID
-   */
+  /** The registered Pin with this id, or undefined. */
   getPin(id) {
     return this.pins.get(id);
   }
 
-  /**
-   * Every registered Pin, utility Pins included.
-   *
-   * Internal: the engine needs full membership (the cursor Pin is registered and
-   * has to be found by id), while every caller-facing query below reports the
-   * canvas as the user built it.
-   */
+  /** Every registered Pin, utility Pins included: the engine's full membership. */
   allPins() {
     return Array.from(this.pins.values());
   }
 
-  /**
-   * Get all registered Pins
-   */
+  /** Every registered Pin a caller built. */
   getAllPins() {
     return visible(this.allPins());
   }
 
-  /**
-   * Get only root-level Pins (no parent)
-   */
+  /** Root-level Pins (no parent). */
   getRootPins() {
-    return visible(this.allPins().filter(p => !p.parent));
+    return visible(this.allPins().filter((pin) => !pin.parent));
   }
 
-  /**
-   * Get only currently active Pins
-   */
+  /** Currently active Pins. */
   getActivePins() {
-    return visible(this.allPins().filter(p => p.active));
+    return visible(this.allPins().filter((pin) => pin.active));
   }
 
-  /* ------------------ CAPABILITY & TRAIT INDICES ------------------ */
-
-  /** Add every trait name and capability of a Pin to the indices. */
-  _indexPin(pin) {
-    return indexPin(this, pin);
-  }
-
-  /** Drop every index entry belonging to a Pin. */
-  _unindexPin(pin) {
-    return unindexPin(this, pin);
-  }
-
-  /**
-   * Recompute index entries for a Pin whose traits changed.
-   * Called by Pin.addTrait / Pin.removeTrait / Pin.destroy.
-   */
+  /** Recompute a Pin's trait entries (`addTrait`, `removeTrait`). @returns {boolean} the Pin is registered here */
   reindexPin(pin) {
-    if (!pin || !this.pins.has(pin.id)) return false;
-    this._unindexPin(pin);
-    this._indexPin(pin);
+    if (!pin || pin._manager !== this) return false;
+    unindexTraits(this, pin);
+    indexTraits(this, pin);
     return true;
   }
 
-  /**
-   * Get all Pins possessing traits with a specific capability
-   */
+  /** Pins possessing a trait with this capability. */
   getPinsByCapability(capability) {
     return visible(this.indexedByCapability(capability));
   }
 
-  /**
-   * Get all Pins carrying a trait by name
-   */
+  /** Pins carrying a trait by name. */
   getPinsByTrait(traitName) {
     return visible(this.indexedByTrait(traitName));
   }
 
-  /**
-   * Raw index reads, utility Pins included. The global SVG pass walks the trait
-   * index itself; these are for callers that need the same unfiltered view.
-   */
+  /** Raw reads, utility Pins included. */
   indexedByTrait(traitName) {
     const bucket = this.traitIndex.get(traitName);
     return bucket ? Array.from(bucket) : [];
   }
 
   indexedByCapability(capability) {
-    const bucket = this.capabilityIndex.get(capability);
-    return bucket ? Array.from(bucket) : [];
+    return this.allPins().filter((pin) => hasCapability(pin, capability));
   }
 
-  /**
-   * Mount all root Pins into container
-   */
+  /** Settle every root Pin into the container. */
   mountAll(container = this.container) {
     if (!container) return;
     this.container = container;
-    for (const pin of this.pins.values()) {
-      if (pin.parent) continue;
-      // Dormant and unmounted strategies settle into their own resting state
-      // rather than being dragged into the container.
-      if (resolveReloadMode(pin) === RELOAD_MODES.MOUNTED) pin.mount(container);
-      else pin._reconcile();
+    for (const pin of this.allPins()) {
+      if (!pin.parent) settle(pin, container);
     }
   }
 
-  /**
-   * Run simulation tick on all active Pins
-   */
-  tickAll(dt = 1, context = {}) {
-    for (const pin of this.pins.values()) {
-      // Only tick root pins directly; root pins recursively tick their active children
-      if (!pin.parent) {
-        pin.tick(dt, context);
-      }
-    }
-  }
-
-  /**
-   * Render all root Pins (which recursively render active children).
-   *
-   * Not used by the session loop any more - the ConjugateRenderer owns per-frame
-   * work. Kept as an explicit, synchronous full-graph render for headless callers.
-   */
-  renderAll(context = {}) {
-    for (const pin of this.pins.values()) {
-      if (!pin.parent) {
-        pin.render(context);
-      }
-    }
-  }
-
-  /**
-   * Resolve spatial-query particles back to their owning Pins.
-   * Particles belonging to no registered Pin are dropped.
-   */
+  /** Spatial-query particles back to the registered, non-utility Pins that own them. */
   _pinsForParticles(particles) {
     const pins = [];
     for (const particle of particles) {
-      const pin = this.pins.get(this.particleToPin.get(particle.id));
-      // A utility Pin has a particle but occupies no space on the canvas: a
-      // spatial query must never return one.
+      const pin = registeredPin(this, particle.element);
       if (pin && !pin.utility) pins.push(pin);
     }
     return pins;
   }
 
-  /**
-   * Find Pins within a circular radius of (x, y)
-   */
+  /** Pins within a circular radius of (x, y). */
   queryRadius(x, y, radius) {
     return this._pinsForParticles(this.particleEngine.queryRadius(x, y, radius));
   }
 
-  /**
-   * Find Pins within a bounding box
-   */
+  /** Pins within a bounding box. */
   queryBox(minX, minY, maxX, maxY) {
     return this._pinsForParticles(this.particleEngine.queryBox(minX, minY, maxX, maxY));
   }
 
-  /**
-   * Remove and clean up all Pins
-   */
+  /** Destroy - and so deregister - every Pin. */
   clear() {
-    for (const pin of this.pins.values()) {
-      pin.destroy();
-      this.signals.detach(pin);
-      if (this.renderer) this.renderer.forget(pin);
-      this._unindexPin(pin);
-      if (pin._manager === this) {
-        pin._manager = null;
-      }
-    }
-    this.pins.clear();
-    this.particleToPin.clear();
-    this.capabilityIndex.clear();
+    for (const pin of this.allPins()) pin.destroy();
     this.traitIndex.clear();
     this.particleEngine.clear();
   }

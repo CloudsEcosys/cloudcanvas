@@ -1,79 +1,62 @@
 /**
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
- * The session's option surface, stated once and enforced.
+ * The session's options, open rather than closed.
  *
- * A constructor that spreads whatever it is handed and reads the four keys it
- * recognises is a constructor that cannot be wrong out loud: `hostElement` for
- * `container` was accepted in silence for a whole release, and the session it
- * produced mounted nothing, rendered nothing, and reported nothing. The list
- * below is the honest API - closed, alphabetical, and the thing the error
- * message quotes back.
+ * The session reads its own keys, the viewport becomes the root's camera, and
+ * each root add-on it installs takes the object under its own name (`pan`,
+ * `menu`), the same opts that add-on takes as a root trait; the keyboard
+ * add-on's one option is `label`, under the name the session always gave it. Nothing is refused for being new: a key nothing reads is reported
+ * through the logger seam as a warning and otherwise ignored.
  *
- * Kept beside `./session.js` rather than inside it for the reason every other
- * engine module is: the session is the state and the public surface, and each
- * rule it enforces lives next to it.
+ * One mistake still throws. A session handed its container under another name
+ * (`hostElement` was accepted in silence for a whole release) mounts nothing,
+ * renders nothing and reports nothing, which no warning below the default log
+ * threshold would change; so a container alias is an error, never a no-op.
  */
+import { createLogger } from '../log.js';
+
+const logger = createLogger('session');
 
 /**
- * Every option `CloudCanvasSession` reads, and the whole of it.
+ * Every key something reads: the session's own, then the root add-ons
+ * `./host.js` installs that take options of their own, each under its name and
+ * beneath the session's wiring.
  *
  *   autoInjectStyles `false` keeps the shared canvas stylesheet out of the page.
  *   container        Element or selector to mount into; omit to mount later.
  *   customCSS        Per-session author CSS, removed again by `destroy()`.
  *   defaultReload    Default reload strategy for every Pin.
- *   label            Accessible name for the host element.
+ *   label            Accessible name for the host: the keyboard add-on's `label`.
  *   loadChildren     Session-level lazy child provider.
  *   offloadMargin    Screen-pixel clearance before an `offload` Pin is detached.
  *   viewport         Initial camera (`{x, y, scale, minScale, maxScale}`).
- *
- * @type {readonly string[]}
+ *   menu             The menu add-on's opts: `{registry}` replaces the shared one.
+ *   pan              The pan add-on's opts: `{wheel: false}` leaves the wheel to the page.
  */
-export const SESSION_OPTION_KEYS = Object.freeze([
-  'autoInjectStyles',
-  'container',
-  'customCSS',
-  'defaultReload',
-  'label',
-  'loadChildren',
-  'offloadMargin',
-  'viewport'
-]);
+const READ_KEYS = [
+  'autoInjectStyles', 'container', 'customCSS', 'defaultReload', 'label', 'loadChildren', 'offloadMargin', 'viewport',
+  'menu', 'pan'
+];
+
+/** Names `container` has been mistaken for: each would build a session that mounts nothing. */
+const CONTAINER_ALIASES = ['element', 'host', 'hostElement', 'target'];
 
 /**
- * Wrong names the session has a right one for.
- *
- * Every entry is a mistake that has actually been made against this API, which
- * is the only reason a hint is worth carrying: a guess dressed as guidance is
- * worse than the plain list.
- */
-const OPTION_HINTS = Object.freeze({
-  css: 'customCSS',
-  element: 'container',
-  host: 'container',
-  hostElement: 'container',
-  styles: 'customCSS',
-  target: 'container'
-});
-
-/**
- * Reject an option the session would otherwise ignore.
+ * Report every option nothing reads: a container alias throws, anything else
+ * is a `warn` record on the `session` logger.
  *
  * @param {object} options
- * @returns {true}
- * @throws {TypeError} naming the offending key, and its real name when there is one
+ * @returns {string[]} the keys reported and ignored
+ * @throws {TypeError} for a container alias, naming `container`
  */
-export function assertKnownOptions(options = {}) {
-  for (const key of Object.keys(options)) {
-    if (SESSION_OPTION_KEYS.includes(key)) continue;
-
-    const hint = OPTION_HINTS[key] ? ` - did you mean "${OPTION_HINTS[key]}"?` : '';
-    throw new TypeError(
-      `CloudCanvasSession: unknown option "${key}"${hint}`
-      + ` (known options: ${SESSION_OPTION_KEYS.join(', ')})`
-    );
+export function checkOptions(options = {}) {
+  const ignored = Object.keys(options).filter((key) => !READ_KEYS.includes(key));
+  for (const key of ignored) {
+    if (CONTAINER_ALIASES.includes(key)) throw new TypeError(`CloudCanvasSession: unknown option "${key}" - did you mean "container"?`);
+    logger.warn(`CloudCanvasSession: unknown option "${key}" ignored`);
   }
-  return true;
+  return ignored;
 }
 
 /** `Node.ELEMENT_NODE`, named rather than assumed present on a bare object. */
@@ -87,16 +70,10 @@ function describeContainer(value) {
 }
 
 /**
- * Reject a `container` the session cannot mount into.
- *
- * `container` is optional - omit it entirely to mount later with `session.mount()`.
- * But a container that is *present and wrong* - `null` from a `getElementById`
- * that missed, a plain object, an empty selector - is exactly the silent no-op
- * this option surface exists to end: it built a session that mounted nothing,
- * rendered nothing, and reported nothing. The value is therefore checked only
- * when the key is supplied, against the same rule `mount()` resolves against: a
- * non-empty selector string, or a DOM element. Defaulting to `document.body`
- * instead would hide the same bug one level down, so it does not.
+ * Reject a `container` the session cannot mount into: `null` from a
+ * `getElementById` that missed, a plain object, an empty selector. Checked only
+ * when supplied - omit it to mount later - and never defaulted to `document.body`,
+ * which would hide the same bug one level down.
  *
  * @param {*} container the supplied option value
  * @returns {true}

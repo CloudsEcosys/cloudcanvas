@@ -182,7 +182,7 @@ cloudcanvas/
   - `register(name, ctor, defaults)` - names are unique; re-registering an existing name throws rather than silently replacing a definition other code depends on. `unregister(name)` releases it, `clear()` restores the built-in set.
   - `create(name, options)` returns a **fresh instance** every call, shallow-merging caller options over the registered defaults (`capabilities` is the one additive key). Pins therefore never share mutable trait state.
   - Built-ins: `card`, `vector-pointer`, `media`, `raw`, `preserve`, `draggable`, `selectable`, `physics`, `connectable`, `focussable`, `scope`, `transmitter`, plus the cursor definitions (`cursor-focus`, `cursor-selected`, `cursor-activated`) contributed by `registerDefaults(provider)` - the hook for built-ins that live outside this module and are replayed by `clear()`.
-  - The registry holds definitions only; the live instance index is `PinManager.traitIndex` / `capabilityIndex`, which is what `session.regraph(name, fn)` and the global SVG pass look through.
+  - The registry holds definitions only; the live instance index is `PinManager.traitIndex` (one Set per trait name; capabilities are read off the traits), which is what `session.regraph(name, fn)` and the global SVG pass look through. Registration itself is the core root's id index.
 
 ### 2.4 ConjugateRenderer Frame Contract
 - **Role**: Single authority over DOM membership and per-frame work. Nothing else mounts, hides, or detaches a Pin's element while a renderer is attached.

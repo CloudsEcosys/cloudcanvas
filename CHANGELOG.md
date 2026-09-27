@@ -355,6 +355,8 @@ records the migration surface, not the commit history.
 
 ### Changed
 
+- **The session and the Pin manager are facades over the core root.** (Breaking.) Pins are registered in the root's id index. `manager.pins` / `session.pins` are now a read-only view: it keeps Map reads (`get`, `has`, `size`, iteration), but it is no longer `instanceof Map`, and writes throw. `PinManager.tickAll()` and `renderAll()` are removed; the frame's registered passes do that work. `pin.destroy()` now also deregisters the Pin, so `getPin` stops finding it. An unknown session option now logs a warning on the `session` logger instead of throwing. Container aliases (`element`, `host`, `hostElement`, `target`) still throw.
+
 - **Every Pin has an element; headless (no-document) construction is gone.** (Breaking.)
   A Pin's placement (`x y z` and its size) now lives on its element's core record
   (`.plugin/core/state.js`), and `pin.particle` is a view over that record - one home for

@@ -88,7 +88,8 @@ function markTextRegion(event) {
 export function bindPointer(session) {
   const host = session.hostElement;
   const offMark = listen(host, ['pointerdown'], markTextRegion);
-  const offPan = installPan(host, session._frame, { state: session, target: envOf(session).target });
+  const options = { ...session.options?.pan, state: session, target: envOf(session).target };
+  const offPan = installPan(host, session._frame, options);
   return () => { offPan(); offMark(); };
 }
 
