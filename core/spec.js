@@ -75,6 +75,12 @@ export function readSpec(element) {
   return readAttributes(element, SPEC_PREFIX, SPEC_SKIP, SPEC_KINDS);
 }
 
+/** A `data-*` value read back as trait options: bare or `"true"` is `true`, JSON is parsed. */
+export function decodeAttribute(value) {
+  if (value === '' || value === 'true') return true;
+  return /^[[{]/.test(value) ? JSON.parse(value) : value;
+}
+
 /** One spec key as a `data-*` attribute: an object as JSON, else stringified; null or undefined removes it. */
 export function writeAttribute(element, key, value) {
   const name = `${SPEC_PREFIX}${kebabCase(key)}`;

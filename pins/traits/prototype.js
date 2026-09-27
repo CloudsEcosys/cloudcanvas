@@ -2,28 +2,34 @@
  * CloudCanvas - NeoTec, LLC, Richard Christopher
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
- * Prototype System:
- * High-level, type-safe, declarative component system for CloudCanvas Pins.
+ * Prototype System: a typed schema, a compiled blueprint, scoped styles, reactive
+ * `pin.state` and default traits in one declarative spec.
  *
- * Couples a rigid typed schema, zero-allocation compiled blueprint, scoped styling,
- * dynamic reactive runtime state (`pin.state`), and trait composition into a single,
- * cohesive prototype specification without imperative DOM plumbing.
+ * A shim over the core type: `definePrototype({name, blueprint})` is
+ * `type(name, {template})` with the blueprint compiled once into that template
+ * (`./blueprint-compiler.js`), rendered through `defineComponent`'s typed build -
+ * every instance a clone of it, bound by the compiled descriptor table.
  */
 
 import { defineComponent } from './define-component.js';
 import { PinEvent } from './base.js';
 import { rotatePin } from './interaction.js';
-import { compileBlueprint } from './blueprint-compiler.js';
+import { compileBlueprint, writeBindings } from './blueprint-compiler.js';
 
 const INJECTED_STYLES = new Set();
+
+/** A schema rule's default: its own, else the empty value of its type. */
+function ruleDefault(rule) {
+  if (rule.default !== undefined) return rule.default;
+  if (rule.type === 'number') return 0;
+  return rule.type === 'boolean' ? false : '';
+}
 
 /**
  * Coerce a value according to schema rule.
  */
 function coerceValue(rule, val, key, componentName) {
-  if (val === undefined || val === null) {
-    return rule.default !== undefined ? rule.default : (rule.type === 'number' ? 0 : rule.type === 'boolean' ? false : '');
-  }
+  if (val === undefined || val === null) return ruleDefault(rule);
 
   const type = rule.type || 'text';
 
@@ -137,6 +143,23 @@ function injectPrototypeStyles(name, styles) {
 }
 
 /**
+ * The typed build: the type's clone is already in `contentEl`; bind it, then give
+ * the Pin its reactive state, actions and the `emit` / `rotate` helpers.
+ */
+function bindInstance(pin, contentEl, { compiled, schema, defaults, actions, name }) {
+  const bindings = compiled.bind(contentEl.firstChild, pin);
+  if (!pin.state) pin.state = createReactiveState(pin, schema, defaults, name);
+  for (const [actionName, fn] of Object.entries(actions)) {
+    pin[actionName] = (...args) => fn(pin, ...args);
+  }
+  if (!pin.emit) {
+    pin.emit = (type, payload) => pin.transmit(new PinEvent(type, { payload, source: pin, bubbles: true }));
+  }
+  if (!pin.rotate) pin.rotate = (deltaDeg) => rotatePin(pin, deltaDeg);
+  return { bindings, cache: new Map() };
+}
+
+/**
  * Define a type-safe, declarative Prototype for CloudCanvas.
  *
  * @param {object} spec
@@ -150,15 +173,8 @@ function injectPrototypeStyles(name, styles) {
  * @returns {object} PrototypeHandle
  */
 export function definePrototype(spec = {}) {
-  const {
-    name,
-    schema = {},
-    styles = null,
-    blueprint,
-    actions = {},
-    traits = ['draggable', 'selectable'],
-    chrome = true
-  } = spec;
+  const { name, schema = {}, styles = null, blueprint, actions = {}, traits = ['draggable', 'selectable'] } = spec;
+  const { chrome = true } = spec;
 
   if (typeof name !== 'string' || name.length === 0) {
     throw new TypeError('definePrototype: name must be a non-empty string');
@@ -170,159 +186,68 @@ export function definePrototype(spec = {}) {
   // 1. Build schema defaults & allowedKeys
   const allowedKeys = Object.keys(schema);
   const defaults = {};
-  for (const [k, rule] of Object.entries(schema)) {
-    defaults[k] = rule.default !== undefined
-      ? rule.default
-      : (rule.type === 'number' ? 0 : rule.type === 'boolean' ? false : '');
-  }
+  for (const [k, rule] of Object.entries(schema)) defaults[k] = ruleDefault(rule);
 
   // 2. Inject scoped styles
   injectPrototypeStyles(name, styles);
 
-  // 3. Compile blueprint into static templateFactory & binding descriptors
-  const { templateFactory, bindingDescriptors } = compileBlueprint(blueprint, name, actions);
+  // 3. Compile the blueprint once; its template is the core type this prototype registers
+  const compiled = compileBlueprint(blueprint, name, actions);
 
-  // 4. Register with CloudCanvas DisplayTrait
+  // 4. Register with CloudCanvas DisplayTrait, rendering through that type
   const handle = defineComponent({
     name,
     chrome,
     allowedKeys: allowedKeys.length > 0 ? allowedKeys : undefined,
-
-    build(pin, contentEl) {
-      const { root, bindings } = templateFactory(pin);
-      contentEl.replaceChildren(root);
-
-      // Initialize reactive state proxy
-      if (!pin.state) {
-        pin.state = createReactiveState(pin, schema, defaults, name);
-      }
-
-      // Bind actions as methods directly on pin
-      for (const [actionName, fn] of Object.entries(actions)) {
-        pin[actionName] = (...args) => fn(pin, ...args);
-      }
-
-      // Add signal emission helper
-      if (!pin.emit) {
-        pin.emit = (type, payload) => {
-          pin.transmit(new PinEvent(type, { payload, source: pin, bubbles: true }));
-        };
-      }
-
-      // Add rotation helper
-      if (!pin.rotate) {
-        pin.rotate = (deltaDeg) => rotatePin(pin, deltaDeg);
-      }
-
-      return { bindings, cache: new Map() };
-    },
-
+    template: compiled.template,
+    build: (pin, contentEl) => bindInstance(pin, contentEl, { compiled, schema, defaults, actions, name }),
     update(pin, contents, state) {
       if (!state || !state.bindings) return;
-      const { bindings, cache } = state;
-
-      for (let i = 0; i < bindingDescriptors.length; i++) {
-        const desc = bindingDescriptors[i];
-        const targetNode = bindings[desc.index];
-        if (!targetNode) continue;
-
-        const val = contents.get(desc.key) !== undefined
-          ? contents.get(desc.key)
-          : defaults[desc.key];
-
-        if (desc.type === 'text') {
-          const str = val === undefined || val === null ? '' : String(val);
-          if (targetNode.data !== str) {
-            targetNode.data = str;
-          }
-        } else if (desc.type === 'class') {
-          const cls = val ? `${desc.baseClass}-${val}` : '';
-          const prev = cache.get(desc.index);
-          if (prev !== cls) {
-            if (prev) targetNode.classList.remove(prev);
-            if (cls) targetNode.classList.add(cls);
-            cache.set(desc.index, cls);
-          }
-        } else if (desc.type === 'attr') {
-          const prev = cache.get(desc.index);
-          if (prev !== val) {
-            if (val === false || val === null || val === undefined) {
-              targetNode.removeAttribute(desc.attrName);
-            } else {
-              targetNode.setAttribute(desc.attrName, String(val));
-            }
-            cache.set(desc.index, val);
-          }
-        } else if (desc.type === 'style') {
-          const prev = cache.get(desc.index);
-          if (prev !== val) {
-            targetNode.style.setProperty(desc.propName, String(val ?? ''));
-            cache.set(desc.index, val);
-          }
-        } else if (desc.type === 'value') {
-          const str = String(val ?? '');
-          if (targetNode.value !== str) {
-            targetNode.value = str;
-          }
-        }
-      }
+      const valueOf = (key) => (contents.get(key) !== undefined ? contents.get(key) : defaults[key]);
+      writeBindings(compiled.bindingDescriptors, state.bindings, state.cache, valueOf);
     }
   });
 
   // 5. Prototype Object with Factory & Extension
-  const prototype = {
+  const resolved = { name, schema, styles, blueprint, actions, traits, chrome, defaults };
+  return {
     name,
     handle,
     schema: Object.freeze({ ...schema }),
     defaults: Object.freeze({ ...defaults }),
-
-    create(session, options = {}) {
-      const initialContents = {
-        ...defaults,
-        ...(options.state || options.contents || {})
-      };
-
-      const pin = session.createPin({
-        chrome,
-        ...options,
-        type: name,
-        contents: initialContents
-      });
-
-      // Attach default traits if absent
-      for (const trait of traits) {
-        if (!pin.traits.has(trait)) {
-          pin.addTrait(trait);
-        }
-      }
-
-      return pin;
-    },
-
-    extend(childSpec = {}) {
-      const mergedSchema = { ...schema, ...(childSpec.schema || {}) };
-      const mergedStyles = childSpec.styles
-        ? (typeof styles === 'object' && typeof childSpec.styles === 'object'
-            ? { ...styles, ...childSpec.styles }
-            : `${styles || ''}\n${childSpec.styles}`)
-        : styles;
-
-      const mergedActions = { ...actions, ...(childSpec.actions || {}) };
-      const mergedTraits = Array.from(new Set([...traits, ...(childSpec.traits || [])]));
-
-      return definePrototype({
-        ...spec,
-        ...childSpec,
-        name: childSpec.name || `${name}-extended`,
-        schema: mergedSchema,
-        styles: mergedStyles,
-        blueprint: childSpec.blueprint || blueprint,
-        actions: mergedActions,
-        traits: mergedTraits,
-        chrome: childSpec.chrome !== undefined ? childSpec.chrome : chrome
-      });
-    }
+    create: (session, options = {}) => createPrototypePin(session, options, resolved),
+    extend: (childSpec = {}) => extendPrototype(spec, resolved, childSpec)
   };
+}
 
-  return prototype;
+/** A Pin of the prototype: its defaults under the caller's state, and every default trait it lacks. */
+function createPrototypePin(session, options, { name, chrome, defaults, traits }) {
+  const initialContents = { ...defaults, ...(options.state || options.contents || {}) };
+  const pin = session.createPin({ chrome, ...options, type: name, contents: initialContents });
+  for (const trait of traits) {
+    if (!pin.traits.has(trait)) pin.addTrait(trait);
+  }
+  return pin;
+}
+
+/** A child prototype: schema, styles, actions and traits merged over the parent's. */
+function extendPrototype(spec, parent, childSpec) {
+  const { name, schema, styles, blueprint, actions, traits, chrome } = parent;
+  const mergedStyles = childSpec.styles
+    ? (typeof styles === 'object' && typeof childSpec.styles === 'object'
+        ? { ...styles, ...childSpec.styles }
+        : `${styles || ''}\n${childSpec.styles}`)
+    : styles;
+
+  return definePrototype({
+    ...spec,
+    ...childSpec,
+    name: childSpec.name || `${name}-extended`,
+    schema: { ...schema, ...(childSpec.schema || {}) },
+    styles: mergedStyles,
+    blueprint: childSpec.blueprint || blueprint,
+    actions: { ...actions, ...(childSpec.actions || {}) },
+    traits: Array.from(new Set([...traits, ...(childSpec.traits || [])])),
+    chrome: childSpec.chrome !== undefined ? childSpec.chrome : chrome
+  });
 }

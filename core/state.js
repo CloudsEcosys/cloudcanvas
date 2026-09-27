@@ -15,8 +15,9 @@ export const ROOT_ATTR = 'data-blit-root';
 /** Where a blit's children go when its type declares a scope container. */
 export const SCOPE_ATTR = 'data-scope';
 
-/** The slots a `fill` write lands in, by name. */
+/** The slots a `fill` write lands in, by name; as text unless the template marks the slot `data-slot-html`. */
 export const SLOT_ATTR = 'data-slot';
+export const SLOT_HTML_ATTR = 'data-slot-html';
 
 /** The placement keys `set()` routes to the port rather than to `data-*`. */
 export const PLACEMENT_KEYS = /* @__PURE__ */ Object.freeze(['x', 'y', 'z', 'w', 'h']);

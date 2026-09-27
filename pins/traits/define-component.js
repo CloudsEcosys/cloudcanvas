@@ -19,8 +19,17 @@
  * The registry is injectable (`registry`) rather than assumed: a consumer with
  * their own `TraitRegistry`, and every test that must not leak a name into the
  * shared singleton, needs the same call to target theirs.
+ *
+ * A shim over the core type: `defineComponent({name, template?, build, update})`
+ * is `type(name, {template})` (markup-free when it declares none) plus the
+ * build/update pair. Every build first clones the type into the content element
+ * (`mountType`), then runs the component's `build` over the clone - the one path
+ * the built-in display types and `definePrototype` render through too. The type
+ * is registered on the first build, so defining a component needs no document.
  */
 
+import { defineType } from '../../core/type.js';
+import { mountType } from '../../addons/types.js';
 import { DisplayTrait } from './display.js';
 import { traitRegistry } from './registry.js';
 
@@ -39,6 +48,9 @@ import { traitRegistry } from './registry.js';
  *   the content element (`false` = the component owns the whole Pin)
  * @property {TraitRegistry} [registry] registry to define into; defaults to the
  *   shared singleton
+ * @property {HTMLTemplateElement|(() => HTMLTemplateElement)} [template] the
+ *   component's static structure, registered as its core type and cloned into
+ *   the content element before `build` binds it (none: an empty type)
  */
 
 /**
@@ -68,12 +80,32 @@ export function defineComponent(spec = {}) {
   }
 
   const registry = spec.registry || traitRegistry;
-  registry.register(name, DisplayTrait, traitDefaults(spec));
+  const typed = { ...spec, build: typedBuild(spec) };
+  registry.register(name, DisplayTrait, traitDefaults(typed));
 
   return Object.freeze({
     name,
-    createTrait: (options = {}) => registry.create(name, { ...options, ...identity(spec) })
+    createTrait: (options = {}) => registry.create(name, { ...options, ...identity(typed) })
   });
+}
+
+/**
+ * The component's `build`, run over its core type: registered on first use
+ * (a name taken with other markup throws), cloned into `contentEl` every build.
+ */
+function typedBuild({ name, template, build }) {
+  let registered = null;
+  return (pin, contentEl) => {
+    registered ??= defineType(name, typeDefinition(template));
+    mountType(registered, contentEl);
+    return build(pin, contentEl);
+  };
+}
+
+/** The core type definition for a component's `template` (an element, a lazy getter, or none). */
+function typeDefinition(template) {
+  const resolved = typeof template === 'function' ? template() : template;
+  return resolved ? { template: resolved } : { html: '' };
 }
 
 /**

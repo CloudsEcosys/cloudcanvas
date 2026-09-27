@@ -1,20 +1,14 @@
 /**
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
- * `blit`: a thin handle over any DOM element, HTML or SVG.
- *
- * The element is the thing. Its state lives in `./state.js`, keyed by the
- * element, with the handle cached there, so `blit(el) === blit(el)`. The DOM
- * tree is the hierarchy, read on every question; events are native bubbling
- * `CustomEvent`s. A blit is *potential* (detached, or a `<template>`: writes
- * apply at once), *indexed* (in a root: placement waits for the write phase),
- * or a *collection* (blits inside it; a root is one).
- *
- * `set()` routes by key: `x y z w h` to the port, `fill` as text into
- * `[data-slot]`s, `port`, `with` and `blit.use()` names to `./use.js`, the rest to `data-*`.
+ * `blit`: a thin handle over any DOM element, HTML or SVG. State lives in `./state.js` keyed by the element,
+ * the handle cached there (`blit(el) === blit(el)`); the DOM tree is the hierarchy; events are native. A blit is
+ * *potential* (detached or a `<template>`: writes apply at once), *indexed* (in a root: placement waits for the
+ * write phase) or a *collection*. `set()` routes `x y z w h` to the port, `fill` into `[data-slot]`s, `port`,
+ * `with` and `blit.use()` names to `./use.js`, the rest to `data-*`.
  */
 import {
-  BLIT_ATTR, PLACEMENT_KEYS, ROOT_ATTR, SLOT_ATTR,
+  BLIT_ATTR, PLACEMENT_KEYS, ROOT_ATTR, SLOT_ATTR, SLOT_HTML_ATTR,
   boundsOf, createState, parentElementOf, rootOf, scopeContainerOf, sizeOf, stateOf
 } from './state.js';
 import { readSpec, writeAttribute } from './spec.js';
@@ -75,16 +69,12 @@ export class Blit {
 
     const slots = ownSlots(s.el);
     if (slots.length > 0) {
-      spec.fill = Object.fromEntries(slots.map((slot) => [slot.getAttribute(SLOT_ATTR), slot.textContent]));
+      spec.fill = Object.fromEntries(slots.map((slot) => [slot.getAttribute(SLOT_ATTR), slotValue(slot)]));
     }
     return spec;
   }
 
-  /**
-   * Write keys onto the blit. Placement is queued to the port when attached
-   * and applied at once when potential; everything else lands immediately.
-   * @returns {this}
-   */
+  /** Write keys: placement is queued to the port when attached, at once when potential; the rest lands now. */
   set(patch) {
     if (!patch || typeof patch !== 'object') throw new TypeError('blit.set: expected an object');
     const s = this.#s;
@@ -111,12 +101,7 @@ export class Blit {
     return this;
   }
 
-  /**
-   * Create a blit inside this one: its type's content and defaults, then
-   * `spec` over them. It lands in this blit's `[data-scope]` when its type has
-   * one, else in the element; a root's children go on its plane.
-   * @returns {Blit}
-   */
+  /** A child blit: its type's content and defaults, `spec` over them; into `[data-scope]`, or a root's plane. */
   blit(spec = {}) {
     const s = this.#s;
     const template = spec.type === undefined ? null : findType(spec.type);
@@ -140,10 +125,7 @@ export class Blit {
     return () => this.#s.el.removeEventListener(type, listener, options);
   }
 
-  /**
-   * Dispatch a bubbling, cancelable `CustomEvent` with `detail = {payload, source}`.
-   * @returns {CustomEvent} so `defaultPrevented` can be read
-   */
+  /** Dispatch a bubbling, cancelable `CustomEvent`, `detail = {payload, source}`; returned for `defaultPrevented`. */
   emit(type, payload = null) {
     const detail = { payload, source: this };
     const event = new CustomEvent(type, { bubbles: true, cancelable: true, detail });
@@ -181,10 +163,7 @@ export class Blit {
     return resolved;
   }
 
-  /**
-   * Run `fn(ctx)` every frame in the `read` or `write` phase of this blit's
-   * root. The extension hook. @returns {() => void} off
-   */
+  /** The extension hook: `fn(ctx)` every frame in the `read` or `write` phase of this blit's root. @returns off */
   tick(fn, phase = 'write') {
     const root = requireRoot(this.#s, 'tick');
     if (typeof fn !== 'function') throw new TypeError('blit.tick: expected a function');
@@ -198,11 +177,8 @@ export class Blit {
 /* ------------------ THE TWO EXPORTS ------------------ */
 
 /**
- * The handle for an element: the cached one when it is already a blit;
- * otherwise a root over a host (a selector, or an element in the document
- * under no root), a child adopted into the root it sits under, or a potential
- * blit for a detached element or a `<template>`.
- *
+ * The handle for an element: the cached one; else a root over a host (a selector, or an element under no root),
+ * a child adopted into the root it sits under, or a potential blit (detached, or a `<template>`).
  * @param {string|Element} target
  * @returns {Blit}
  */
@@ -237,12 +213,10 @@ export function blit(target) {
 }
 
 /**
- * Define a type from `{html, defaults}`, or look one up by name. The result is
- * a potential blit over the `<template data-type>`; its `spec` is the
- * defaults every instance starts from.
- *
+ * Define a type, or look one up by name: a potential blit over the `<template data-type>`, its `spec` the
+ * defaults every instance starts from; `with` traits run on every instance (`./type.js`).
  * @param {string} name
- * @param {{html?: string, defaults?: object}} [definition]
+ * @param {{html?: string, template?: HTMLTemplateElement, defaults?: object, with?: Function[]}} [definition]
  * @returns {Blit|null} null when looking up a name nothing declares
  */
 export function type(name, definition) {
@@ -270,22 +244,31 @@ function writePlacement(state, key, value) {
   state[key] = number;
 }
 
-/** Text into the element's own slots. Text only: no markup path exists here. */
+/** Text into the element's own slots; markup only into a slot its template marks `data-slot-html`. */
 function writeFill(element, fill) {
   if (!fill || typeof fill !== 'object') throw new TypeError('blit.set: fill must be an object');
   const slots = ownSlots(element);
   for (const [name, text] of Object.entries(fill)) {
     const slot = slots.find((candidate) => candidate.getAttribute(SLOT_ATTR) === name);
     if (!slot) throw new TypeError(`blit.set: no slot "${name}"`);
-    slot.textContent = String(text ?? '');
+    if (slot.hasAttribute(SLOT_HTML_ATTR)) slot.innerHTML = String(text ?? '');
+    else slot.textContent = String(text ?? '');
   }
 }
 
-/** The `[data-slot]`s that belong to this blit rather than to a nested one. */
+/** A slot's value as `fill` reads it back: markup from an html slot, else text. */
+function slotValue(slot) {
+  return slot.hasAttribute(SLOT_HTML_ATTR) ? slot.innerHTML : slot.textContent;
+}
+
+/** The `[data-slot]`s that are this blit's: not a nested blit's, nor inside another slot (html fill content). */
 function ownSlots(element) {
-  const template = isTemplate(element);
-  return Array.from((template ? element.content : element).querySelectorAll(`[${SLOT_ATTR}]`))
-    .filter((slot) => template || slot.closest(`[${BLIT_ATTR}]`) === element);
+  const scope = isTemplate(element) ? element.content : element;
+  return Array.from(scope.querySelectorAll(`[${SLOT_ATTR}]`)).filter((slot) => {
+    const outer = slot.parentElement?.closest(`[${SLOT_ATTR}]`);
+    const nested = Boolean(outer) && outer !== element && scope.contains(outer);
+    return !nested && (scope !== element || slot.closest(`[${BLIT_ATTR}]`) === element);
+  });
 }
 
 function requireRoot(state, method) {
@@ -294,10 +277,7 @@ function requireRoot(state, method) {
   return root;
 }
 
-/**
- * Move placement declared in `data-x` etc. into the state and off the element,
- * where a stale value would lie. `readSpec` has already checked the numbers.
- */
+/** Move placement declared in `data-x` etc. into the state and off the element, where it would go stale. */
 function adoptPlacement(state) {
   const declared = readSpec(state.el);
   for (const key of PLACEMENT_KEYS) {

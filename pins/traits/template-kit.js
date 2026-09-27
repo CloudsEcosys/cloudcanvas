@@ -21,7 +21,7 @@
  * (`../../addons/keyed-list.js`) and is re-exported here under its old names.
  */
 
-export { CLS } from './display-templates.js';
+export { CLS } from '../../addons/types.js';
 export { KEY_ATTR, reconcileKeyedList } from '../../addons/keyed-list.js';
 
 /* ------------------ ELEMENT CONSTRUCTION ------------------ */

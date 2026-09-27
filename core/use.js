@@ -4,8 +4,9 @@
  * Traits, `(b, opts, root) => cleanup`, run while their blit is in a frame, and the names `blit.use()` gives them.
  */
 import { createLogger } from '../log.js';
-import { camelCase, kebabCase, writeAttribute } from './spec.js';
+import { camelCase, decodeAttribute, kebabCase, writeAttribute } from './spec.js';
 import { BLIT_ATTR, PLACEMENT_KEYS, ROOT_ATTR, rootOf, stateOf } from './state.js';
+import { TYPE_ATTR, typeTraits } from './type.js';
 
 const logger = createLogger('blit');
 
@@ -58,16 +59,10 @@ function setWith(state, value) {
   state.with = next;
 }
 
-/** A `data-<name>` value as trait options: bare or `"true"` is `true`, JSON is parsed. */
-function optionsOf(value) {
-  if (value === '' || value === 'true') return true;
-  return /^[[{]/.test(value) ? JSON.parse(value) : value;
-}
-
 /** The traits and port of `state` into `spec` by name; an anonymous one is left out, with a warning. */
 export function specTraits(state, spec) {
   for (const key of Object.keys(spec)) {
-    if (NAMED.has(key)) spec[key] = optionsOf(spec[key]);
+    if (NAMED.has(key)) spec[key] = decodeAttribute(spec[key]);
   }
   for (const fn of [...(state.with ?? []), ...(state.port ? [state.port] : [])]) {
     const kind = fn === state.port ? 'port' : 'trait';
@@ -78,15 +73,16 @@ export function specTraits(state, spec) {
   }
 }
 
-/** Run every trait `state` declares and is not running: its `with`, then each named `data-*`. */
+/** Run every trait `state` declares and is not running: its type's `with`, its own, then each named `data-*`. */
 export function runTraits(state) {
   const root = rootOf(state);
   if (!root || !state.handle) return;
   state.traits = toggleTraits;
-  for (const fn of state.with ?? []) start(state, root, fn, fn, true);
+  const anonymous = [...typeTraits(state.el.getAttribute(TYPE_ATTR)), ...(state.with ?? [])];
+  for (const fn of anonymous) start(state, root, fn, fn, true);
   for (const { name, value } of Array.from(state.el.attributes)) {
     const key = name.startsWith('data-') ? camelCase(name.slice(5)) : '';
-    if (NAMED.has(key)) start(state, root, key, NAMED.get(key), optionsOf(value));
+    if (NAMED.has(key)) start(state, root, key, NAMED.get(key), decodeAttribute(value));
   }
 }
 

@@ -4,8 +4,9 @@
  * DisplayTrait templates: per-display-type DOM construction and mutation.
  *
  * Each template is a `{ build, update }` pair:
- *   - `build(pin, contentEl)` constructs the subtree exactly once and returns the
- *     live node references ("bindings") the update pass writes through.
+ *   - `build(pin, contentEl)` clones the display type's `<template>` (a core type,
+ *     `../../addons/types.js`) into the content element exactly once and returns
+ *     the live node references ("bindings") the update pass writes through.
  *   - `update(pin, contents, bindings, cache)` mutates text nodes and attributes
  *     only. Nothing is re-created, so node identity is stable across every frame.
  *
@@ -36,13 +37,13 @@ import {
   safeColor,
   safeUrl
 } from '../../graphics/primitives/primitives.js';
+import { CLS, mountType, registerDisplayTypes } from '../../addons/types.js';
 /**
  * The DOM writes live in `./template-kit.js`, which is the public half of this
  * module: the built-in templates and a consumer's own template mutate the DOM
  * through exactly the same four functions.
  */
 import {
-  makeElement,
   makeTextNode,
   setAttr,
   setSlot,
@@ -51,31 +52,10 @@ import {
 } from './template-kit.js';
 
 /**
- * Every class name the built-in templates emit.
- *
- * One table, exported, because these names are public API twice over: consumers
- * style them and the default stylesheet matches them. Renaming one here renames
- * it everywhere the framework uses it.
- *
- * `GAUGE_ROW` is the odd one out - a modifier added alongside `BODY` on the
- * vector-pointer template, whose body is a flex row rather than a text block.
+ * The class table and the markup now live with the display types themselves
+ * (`../../addons/types.js`); re-exported so `CLS` keeps its public import path.
  */
-export const CLS = Object.freeze({
-  HEADER: 'cloudcanvas-pin-header',
-  TITLE: 'cloudcanvas-pin-title',
-  BADGE_SLOT: 'cloudcanvas-pin-badge-slot',
-  BODY: 'cloudcanvas-pin-body',
-  GAUGE_ROW: 'cloudcanvas-pin-gauge-row',
-  FOOTER: 'cloudcanvas-pin-footer',
-  AUTHOR: 'cloudcanvas-pin-author',
-  ACTION_BTN: 'cloudcanvas-pin-action-btn',
-  NEEDLE_SLOT: 'cloudcanvas-pin-needle-slot',
-  GAUGE: 'cloudcanvas-pin-gauge',
-  LABEL: 'cloudcanvas-pin-label',
-  METER_SLOT: 'cloudcanvas-pin-meter-slot',
-  MEDIA: 'cloudcanvas-pin-media',
-  CAPTION: 'cloudcanvas-pin-caption'
-});
+export { CLS };
 
 /** The one content key rendered as markup instead of text. */
 export const HTML_KEY = 'html';
@@ -117,21 +97,21 @@ function updateBadgeSlot(slot, text, color, cache) {
   setVisible(slot, Boolean(text));
 }
 
-/** The header shared by every templated type: a title text node plus a badge slot. */
-function buildHeader() {
-  const header = makeElement('div', CLS.HEADER);
-  const title = makeElement('div', CLS.TITLE);
-  const titleText = makeTextNode(title);
-  const badgeSlot = makeElement('span', CLS.BADGE_SLOT);
-  header.appendChild(title);
-  header.appendChild(badgeSlot);
-  return { header, titleText, badgeSlot };
+/**
+ * Render through a display type: its template cloned into the content element,
+ * the header's title text node and badge slot bound. @returns the slots too
+ */
+function mountDisplay(name, contentEl) {
+  registerDisplayTypes();
+  const slots = mountType(name, contentEl);
+  return { slots, titleText: makeTextNode(slots.title), badgeSlot: slots.badge };
 }
 
 /* ------------------ RAW / HTML OVERRIDE ------------------ */
 
 /**
- * Markup mode: the content element itself is the innerHTML target.
+ * Markup mode: the content element itself is the innerHTML target - it plays the
+ * `raw` type's single `data-slot-html` slot, so a raw Pin gains no wrapper element.
  * Used by `raw` and by any type whose contents carry the `html` override key.
  */
 function buildHtml(pin, contentEl) {
@@ -150,23 +130,18 @@ function updateHtml(pin, contents, bindings, cache) {
 /* ------------------ CARD ------------------ */
 
 function buildCard(pin, contentEl) {
-  const { header, titleText, badgeSlot } = buildHeader();
-
-  const body = makeElement('div', CLS.BODY);
-  const bodyText = makeTextNode(body);
-
-  const footer = makeElement('div', CLS.FOOTER);
-  const author = makeElement('span', CLS.AUTHOR);
-  const authorText = makeTextNode(author);
-  const actionButton = makeElement('button', CLS.ACTION_BTN);
-  const actionText = makeTextNode(actionButton);
-  // A Pin may be mounted inside a form; the default submit type would navigate.
-  actionButton.setAttribute('type', 'button');
-  footer.appendChild(author);
-  footer.appendChild(actionButton);
-
-  contentEl.replaceChildren(header, body, footer);
-  return { mode: 'card', titleText, badgeSlot, body, bodyText, footer, authorText, actionButton, actionText };
+  const { slots, titleText, badgeSlot } = mountDisplay('card', contentEl);
+  return {
+    mode: 'card',
+    titleText,
+    badgeSlot,
+    body: slots.body,
+    bodyText: makeTextNode(slots.body),
+    footer: contentEl.querySelector(`.${CLS.FOOTER}`),
+    authorText: makeTextNode(slots.author),
+    actionButton: slots.action,
+    actionText: makeTextNode(slots.action)
+  };
 }
 
 function updateCard(pin, contents, bindings, cache) {
@@ -192,22 +167,15 @@ function updateCard(pin, contents, bindings, cache) {
 /* ------------------ VECTOR POINTER ------------------ */
 
 function buildVectorPointer(pin, contentEl) {
-  const { header, titleText, badgeSlot } = buildHeader();
-
-  const body = makeElement('div', `${CLS.BODY} ${CLS.GAUGE_ROW}`);
-  const needleSlot = makeElement('div', CLS.NEEDLE_SLOT);
-  const gauge = makeElement('div', CLS.GAUGE);
-  const label = makeElement('div', CLS.LABEL);
-  const labelText = makeTextNode(label);
-  const meterSlot = makeElement('div', CLS.METER_SLOT);
-
-  gauge.appendChild(label);
-  gauge.appendChild(meterSlot);
-  body.appendChild(needleSlot);
-  body.appendChild(gauge);
-
-  contentEl.replaceChildren(header, body);
-  return { mode: 'vector-pointer', titleText, badgeSlot, needleSlot, labelText, meterSlot };
+  const { slots, titleText, badgeSlot } = mountDisplay('vector-pointer', contentEl);
+  return {
+    mode: 'vector-pointer',
+    titleText,
+    badgeSlot,
+    needleSlot: slots.needle,
+    labelText: makeTextNode(slots.label),
+    meterSlot: slots.meter
+  };
 }
 
 function updateVectorPointer(pin, contents, bindings, cache) {
@@ -240,18 +208,10 @@ function updateVectorPointer(pin, contents, bindings, cache) {
 /* ------------------ MEDIA ------------------ */
 
 function buildMedia(pin, contentEl) {
-  const { header, titleText, badgeSlot } = buildHeader();
-
-  const body = makeElement('div', CLS.BODY);
-  const image = makeElement('img', CLS.MEDIA);
-  const caption = makeElement('p', CLS.CAPTION);
-  const captionText = makeTextNode(caption);
-
-  body.appendChild(image);
-  body.appendChild(caption);
-
-  contentEl.replaceChildren(header, body);
-  return { mode: 'media', titleText, badgeSlot, image, caption, captionText };
+  const { slots, titleText, badgeSlot } = mountDisplay('media', contentEl);
+  const image = contentEl.querySelector(`.${CLS.MEDIA}`);
+  const caption = slots.caption;
+  return { mode: 'media', titleText, badgeSlot, image, caption, captionText: makeTextNode(caption) };
 }
 
 function updateMedia(pin, contents, bindings, cache) {
