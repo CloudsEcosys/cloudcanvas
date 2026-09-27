@@ -369,6 +369,24 @@ records the migration surface, not the commit history.
   *Migration*: read `blits`/`fill`/`reactions` where you read `pins`/`contents`/`bindings`;
   import custom-type helpers from the site, the reserved keys from `cloudcanvas/sandbox`.
 
+- **`.addons` consolidated into groups.** (Breaking for `cloudcanvas/archetypes` and
+  `cloudcanvas/components`.) The kit splits into `cloudcanvas/forms` and `cloudcanvas/display`
+  (`cloudcanvas/lib` is both); `badge`, `avatar`, `progress`, `spinner` and `alert` are core
+  types too (`displayTypes()`, then `root.blit({type: 'progress', progress: {value}})`), and
+  their Pins render the same DOM through the same template. The archetypes are rebuilt as
+  core types registered by `registerArchetypes()` - `section` and `table`; `MediaPin`,
+  `ReactableCardPin`, `DocumentPin`, `SectionPin` and `TablePin` are gone, and importing the
+  subpath no longer registers anything. Deleted: `createChatChannelPin`,
+  `createCalendarBoardPin`, the telemetry simulation (`startTelemetrySimulation`,
+  `stopTelemetrySimulation`, `createTelemetryPin`'s `simulate` option, the `HOST_CLASS` export of `.addons/components/registrar.js`; the gallery keeps its
+  own) and the group re-export from `cloudcanvas/sandbox`. Every `--cc-*` token read is now
+  catalogued: `LIB_TOKENS`, `COMPONENT_TOKENS` and three new `TOKENS` entries, each default
+  its sheet's fallback. `readDocument` refuses a document whose shape its version does not
+  describe (a `pins` tree labelled version 2, or the reverse) instead of restoring it empty.
+  *Migration*: build a section or table with the core types; call `startTelemetrySimulation`
+  from your own code; import `saveGroup` and its kin from `cloudcanvas`; fix the version label
+  of a mislabelled save.
+
 - **The session and the Pin manager are facades over the core root.** (Breaking.) Pins are registered in the root's id index. `manager.pins` / `session.pins` are now a read-only view: it keeps Map reads (`get`, `has`, `size`, iteration), but it is no longer `instanceof Map`, and writes throw. `PinManager.tickAll()` and `renderAll()` are removed; the frame's registered passes do that work. `pin.destroy()` now also deregisters the Pin, so `getPin` stops finding it. An unknown session option now logs a warning on the `session` logger instead of throwing. Container aliases (`element`, `host`, `hostElement`, `target`) still throw.
 
 - **Every Pin has an element; headless (no-document) construction is gone.** (Breaking.)

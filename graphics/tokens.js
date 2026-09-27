@@ -4,9 +4,10 @@
  * `TOKENS`: a JS-readable catalogue of the framework's `--cc-*` design tokens.
  *
  * The token *values* live where they always have - in the fallback chain of
- * `CANVAS_DEFAULT_CSS` (`./styles-css.js`) and in the override set `LIGHT_THEME`
- * (`./theme.js`). This module invents no value and no name: it is a discovery
- * layer *over* those strings, so a component author or an appearance editor can
+ * `CANVAS_DEFAULT_CSS` (`./styles-css.js`) and of the few engine modules that
+ * read a token directly, and in the override set `LIGHT_THEME` (`./theme.js`).
+ * This module invents no value and no name: it is a discovery layer *over*
+ * those strings, so a component author or an appearance editor can
  * ask "what tokens are in the radius category" or "is `--cc-foo` a real token"
  * instead of grepping a four-hundred-line stylesheet. Injecting styles stays
  * exactly as it was - stylesheets with `var()` fallbacks, never CSS-in-JS; this
@@ -84,6 +85,7 @@ export const TOKENS = /* @__PURE__ */ Object.freeze({
   '--cc-badge-text': { category: C.COLOR, purpose: 'Badge label colour' },
   '--cc-badge-text-override': { category: C.COLOR, purpose: 'Theme override for computed badge text colour' },
   '--cc-badge-border': { category: C.COLOR, purpose: 'Badge border colour' },
+  '--cc-surface-2': { category: C.COLOR, purpose: 'Raised surface tint (SVG-state fill)' },
   '--cc-btn-bg': { category: C.COLOR, purpose: 'Action button background' },
   '--cc-btn-bg-hover': { category: C.COLOR, purpose: 'Action button background on hover' },
   '--cc-btn-border': { category: C.COLOR, purpose: 'Action button border colour' },
@@ -119,6 +121,7 @@ export const TOKENS = /* @__PURE__ */ Object.freeze({
 
   /* ---- foundations: type ---- */
   '--cc-font': { category: C.TYPE, purpose: 'Base font-family stack' },
+  '--cc-font-mono': { category: C.TYPE, purpose: 'Monospace font-family stack' },
   '--cc-type-xs': { category: C.TYPE, purpose: 'Extra-small type size' },
   '--cc-type-sm': { category: C.TYPE, purpose: 'Small type size' },
   '--cc-type-md': { category: C.TYPE, purpose: 'Medium (body) type size' },
@@ -151,6 +154,7 @@ export const TOKENS = /* @__PURE__ */ Object.freeze({
   '--cc-resize-handle-size-coarse': { category: C.SIZE, purpose: 'Resize-handle size for coarse pointers' },
   '--cc-grab-handle-size': { category: C.SIZE, purpose: 'Grab-handle size' },
   '--cc-grab-handle-size-coarse': { category: C.SIZE, purpose: 'Grab-handle size for coarse pointers' },
+  '--cc-badge-dot': { category: C.SIZE, purpose: 'Badge status-dot diameter' },
 
   /* ---- layout ---- */
   '--cc-layout-gap': { category: C.LAYOUT, purpose: 'Gap between flow-container children' },
