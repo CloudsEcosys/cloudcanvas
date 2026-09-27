@@ -6,7 +6,8 @@
  * `MotionCamera` extends the core's snapping `Camera` with eased moves
  * (`animateTo`, stepped by `update`), an animated `fit`, the reduced-motion
  * rule and the screen <-> canvas projection. `motion(b)` gives a root one, so
- * its `view()` flies. The legacy `Viewport` (`../engine/viewport.js`) extends it.
+ * its `view()` flies. `MOVING_CLASS` is the one compositor-hint class any
+ * add-on grants an element while it is in motion. The legacy `Viewport` (`../engine/viewport.js`) extends it.
  */
 import { Camera } from '../core/camera.js';
 import { schedule } from '../core/frame.js';
@@ -28,6 +29,9 @@ export const EASINGS = /* @__PURE__ */ Object.freeze({
 
 /** Curve applied when no easing is supplied, or when an unknown name is given. */
 export const DEFAULT_EASING = 'ease-out-cubic';
+
+/** Class an element carries while its transform is actually changing. */
+export const MOVING_CLASS = 'cc-moving';
 
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 

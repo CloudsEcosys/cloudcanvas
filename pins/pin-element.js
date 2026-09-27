@@ -104,11 +104,11 @@ export const FLOW_CHILD_CLASS = 'is-flow-child';
 export const LAYOUT_GAP_PROPERTY = '--cc-layout-gap';
 
 /**
- * Attribute a custom widget declares itself a platform control with. Named
- * rather than only spelled inside {@link CONTROL_SELECTOR}, because code that
- * *writes* it needs the string the two layers reading it were built from.
+ * The platform controls a press on a Pin stands down for - the router declines
+ * to capture the stream, and a drag refuses to start - and the attribute that
+ * declares a custom widget one. One list, owned by the trait kit.
  */
-export const CONTROL_ATTR = 'data-cc-control';
+export { CONTROL_ATTR, CONTROL_SELECTOR, isControlTarget } from '../addons/trait.js';
 
 /** Shared zero offset for Pins that were never measured. */
 const ORIGIN = Object.freeze({ x: 0, y: 0 });
@@ -468,43 +468,6 @@ export function isTextRegionTarget(target) {
     && pinElement.classList
     && pinElement.classList.contains(SELECTABLE_TEXT_CLASS)
   );
-}
-
-/**
- * Controls whose activation belongs to the platform rather than to the canvas.
- *
- * A Pin renders real interactive content - the card template ships an action
- * button - and a press on that content is the page's, not a gesture. One list,
- * read by both layers that have to stand down for it: the pointer router
- * declines to capture the stream (`startsOnControl` in `src/engine/pointer.js`)
- * and `DraggableTrait` refuses to start a drag.
- *
- * `[data-cc-control]` is the escape hatch for the rest: a custom widget - a
- * slider built from divs, a colour swatch, a drag handle of the component's own
- * - is a control because its author says so, and marking the node is the whole
- * declaration. Both layers inherit it from this one list.
- */
-export const CONTROL_SELECTOR = [
-  'button',
-  'a[href]',
-  'input',
-  'select',
-  'textarea',
-  'label',
-  '[contenteditable=""]',
-  '[contenteditable="true"]',
-  `[${CONTROL_ATTR}]`
-].join(', ');
-
-/**
- * Whether an event target is - or sits inside - a platform control.
- *
- * @param {EventTarget|null} target
- * @returns {boolean}
- */
-export function isControlTarget(target) {
-  if (!target || typeof target.closest !== 'function') return false;
-  return Boolean(target.closest(CONTROL_SELECTOR));
 }
 
 /**

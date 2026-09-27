@@ -5,14 +5,16 @@
  * Graph traits: Pin-to-Pin connections, event transmission/relaying, and nested scope containers.
  */
 
-import {
-  connectorPathData,
-  safeColor,
-  safeNumber
-} from '../../graphics/primitives/primitives.js';
-import { h } from '../../graphics/primitives/element.js';
-import { reconcileKeyedList } from './template-kit.js';
 import { PinEvent, PinTrait } from './base.js';
+import { classFromTrait } from '../../addons/class-from-trait.js';
+import {
+  addConnection,
+  connectBehaviour,
+  connectorItem,
+  removeConnection,
+  updateConnectors,
+  writeConnector
+} from '../../addons/connect.js';
 import { pinOf } from '../pin-hierarchy.js';
 
 /**
@@ -155,48 +157,18 @@ export class ScopeTrait extends PinTrait {
 }
 
 /**
- * ConnectableTrait: Manages SVG connections to target Pins and renders in global SVG pass
+ * ConnectableTrait: the connect add-on (`../../addons/connect.js`) on a Pin.
+ * Connections, stroke options and the connector drawing live there; the Pin
+ * shell draws through the SVG group layer's global render, targets resolved
+ * by id through the frame's `pinMap`.
  */
-export class ConnectableTrait extends PinTrait {
-  constructor(options = {}) {
-    super(options, {
-      name: 'connectable',
-      capabilities: ['connectable', 'graph-node', 'global-render']
-    });
-    this.connections = new Set(options.connections || options.targets || options.connectTo || []);
-    this.stroke = options.stroke || 'var(--cc-connector, rgba(56, 189, 248, 0.6))';
-    this.strokeWidth = options.strokeWidth || 2;
-    this.dashed = options.dashed !== undefined ? options.dashed : true;
-
-    /**
-     * Bumped on every change to `connections`.
-     *
-     * The SVG group layer gates its redraws on things it can see from outside a
-     * trait - the camera, Pin geometry, the carrier count - and a connection
-     * added to a Pin that was already carrying this trait moves none of them.
-     * The counter is that missing input: the layer sums it across the
-     * participating Pins, so a mutation in here is visible as a changed
-     * signature without the layer knowing what a connection is.
-     */
-    this.revision = 0;
-
-    /**
-     * Scratch list handed to the SVG group layer's dependency gate, refilled in
-     * place on every call. The gate runs on frames where nothing else changed,
-     * so allocating a fresh array here would put garbage on every idle frame.
-     * @type {Pin[]}
-     */
-    this._dependencies = [];
-  }
-
+export class ConnectableTrait extends classFromTrait(connectBehaviour, 'connectable') {
   connectTo(targetPinId) {
-    const before = this.connections.size;
-    this.connections.add(targetPinId);
-    if (this.connections.size !== before) this.revision += 1;
+    addConnection(this, targetPinId);
   }
 
   disconnectFrom(targetPinId) {
-    if (this.connections.delete(targetPinId)) this.revision += 1;
+    removeConnection(this, targetPinId);
   }
 
   getConnections() {
@@ -207,16 +179,9 @@ export class ConnectableTrait extends PinTrait {
     return this.connections.has(targetPinId);
   }
 
-
   /**
-   * The Pins at the far end of this Pin's connections.
-   *
-   * A connector is drawn between two boxes, but only one of them carries the
-   * trait, so the SVG group layer's carrier scan cannot see the other move. A
-   * target that is re-measured - a scope well growing around it after the first
-   * paint, say - changes this connector's geometry and nothing else's, and this
-   * is how the layer is told (see `SvgGroupLayer` dependency gate).
-   *
+   * The Pins at the far end of this Pin's connections: a re-measured target
+   * changes this connector and nothing the layer's carrier scan can see.
    * @returns {Pin[]|null} the owned scratch list, valid until the next call
    */
   collectRenderDependencies(pin, context) {
@@ -225,7 +190,6 @@ export class ConnectableTrait extends PinTrait {
 
     const dependencies = this._dependencies;
     dependencies.length = 0;
-
     for (const targetId of this.connections) {
       const target = pinMap.get(targetId);
       if (target && target !== pin) dependencies.push(target);
@@ -233,106 +197,39 @@ export class ConnectableTrait extends PinTrait {
     return dependencies;
   }
 
-  /**
-   * The connector group's persistent container.
-   *
-   * There is no fixed structure to build - the paths come and go with the
-   * connections - so the build pass only hands the host `<g>` forward. Every
-   * actual `<path>` is created, moved and removed by the keyed reconcile in
-   * {@link onGlobalUpdate}, which is where the build/update discipline lives for
-   * a variable-length child list.
-   */
+  /** No fixed structure: the paths come and go with the connections. */
   onGlobalBuild(host, pinsWithThisTrait, globalContext) {
     return { host };
   }
 
-  /**
-   * Reconcile one `<path>` per connection whose *both* endpoints take part in the
-   * current render root.
-   *
-   * This replaces the old re-stringify: instead of rebuilding the group's markup
-   * every dirty frame, the desired connectors are collected as keyed items and
-   * `reconcileKeyedList` reuses the `<path>` already holding each source->target
-   * key, creating one only for a genuinely new connection and removing the paths
-   * whose connection is gone. A path that stayed has only its `d` and stroke
-   * attributes re-set, and only when they moved.
-   *
-   * The layer has already filtered the source Pins it hands over; the targets are
-   * resolved here, from the pin map, so the same participation test is applied
-   * again - otherwise a promoted subtree would trail connectors out to Pins that
-   * are no longer in the document.
-   */
+  /** Reconcile one keyed `<path>` per connection whose both ends take part in the render root. */
   onGlobalUpdate(bindings, pinsWithThisTrait, globalContext) {
     const host = bindings.host;
     const pinMap = globalContext.pinMap;
     if (!host) return;
 
-    const participates = typeof globalContext.participates === 'function'
-      ? globalContext.participates
-      : null;
-
-    reconcileKeyedList(host, pinMap ? this._connectorItems(pinsWithThisTrait, pinMap, participates) : [], {
-      key: (item) => item.key,
-      create: () => h('path', { fill: 'none', 'vector-effect': 'non-scaling-stroke' }),
-      update: (node, item) => this._writeConnector(node, item)
-    });
+    const participates = typeof globalContext.participates === 'function' ? globalContext.participates : null;
+    updateConnectors(host, pinMap ? this._connectorItems(pinsWithThisTrait, pinMap, participates) : []);
   }
 
-  /**
-   * The connectors to draw this frame, one item per participating source->target
-   * pair, each carrying the geometry and the drawing Pin's own stroke options.
-   *
-   * A fresh array per dirty frame is deliberate: this runs only when the layer's
-   * gate has already decided the group changed, never on an idle frame, so it is
-   * off the allocation-free path the idle gate protects (unlike
-   * `collectRenderDependencies`, which does run idle and refills in place).
-   */
+  /** The connectors to draw, one item per participating source->target pair, each in its source's stroke. */
   _connectorItems(pinsWithThisTrait, pinMap, participates) {
     const items = [];
-
     for (const sourcePin of pinsWithThisTrait) {
       const connTrait = sourcePin.traits.get(this.name);
       if (!connTrait || connTrait.connections.size === 0) continue;
 
       const p1 = sourcePin.getGlobalBounds();
-
       for (const targetId of connTrait.connections) {
         const targetPin = pinMap.get(targetId);
-        if (!targetPin) continue;
-        if (participates && !participates(targetPin)) continue;
-
-        const p2 = targetPin.getGlobalBounds();
-        items.push({
-          key: `${sourcePin.id}->${targetId}`,
-          d: connectorPathData(p1.centerX, p1.centerY, p2.centerX, p2.centerY),
-          stroke: safeColor(connTrait.stroke, 'var(--cc-connector, rgba(56, 189, 248, 0.6))'),
-          strokeWidth: safeNumber(connTrait.strokeWidth || 2, 2),
-          dashed: connTrait.dashed
-        });
+        if (!targetPin || (participates && !participates(targetPin))) continue;
+        items.push(connectorItem(`${sourcePin.id}->${targetId}`, p1, targetPin.getGlobalBounds(), connTrait));
       }
     }
     return items;
   }
 
-  /**
-   * Write one connector item into its `<path>`, each attribute only when it moved.
-   *
-   * The per-node cache is stamped on the element itself (`_ccConnector`), so it
-   * survives the reconciler reusing, moving or reattaching the node and needs no
-   * parallel map. `stroke-dasharray` is `none` for a solid connector - the same
-   * value the string generator emitted - so the dashed/solid switch is a real
-   * attribute change rather than a removed attribute.
-   */
   _writeConnector(node, item) {
-    const cache = node._ccConnector || (node._ccConnector = {});
-    const dash = item.dashed ? '6,4' : 'none';
-
-    if (cache.d !== item.d) { cache.d = item.d; node.setAttribute('d', item.d); }
-    if (cache.stroke !== item.stroke) { cache.stroke = item.stroke; node.setAttribute('stroke', item.stroke); }
-    if (cache.strokeWidth !== item.strokeWidth) {
-      cache.strokeWidth = item.strokeWidth;
-      node.setAttribute('stroke-width', String(item.strokeWidth));
-    }
-    if (cache.dash !== dash) { cache.dash = dash; node.setAttribute('stroke-dasharray', dash); }
+    writeConnector(node, item);
   }
 }

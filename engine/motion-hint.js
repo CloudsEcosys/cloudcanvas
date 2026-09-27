@@ -14,8 +14,10 @@
  * dropping the layer there is the jank the hint exists to prevent.
  */
 
-/** Class the renderer adds while a Pin's transform is actually changing. */
-export const MOVING_CLASS = 'cc-moving';
+import { MOVING_CLASS } from '../addons/motion.js';
+
+/** Class the renderer adds while a Pin moves; owned by `../addons/motion.js`. */
+export { MOVING_CLASS };
 
 /**
  * Still frames a Pin must go through before its hint is withdrawn. Half a

@@ -12,6 +12,7 @@
  * particle built without an element owns a detached one. Physics-only data -
  * velocity, mass, friction, the pinned flag, the vector list - stays here.
  */
+import { applyForce, integrate } from '../addons/physics.js';
 import { boundsOf, createState, sizeOf, stateOf } from '../core/state.js';
 
 /** The core record for `element`, made on first sight; a bare particle gets its own node. */
@@ -212,9 +213,7 @@ export class PinParticle {
    * Apply an instantaneous force vector to the Pin
    */
   applyForce(fx, fy) {
-    if (this.pinned) return;
-    this.vx += fx / this.mass;
-    this.vy += fy / this.mass;
+    applyForce(this, fx, fy);
   }
 
   /**
@@ -260,23 +259,7 @@ export class PinParticle {
    * identical regardless of how the elapsed time is subdivided.
    */
   update(dt = 1) {
-    if (this.pinned) {
-      this.vx = 0;
-      this.vy = 0;
-      return;
-    }
-
-    this.x += this.vx * dt;
-    this.y += this.vy * dt;
-
-    // Apply frame-rate independent friction / damping
-    const damping = Math.pow(this.friction, dt);
-    this.vx *= damping;
-    this.vy *= damping;
-
-    // Stop micro-jitters
-    if (Math.abs(this.vx) < 0.001) this.vx = 0;
-    if (Math.abs(this.vy) < 0.001) this.vy = 0;
+    integrate(this, dt);
   }
 
   /**

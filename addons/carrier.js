@@ -9,22 +9,23 @@
  * made on first use and dropped when its last trait leaves.
  *
  * A root keeps an index of its carriers by id (`pinMap`, what a global-render
- * trait resolves its targets through) and one `<svg>` on its plane for the
- * groups those traits draw into.
+ * trait resolves its targets through); the groups those traits draw go in the
+ * `<svg>` on its plane (`./connect.js`, `svgLayerOf`).
  */
 import { schedule } from '../core/frame.js';
 import { rootOf, scopeContainerOf, stateOf } from '../core/state.js';
-import { SVG_NS } from '../graphics/primitives/element.js';
 import { registerElement } from '../pins/pin-hierarchy.js';
 import { hookElement, transmit } from '../pins/pin-scope.js';
+import { svgLayerOf } from './connect.js';
 
-/** The marker on the `<svg>` the bridge draws global-render groups into. */
-export const SVG_LAYER_ATTR = 'data-blit-svg';
+/** The marker on the `<svg>` global-render groups draw into, shared with `./connect.js`. */
+export { SVG_LAYER_ATTR } from './connect.js';
+export { svgLayerOf };
 
 /** @type {WeakMap<Element, Carrier>} element -> its carrier */
 const CARRIERS = /* @__PURE__ */ new WeakMap();
 
-/** @type {WeakMap<object, RootIndex>} root -> its carriers and SVG layer */
+/** @type {WeakMap<object, RootIndex>} root -> its carriers and groups */
 const INDEXES = /* @__PURE__ */ new WeakMap();
 
 let sequence = 0;
@@ -32,7 +33,6 @@ let sequence = 0;
 /**
  * @typedef {object} RootIndex
  * @property {Map<string, Carrier>} pinMap every carrier under the root, by id
- * @property {SVGSVGElement|null} svg the layer global-render groups draw into
  * @property {Map<string, object>} groups one record per global-render trait name
  */
 
@@ -163,26 +163,8 @@ export function releaseCarrier(carrier) {
 export function indexOf(root) {
   let index = INDEXES.get(root);
   if (!index) {
-    index = { pinMap: new Map(), svg: null, groups: new Map() };
+    index = { pinMap: new Map(), groups: new Map() };
     INDEXES.set(root, index);
   }
   return index;
-}
-
-/**
- * The `<svg>` on the root's plane that global-render groups draw into: it rides
- * the camera transform with the blits, so a connector is drawn in canvas
- * coordinates, and it takes no pointer.
- */
-export function svgLayerOf(root) {
-  const index = indexOf(root);
-  if (index.svg) return index.svg;
-
-  const svg = document.createElementNS(SVG_NS, 'svg');
-  svg.setAttribute(SVG_LAYER_ATTR, '');
-  svg.setAttribute('aria-hidden', 'true');
-  svg.style.cssText = 'position:absolute;left:0;top:0;width:1px;height:1px;overflow:visible;pointer-events:none';
-  root.plane.appendChild(svg);
-  index.svg = svg;
-  return svg;
 }
