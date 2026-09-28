@@ -35,6 +35,9 @@ export class MenuRegistry {
     if (action !== undefined && typeof action !== 'function') {
       throw new Error(`MenuRegistry.register: "${id}" action, if given, must be a function`);
     }
+    if (item.renderItem !== undefined && typeof item.renderItem !== 'function') {
+      throw new Error(`MenuRegistry.register: "${id}" renderItem, if given, must be a function`);
+    }
     if (this._items.has(id)) throw new Error(`MenuRegistry.register: "${id}" is already registered`);
 
     const definition = Object.freeze({
@@ -43,7 +46,11 @@ export class MenuRegistry {
       group: typeof item.group === 'string' ? item.group : '',
       parent: this._resolveParent(item, id),
       when: typeof item.when === 'function' ? item.when : ALWAYS,
-      action: typeof action === 'function' ? action : null
+      action: typeof action === 'function' ? action : null,
+      // Opt-in seams: decorate the built button; keep the menu open after a toggle; open a flyout on hover.
+      renderItem: typeof item.renderItem === 'function' ? item.renderItem : null,
+      closeOnRun: item.closeOnRun !== false,
+      openOnHover: Boolean(item.openOnHover)
     });
     this._items.set(id, definition);
     return definition;

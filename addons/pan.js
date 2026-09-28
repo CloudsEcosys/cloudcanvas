@@ -264,6 +264,7 @@ export function panPress(g, event, env) {
 
   const claim = env.target?.press?.(event);
   if (claim) return claim;
+  if (env.noPress) return null; // `press: false`: the background is chrome, not a plane
   g.isPanning = true;
   g.lastPointer = { x: event.clientX, y: event.clientY };
   return null;
@@ -350,6 +351,7 @@ export function panWheel(event, env) {
 export function installPan(host, root, options) {
   const g = options.state ?? initPanState();
   const env = panEnv(host, root, options.target);
+  env.noPress = options.press === false;
   const offs = [
     listen(host, ['pointerdown'], (event) => panPress(g, event, env)),
     listen(window, ['pointermove'], (event) => panMove(g, event, env)),
@@ -363,8 +365,8 @@ export function installPan(host, root, options) {
   };
 }
 
-/** The root trait; `opts.wheel: false` leaves the wheel to the page. @returns {() => void} off */
+/** The root trait; `opts.wheel: false` leaves the wheel to the page, `opts.press: false` the background press. @returns {() => void} off */
 export function pan(b, opts, root) {
-  const wheel = !(opts && typeof opts === 'object' && opts.wheel === false);
-  return installPan(b.el, requireRootOf(b, root, 'pan'), { wheel, target: blitTarget(b.el) });
+  const o = opts && typeof opts === 'object' ? opts : {};
+  return installPan(b.el, requireRootOf(b, root, 'pan'), { wheel: o.wheel !== false, press: o.press !== false, target: blitTarget(b.el) });
 }

@@ -72,7 +72,8 @@ export function bindKeyboard(session) {
 
   const state = {};
   const label = (session.options && session.options.label) || undefined;
-  state.off = installKeyboard(host, session._frame, { state, label, hooks: hooksOf(session) });
+  const tabStop = session.options?.tabStop;
+  state.off = installKeyboard(host, session._frame, { state, label, tabStop, hooks: hooksOf(session) });
   session._keyboard = state;
   return true;
 }

@@ -268,7 +268,7 @@ export function reveal(env, bounds) {
  */
 export function installKeyboard(host, root, options) {
   const k = Object.assign(options.state ?? {}, { current: null, order: [], tabbed: new Set() });
-  k.tabindexAdded = !host.hasAttribute('tabindex');
+  k.tabindexAdded = options.tabStop !== false && !host.hasAttribute('tabindex');
   if (k.tabindexAdded) host.setAttribute('tabindex', '0');
   k.aria = applyApplicationRole(host, options.label);
 

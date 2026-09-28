@@ -107,6 +107,17 @@ export {
 export { reorderChild, insertionSiblingFor } from './pins/reparent.js';
 
 /**
+ * The one control predicate two layers already stand down on - the pointer
+ * router (`startsOnControl`) and `DraggableTrait` (`isControlTarget`) - lifted to
+ * the top level so a consumer building its own chrome reads the same list rather
+ * than re-deriving it. `CONTROL_SELECTOR` is that list (native controls plus the
+ * `[data-cc-control]` escape hatch); `isControlTarget(target)` answers "is this,
+ * or is it inside, a control". Exported because a private `button, input, …`
+ * copy in the app drifts from this one the moment a kind is added here.
+ */
+export { CONTROL_SELECTOR, isControlTarget } from './pins/pin-element.js';
+
+/**
  * Pin-to-Pin reactions: "when Pin A emits signal X, run action Y on Pin B",
  * wired with no code. `ActionRegistry` is the open, `TraitRegistry`-shaped set of
  * what a reaction can *do* (each action declaring the parameters an editor renders
@@ -278,6 +289,7 @@ export {
   MENU_CLASS,
   MENU_FLYOUT_CLASS,
   MENU_GROUP_CLASS,
+  MENU_HOVER_OPEN_MS,
   MENU_ITEM_ATTR,
   MENU_ITEM_CLASS,
   MENU_ITEM_SUBMENU_CLASS,
@@ -295,6 +307,16 @@ export {
 /* ---- everyday: placement, adoption, and the well a scroller opts into ---- */
 export { place } from './engine/placement.js';
 export { droppablePinAt } from './engine/hit-test.js';
+
+/**
+ * The world-space box a set of Pins occupies, unioned over `getGlobalBounds()`.
+ * This is the arithmetic `session.zoomToFit` frames against, exported on its own
+ * so a consumer that needs the *number* - a content extent, a group's bounds, a
+ * "fit these" affordance - reads it instead of measuring elements with
+ * `getBoundingClientRect`, which desyncs from the camera exactly as edge geometry
+ * does (see the edge-trait notes). Returns null when the set is empty.
+ */
+export { unionBounds } from './engine/framing.js';
 
 /**
  * Adoption: DOM that already exists becomes live Pins, re-created by nobody.

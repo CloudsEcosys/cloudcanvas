@@ -33,10 +33,13 @@ const logger = /* @__PURE__ */ createLogger('session');
  *   viewport         Initial camera (`{x, y, scale, minScale, maxScale}`).
  *   menu             The menu add-on's opts: `{registry}` replaces the shared one.
  *   pan              The pan add-on's opts: `{wheel: false}` leaves the wheel to the page.
+ *                    `false` stops a press on bare canvas from panning (a click or caret still lands).
+ *   frameOnFocus     `false` stops `focus()` from moving the camera; promotion and presentation still happen.
+ *   tabStop          `false` keeps the host out of the tab order; keys still work once it is focused.
  */
 const READ_KEYS = [
   'autoInjectStyles', 'container', 'customCSS', 'defaultReload', 'label', 'loadChildren', 'offloadMargin', 'viewport',
-  'menu', 'pan'
+  'menu', 'pan', 'frameOnFocus', 'tabStop'
 ];
 
 /** Names `container` has been mistaken for: each would build a session that mounts nothing. */

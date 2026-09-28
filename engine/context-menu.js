@@ -16,7 +16,7 @@ import { pinFromElement } from './hit-test.js';
 import { MenuRegistry, closeMenu, installMenu, isMenuOpen, openMenu, visibleItems } from '../addons/menu.js';
 
 export {
-  MENU_CLASS, MENU_FLYOUT_CLASS, MENU_GROUP_CLASS, MENU_ITEM_ATTR, MENU_ITEM_CLASS, MENU_ITEM_SUBMENU_CLASS,
+  MENU_CLASS, MENU_FLYOUT_CLASS, MENU_GROUP_CLASS, MENU_HOVER_OPEN_MS, MENU_ITEM_ATTR, MENU_ITEM_CLASS, MENU_ITEM_SUBMENU_CLASS,
   MenuRegistry
 } from '../addons/menu.js';
 
@@ -112,6 +112,7 @@ export function mountContextMenu(session) {
     registry: menuRegistry,
     ...session.options?.menu,
     state,
+    insets: () => session.menuInsets,
     subject: session,
     overlay: session.overlayElement,
     resolve: (event) => ({ pin: pinFromElement(session, event.target), x: event.clientX, y: event.clientY })

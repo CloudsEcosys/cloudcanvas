@@ -27,6 +27,7 @@ import { MenuRegistry, isTrigger, visibleItems } from './menu-registry.js';
 import { injectAddonCss, listen, requireRootOf } from './trait.js';
 
 export { MenuRegistry, visibleItems } from './menu-registry.js';
+import { placeInHost } from './menu-place.js';
 
 /** The menu element, a flyout panel, one group, one command, a trigger, and the id attribute. */
 export const MENU_CLASS = 'cloudcanvas-context-menu';
@@ -35,6 +36,8 @@ export const MENU_GROUP_CLASS = 'cloudcanvas-context-menu-group';
 export const MENU_ITEM_CLASS = 'cloudcanvas-context-menu-item';
 export const MENU_ITEM_SUBMENU_CLASS = 'cloudcanvas-context-menu-item--submenu';
 export const MENU_ITEM_ATTR = 'data-menu-item';
+/** How long the pointer rests on an `openOnHover` trigger before its flyout opens. */
+export const MENU_HOVER_OPEN_MS = 180;
 
 /* ------------------ OPEN AND CLOSE ------------------ */
 
@@ -49,11 +52,14 @@ function mountMenu(m) {
     context: null,
     items: new Map(),
     panels: [],
+    hoverTimer: null,
     onClick: (event) => runClickedItem(m, event),
+    onOver: (event) => armHover(m, event),
+    onOut: (event) => { if (itemOf(m, event.target)) clearHover(m); },
     onDocumentPointerDown: (event) => { if (!panelOf(m, event.target)) closeMenu(m); },
     onDocumentKeyDown: (event) => onMenuKeyDown(m, event)
   });
-  element.addEventListener('click', m.onClick);
+  panelListeners(m, element, true);
   m.overlay.appendChild(element);
 }
 
@@ -65,11 +71,11 @@ export function openMenu(m, context) {
   closeMenu(m);
   if (items.length === 0) return false;
 
+  m.context = context;
   m.panels = [{ element: m.element, triggerButton: null, triggerId: null, depth: 0, itemIds: renderInto(m, m.element, items), side: 'right' }];
   // Unhidden before it is placed: the clamp needs a real measurement.
   m.element.hidden = false;
   placeInHost(m, m.element, { mode: 'point', x: context.x, y: context.y });
-  m.context = context;
   documentListeners(m, true);
   focusFirstItem(m.element);
   return true;
@@ -80,6 +86,7 @@ export function closeMenu(m) {
   if (!isMenuOpen(m)) return false;
   // Asked before the panels go: removing the focused element drops focus to the body.
   const held = Boolean(panelOf(m, m.element.ownerDocument.activeElement));
+  clearHover(m);
   closePanelsDeeperThan(m, 0);
   m.element.hidden = true;
   m.element.textContent = '';
@@ -150,7 +157,7 @@ function itemButton(m, doc, item) {
   button.setAttribute('role', 'menuitem');
   button.setAttribute(MENU_ITEM_ATTR, item.id);
   button.textContent = item.label;
-  if (!isTrigger(m, item)) return button;
+  if (!isTrigger(m, item)) return decorate(m, item, button);
 
   button.classList.add(MENU_ITEM_SUBMENU_CLASS);
   button.setAttribute('aria-haspopup', 'menu');
@@ -161,7 +168,13 @@ function itemButton(m, doc, item) {
   caret.setAttribute('aria-hidden', 'true');
   caret.textContent = '▸';
   button.appendChild(caret);
-  return button;
+  return decorate(m, item, button);
+}
+
+/** `renderItem` runs on the built button: it decorates in place, or returns a replacement element. */
+function decorate(m, item, button) {
+  const out = item.renderItem ? item.renderItem(button, item, m.context) : null;
+  return out && out !== button && out.nodeType === 1 ? out : button;
 }
 
 /**
@@ -185,7 +198,7 @@ function openFlyout(m, triggerItem, triggerButton) {
   const panel = m.element.ownerDocument.createElement('div');
   panel.className = `${MENU_CLASS} ${MENU_FLYOUT_CLASS}`;
   panel.setAttribute('role', 'menu');
-  panel.addEventListener('click', m.onClick);
+  panelListeners(m, panel, true);
   m.overlay.appendChild(panel);
   const itemIds = renderInto(m, panel, children);
   const side = placeInHost(m, panel, {
@@ -205,58 +218,10 @@ function closePanelsDeeperThan(m, depth) {
     for (const id of panel.itemIds) m.items.delete(id);
     panel.triggerButton?.setAttribute('aria-expanded', 'false');
     if (panel.element !== m.element) {
-      panel.element.removeEventListener('click', m.onClick);
+      panelListeners(m, panel.element, false);
       panel.element.remove();
     }
   }
-}
-
-/* ------------------ PLACEMENT ------------------ */
-
-/**
- * Place a panel in overlay coordinates (client minus the host's cached origin)
- * and fit it in the host. A point anchor (the click) is clamped back inside by
- * its overhang, never past the near edge. A box anchor (a trigger) opens on its
- * committed side and flips only for the first flyout (`allowFlip`); failing
- * both it clamps on that side, since reversing would land on its own ancestors.
- * @returns {'left'|'right'|null} the side a box took
- */
-function placeInHost(m, element, anchor) {
-  const hostRect = m.root.hostRect;
-  // `|| 0`: a synthetic event without coordinates opens at the host's corner, never at `NaNpx`.
-  const hostLeft = hostRect.left || 0;
-  const hostTop = hostRect.top || 0;
-  const hostRight = hostLeft + (hostRect.width || 0);
-  const box = anchor.mode === 'box';
-  element.style.top = `${(box ? anchor.rect.top : (Number(anchor.y) || 0)) - hostTop}px`;
-  element.style.left = `${(box ? anchor.rect.right : (Number(anchor.x) || 0)) - hostLeft}px`;
-
-  const measured = element.getBoundingClientRect();
-  const side = box ? placeBoxHorizontally(element, anchor, measured.width, hostLeft, hostRight) : null;
-  if (!box) clampFarEdge(element, 'left', measured.right, hostRight);
-  clampFarEdge(element, 'top', measured.bottom, hostTop + (hostRect.height || 0));
-  return side;
-}
-
-/** Fit a flyout beside its trigger on the committed side, else (first flyout only) the other, else clamp. */
-function placeBoxHorizontally(element, anchor, panelWidth, hostLeft, hostRight) {
-  const { rect, preferSide, allowFlip } = anchor;
-  const fits = { right: rect.right + panelWidth <= hostRight, left: rect.left - panelWidth >= hostLeft };
-  const at = { right: rect.right - hostLeft, left: (rect.left - panelWidth) - hostLeft };
-  const order = allowFlip ? [preferSide, 'left', 'right'] : [preferSide];
-  const side = order.find((each) => fits[each]);
-  if (side) {
-    element.style.left = `${at[side]}px`;
-    return side;
-  }
-  element.style.left = `${preferSide === 'left' ? 0 : Math.max(0, (hostRight - hostLeft) - panelWidth)}px`;
-  return preferSide;
-}
-
-/** Pull a far edge back inside the host by its overhang, never past the near edge. */
-function clampFarEdge(element, styleProp, boxFar, hostFar) {
-  const over = boxFar - hostFar;
-  if (over > 0) element.style[styleProp] = `${Math.max(0, parseFloat(element.style[styleProp]) - over)}px`;
 }
 
 /* ------------------ ACTIVATION AND KEYS ------------------ */
@@ -271,8 +236,39 @@ function runClickedItem(m, event) {
   if (typeof item.action !== 'function') return false;
 
   item.action(m.subject, m.context);
-  closeMenu(m);
+  if (item.closeOnRun !== false) closeMenu(m);
   return true;
+}
+
+/** Click and hover ride one delegation per panel, resolved to the item by `MENU_ITEM_ATTR`. */
+function panelListeners(m, element, on) {
+  const method = on ? 'addEventListener' : 'removeEventListener';
+  element[method]('click', m.onClick);
+  element[method]('pointerover', m.onOver);
+  element[method]('pointerout', m.onOut);
+}
+
+/** The item button under `node`, if any. */
+function itemOf(m, node) {
+  return node && typeof node.closest === 'function' ? node.closest(`[${MENU_ITEM_ATTR}]`) : null;
+}
+
+/** Arm the flyout of an `openOnHover` trigger the pointer rests on; at most one timer, re-checked when it fires. */
+function armHover(m, event) {
+  if (!isMenuOpen(m)) return;
+  clearHover(m);
+  const button = itemOf(m, event.target);
+  const item = button ? m.items.get(button.getAttribute(MENU_ITEM_ATTR)) : null;
+  if (!item || !item.openOnHover || !isTrigger(m, item) || button.getAttribute('aria-expanded') === 'true') return;
+  m.hoverTimer = setTimeout(() => {
+    m.hoverTimer = null;
+    if (button.isConnected && button.getAttribute('aria-expanded') !== 'true') openFlyout(m, item, button);
+  }, MENU_HOVER_OPEN_MS);
+}
+
+function clearHover(m) {
+  if (m.hoverTimer !== null && m.hoverTimer !== undefined) clearTimeout(m.hoverTimer);
+  m.hoverTimer = null;
 }
 
 /** Escape steps out a level (closing at the top); Up/Down rove; Right opens a trigger; Left steps out. */
@@ -330,8 +326,8 @@ function blitContext(host, event) {
  * @returns {() => void} off, which closes the menu and takes its element away
  */
 export function installMenu(host, root, options) {
-  const { registry, subject, resolve, overlay } = options;
-  const m = Object.assign(options.state ?? {}, { host, root, overlay, registry, subject, resolve });
+  const { registry, subject, resolve, overlay, insets } = options;
+  const m = Object.assign(options.state ?? {}, { host, root, overlay, registry, subject, resolve, insets });
   mountMenu(m);
   const off = listen(host, ['contextmenu'], (event) => {
     if (!event.defaultPrevented && openMenu(m, m.resolve(event))) event.preventDefault();
@@ -339,7 +335,7 @@ export function installMenu(host, root, options) {
   return () => {
     off();
     closeMenu(m);
-    m.element.removeEventListener('click', m.onClick);
+    panelListeners(m, m.element, false);
     m.element.remove();
   };
 }

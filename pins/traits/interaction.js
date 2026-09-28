@@ -64,6 +64,8 @@ export const GRAB_HANDLE_CLASS = 'cloudcanvas-grab-handle';
 export class DraggableTrait extends classFromTrait(dragBehaviour, 'draggable') {
   constructor(options = {}) {
     super(options);
+    /** `reparentOnDrop: false`: a drop never nests or reorders; it only moves. */
+    this.reparentOnDrop = options.reparentOnDrop !== false;
     /** The chromeless grab handle, built lazily and only while chrome is off. */
     this._grabHandle = null;
     /** Selection listener, kept so `onDetach` can take it back off. */
@@ -123,6 +125,7 @@ export class DraggableTrait extends classFromTrait(dragBehaviour, 'draggable') {
    */
   _resolveDrop(pin, event, session) {
     if (event === undefined || !session) return false;
+    if (!this.reparentOnDrop) return false;
 
     const target = droppablePinAt(session, event, { ignore: pin });
 

@@ -135,6 +135,13 @@ export function focusPin(session, pinOrId, options = {}) {
   pin.setFocused(true, session);
   setFocusPresentation(session, previous, pin);
 
+  // `frameOnFocus: false` withholds the camera move only - the Pin is still
+  // focused, still promoted, still presented. For a session whose camera is a
+  // fixed viewport (a menu, a scrolled list), where framing the focused item
+  // would scroll it into view over the chrome around it. This is the seam that
+  // replaces a consumer pinning the camera back to identity on `focus:changed`.
+  if (session.options && session.options.frameOnFocus === false) return pin;
+
   // The Pin's focussable trait declares its framing; caller options win over it.
   const focussable = pin.traits.get('focussable');
   session.viewport.zoomToFit(pin.getGlobalBounds(), session.getHostRect(), {
