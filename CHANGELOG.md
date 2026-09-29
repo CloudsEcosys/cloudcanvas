@@ -15,6 +15,21 @@ records the migration surface, not the commit history.
 
 ### Added
 
+- **`cloudcanvas/ui` - product-agnostic DOM controls.** A new entry (`.plugin/ui/`) with
+  one shape for every control: `create<Name>(host, callbacks)` mounts into `host` and returns
+  `{ update(model), destroy() }`; data in as plain props, out through callbacks, never the
+  application's state, no canvas session. Dialog (native `<dialog>`, focus trap, Escape),
+  tabs, splitter, results (listbox or combobox), status, toasts with an action (Undo),
+  composer (owns its draft: blank refused, cleared on success, Cancel clears), voice input,
+  a sanitized markdown subset (raw HTML is text, safe links only), kanban, calendar
+  (month/week/day, drag to reschedule), timeline (Gantt) and relationship graph, each with a
+  keyboard alternative to every drag and a live-region announcement per step. Themed by
+  `--cc-*` tokens (new `--cc-ui-*` and `--cc-z-ui-*` tokens, catalogued in `UI_TOKENS`, chain to the core ones); one
+  stylesheet per document, injected on first mount (`injectUiStyles`, CSP nonce supported).
+  An unused import bundles to nothing. Its export list is snapshotted in
+  `tests/fixtures/public-api-ui.json`.
+  *Migration*: none - additive.
+
 - **`Pin.rebuildDisplay()` - force a display to lay out a new content *shape*.** The ordinary
   render path rebuilds a Pin's subtree only on a display-type swap or the `html` override
   toggling, because those are the only structure changes a built-in template has: a card is
@@ -402,6 +417,15 @@ records the migration surface, not the commit history.
 
 ### Fixed
 
+- **Menu: Space activates on release, once.** Space on a menu command ran on keydown, so a
+  native `<button>` item could run twice in a browser that also clicks on keyup (Firefox).
+  The press now only claims the key and the command runs on the matching keyup, which is
+  also claimed. Enter still runs on press.
+
+- **Browser suites fail without Playwright.** `npm run test:browser` used to skip, and so
+  pass, when Playwright was missing. It now fails with the install hint; set
+  `CLOUDCANVAS_BROWSER_OPTIONAL=1` to skip instead (reported in the runner's `skipped`).
+
 - **`ParticleEngine.queryRadius`/`queryBox` test global bounds.** They compared a nested
   Pin's parent-local box against a canvas-space query, so a child Pin was found where it
   would sit if it were a root. Both now use the particle's global bounds.
@@ -632,6 +656,21 @@ records the migration surface, not the commit history.
   silently. The existing browser coverage asserts that every item in the *innermost*
   panel stays clickable, which holds; it does not assert that an ancestor trigger stays
   reachable, which is the part that does not.
+
+### Size baseline (`scripts/size-baseline.json`, rewritten 2026-09-29)
+
+Every row that moved, bytes minified / gzip -9, and why:
+
+| Row | Delta | Reason |
+| --- | --- | --- |
+| `menu` | +888 / +246 | Known, pre-existing +490 / +159: menu `renderItem` / `insets` seams, uncommitted before this baseline was taken. Accepted, +398 / +87: Space runs on keyup (claimed on both key events). |
+| `next+menu` | +894 / +256 | Same two causes as `menu`. |
+| `full` | +1376 / +433 | Known, pre-existing +975 / +350: the menu seams plus the `dispose` hook in `define-component` / `display`. Accepted, about +401 / +83: the menu Space fix, which `full` bundles. The UI kit's twenty tokens are not in it: they live in `cloudcanvas/ui` (`UI_TOKENS`). |
+| `minimal` | +1206 / +420 | Known, pre-existing +805 / +350: same seams. Accepted, +401 / +70: the menu Space fix. |
+| `bare`, `defaults` | +334 / +136, +334 / +133 | Known, pre-existing: the `dispose` hook. Nothing from this change. |
+| `ui` (new) | 109218 / 31640 | New entry `cloudcanvas/ui`, pay-for-use: an unused import still bundles to 0 bytes. |
+
+The known, pre-existing deltas were measured by building `refs/qa/baseline-2026-09-29` against the old baseline file. They are recorded here instead of being folded silently into the new baseline.
 
 ## 0.4.0 (2026-09-03)
 

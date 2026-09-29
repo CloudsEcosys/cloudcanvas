@@ -1,0 +1,169 @@
+/**
+ * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
+ *
+ * The UI kit's DOM helpers: one element builder, one button, one field, and the
+ * lifecycle every control is torn down through.
+ *
+ * NOTHING TOUCHES A DOCUMENT AT IMPORT. Each helper takes the document it
+ * builds in - a control mounts into a host and uses `host.ownerDocument` - so
+ * the kit loads on a server and works inside an iframe.
+ *
+ * OPTIONS OBJECTS, NEVER POSITIONAL TEXT. `el(doc, 'p', { className, text })`
+ * cannot confuse a class for a label the way `el(doc, 'p', 'a', 'b')` can.
+ *
+ * ONE LIFE PER CONTROL. `createLife()` hands out an `AbortSignal` every
+ * listener is registered with, and tracks every timer and extra disposer, so
+ * `destroy()` is a single `life.destroy()` that leaves nothing behind.
+ */
+
+/** The document a host lives in; a missing host or document is a caller error. */
+export function documentOf(host) {
+  const doc = host?.ownerDocument ?? null;
+  if (!host || typeof host.append !== 'function' || !doc?.createElement) {
+    throw new TypeError('A host element attached to a document is required');
+  }
+  return doc;
+}
+
+/** Apply `attrs` (null and false are skipped, true writes an empty value). */
+function applyAttrs(node, attrs) {
+  for (const [name, value] of Object.entries(attrs ?? {})) {
+    if (value === null || value === undefined || value === false) continue;
+    node.setAttribute(name, value === true ? '' : String(value));
+  }
+}
+
+/**
+ * Create an element.
+ * @param {Document} doc
+ * @param {string} tag
+ * @param {{className?: string, text?: unknown, attrs?: Record<string, unknown>}} [options]
+ * @returns {HTMLElement}
+ */
+export function el(doc, tag, { className = '', text, attrs } = {}) {
+  const node = doc.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined && text !== null) node.append(doc.createTextNode(String(text)));
+  applyAttrs(node, attrs);
+  return node;
+}
+
+/** Append a text node to `parent` and return it, so the text can be rewritten in place. */
+export function textNode(doc, parent, value = '') {
+  const node = doc.createTextNode(String(value ?? ''));
+  parent.append(node);
+  return node;
+}
+
+/** Rewrite a text node only when its value moved. */
+export function writeText(node, value) {
+  const next = String(value ?? '');
+  if (node.data !== next) node.data = next;
+}
+
+/** The class every kit button carries, so one rule styles them all. */
+export const BUTTON_CLASS = 'cloudcanvas-ui-button';
+
+/**
+ * A `<button type="button">` in the kit's look (`cloudcanvas-ui-button`, plus
+ * `className`). `onClick` is bound with `signal` when one is given, so a
+ * control's life removes it.
+ */
+export function button(doc, { label, className = '', ariaLabel, title, disabled = false, onClick, signal, attrs } = {}) {
+  const node = el(doc, 'button', { className: className ? `${BUTTON_CLASS} ${className}` : BUTTON_CLASS, text: label, attrs });
+  node.type = 'button';
+  if (ariaLabel) node.setAttribute('aria-label', ariaLabel);
+  if (title) node.title = title;
+  node.disabled = Boolean(disabled);
+  if (typeof onClick === 'function') node.addEventListener('click', onClick, signal ? { signal } : undefined);
+  return node;
+}
+
+/** The class every kit field carries. */
+export const FIELD_CLASS = 'cloudcanvas-ui-field';
+
+/**
+ * An `<input>` (or `<textarea>` with `type: 'textarea'`) that always has an
+ * accessible name: `label` becomes `aria-label` unless the caller labels it.
+ */
+export function input(doc, options = {}) {
+  const { type = 'text', label, value, placeholder, name, className = '', required = false } = options;
+  const classes = className ? `${FIELD_CLASS} ${className}` : FIELD_CLASS;
+  const node = el(doc, type === 'textarea' ? 'textarea' : 'input', { className: classes, attrs: options.attrs });
+  if (type !== 'textarea') node.type = type;
+  if (label && !node.hasAttribute('aria-labelledby')) node.setAttribute('aria-label', String(label));
+  if (placeholder) node.placeholder = String(placeholder);
+  if (name) node.name = String(name);
+  if (value !== undefined && value !== null) node.value = String(value);
+  node.required = Boolean(required);
+  if (typeof options.onInput === 'function') {
+    node.addEventListener('input', () => options.onInput(node.value), options.signal ? { signal: options.signal } : undefined);
+  }
+  return node;
+}
+
+/** `value` held to `[min, max]`. */
+export function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+/** A list of items whose `id`s are non-empty and unique, or a TypeError naming `kind`. */
+export function uniqueItems(items, kind) {
+  if (!Array.isArray(items)) throw new TypeError(`${kind} items must be an array`);
+  const ids = new Set();
+  for (const item of items) {
+    const id = item?.id;
+    if (typeof id !== 'string' || id.trim() === '' || ids.has(id)) {
+      throw new TypeError(`Invalid or duplicate ${kind} id: ${String(id)}`);
+    }
+    ids.add(id);
+  }
+  return items;
+}
+
+/** Tabbable descendants of `root`, in document order. */
+export function focusablesIn(root) {
+  const selector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+  return Array.from(root.querySelectorAll(selector))
+    .filter((node) => !node.disabled && !node.closest('[hidden]') && node.getAttribute('tabindex') !== '-1');
+}
+
+let sequence = 0;
+
+/** A document-unique id with `prefix`, for `aria-labelledby` and friends. */
+export function uniqueId(prefix) {
+  sequence += 1;
+  return `${prefix}-${sequence}`;
+}
+
+/**
+ * One control's lifetime: listeners, timers and disposers that all end at
+ * `destroy()`. After it, `on` and `later` do nothing and `dead` is true.
+ */
+export function createLife() {
+  const controller = new AbortController();
+  const timers = new Set();
+  const disposers = [];
+  return {
+    get signal() { return controller.signal; },
+    get dead() { return controller.signal.aborted; },
+    on(target, type, handler, options = {}) {
+      if (!controller.signal.aborted) target.addEventListener(type, handler, { ...options, signal: controller.signal });
+    },
+    later(fn, ms) {
+      if (controller.signal.aborted) return () => {};
+      const id = setTimeout(() => { timers.delete(id); fn(); }, ms);
+      timers.add(id);
+      return () => { clearTimeout(id); timers.delete(id); };
+    },
+    add(dispose) { disposers.push(dispose); },
+    destroy() {
+      if (controller.signal.aborted) return false;
+      controller.abort();
+      for (const id of timers) clearTimeout(id);
+      timers.clear();
+      for (const dispose of disposers.splice(0).reverse()) dispose();
+      return true;
+    }
+  };
+}

@@ -1,0 +1,172 @@
+/**
+ * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
+ *
+ * Calendar: month, week and day grids with drag (and keyboard) rescheduling.
+ *
+ *   const calendar = createCalendar(host, {
+ *     onNavigate: ({ view, date, start, end }) => load(start, end),
+ *     onPick: ({ date, start }) => quickAdd(date, start),
+ *     onActivate: (eventId) => open(eventId),
+ *     onMove: (eventId, { start, end, allDay }) => reschedule(eventId, start, end)
+ *   });
+ *   calendar.update({ view: 'month', date: '2026-09-29', events: [{ id: 'a', title: 'Call', start: new Date() }] });
+ *
+ * The data is plain: `{id, title, start, end?, allDay?, tone?, movable?}`, with
+ * dates as `Date`, ISO strings or `YYYY-MM-DD`. The calendar keeps its own view
+ * and date between updates; a model `view` or `date` that changes wins. Moves
+ * are reported, never applied: the grid shows what the next update says.
+ *
+ * KEYBOARD. Day buttons are one tab stop: arrows move a day (Up/Down a week in
+ * the month), Page keys a period, Home/End the week's ends, Enter picks the day.
+ * Tab reaches the focused day's events; Enter opens one, Space picks it up,
+ * arrows move it (by day, or by `snapMinutes` in the hour grid), Space or Enter
+ * drops it and Escape puts it back.
+ */
+import { button, clamp, createLife, documentOf, el, textNode, writeText } from '../dom.js';
+import { injectUiStyles } from '../styles.js';
+import { createLiveRegion, say } from '../../addons/announce.js';
+import { CALENDAR_VIEWS, addDays, dayKey, sameDay, shiftAnchor, startOfDay, toDate, viewDays } from './dates.js';
+import { formattersFor, normalizeEvents, titleFor } from './model.js';
+import { CAL, renderMonth } from './month.js';
+import { renderTimeGrid } from './time.js';
+import { bindCalendar } from './interact.js';
+
+/** The calendar's default words. */
+export const CALENDAR_LABELS = /* @__PURE__ */ Object.freeze({
+  previous: 'Previous', next: 'Next', today: 'Today', allDay: 'All day', views: 'View',
+  month: 'Month', week: 'Week', day: 'Day'
+});
+
+function toolbar(cal) {
+  const { doc, labels, life } = cal;
+  const bar = el(doc, 'div', { className: `${CAL}-toolbar` });
+  const nav = el(doc, 'div', { className: `${CAL}-nav` });
+  nav.append(
+    button(doc, { className: `${CAL}-prev`, label: '‹', ariaLabel: labels.previous, signal: life.signal, onClick: () => cal.shift(-1) }),
+    button(doc, { className: `${CAL}-today`, label: labels.today, signal: life.signal, onClick: () => cal.navigate(cal.state.view, startOfDay(new Date()), { focus: false }) }),
+    button(doc, { className: `${CAL}-next`, label: '›', ariaLabel: labels.next, signal: life.signal, onClick: () => cal.shift(1) }));
+  const title = el(doc, 'h2', { className: `${CAL}-title`, attrs: { 'aria-live': 'polite' } });
+  cal.titleText = textNode(doc, title);
+  cal.viewGroup = el(doc, 'div', { className: `${CAL}-views`, attrs: { role: 'group', 'aria-label': labels.views } });
+  bar.append(nav, title, cal.viewGroup);
+  return bar;
+}
+
+function writeViews(cal) {
+  cal.viewGroup.replaceChildren(...cal.state.views.map((view) => button(cal.doc, {
+    className: `${CAL}-view`, label: cal.labels[view] ?? view, signal: cal.life.signal,
+    attrs: { 'aria-pressed': String(view === cal.state.view), 'data-view': view },
+    onClick: () => cal.navigate(view, cal.state.focusDate, { focus: false })
+  })));
+}
+
+/** One tab stop on the focused day; that day's events and "+N" are reachable by Tab. */
+function writeTabStops(cal) {
+  const key = dayKey(cal.state.focusDate);
+  const days = Array.from(cal.body.querySelectorAll(`.${CAL}-day, .${CAL}-day-head`));
+  const target = days.find((node) => node.getAttribute('data-date') === key) ?? days.find((node) => !node.closest('.is-outside')) ?? days[0];
+  for (const node of days) node.setAttribute('tabindex', node === target ? '0' : '-1');
+  const focusKey = target?.getAttribute('data-date');
+  for (const node of cal.body.querySelectorAll(`.${CAL}-event, .${CAL}-more`)) {
+    node.setAttribute('tabindex', node.closest('[data-date]')?.getAttribute('data-date') === focusKey ? '0' : '-1');
+  }
+}
+
+function restoreFocus(cal) {
+  const want = cal.focusAfter;
+  cal.focusAfter = null;
+  if (!want) return;
+  const selector = want.eventId ? `.${CAL}-event` : `.${CAL}-day, .${CAL}-day-head`;
+  const match = Array.from(cal.body.querySelectorAll(selector)).find((node) => (want.eventId
+    ? node.getAttribute('data-ui-id') === want.eventId : node.getAttribute('data-date') === dayKey(cal.state.focusDate)));
+  if (match) { match.setAttribute('tabindex', '0'); match.focus(); }
+}
+
+function render(cal) {
+  const { state } = cal;
+  const days = viewDays(state.view, state.anchor, state.weekStartsOn);
+  if (!days.some((day) => sameDay(day, state.focusDate))) state.focusDate = startOfDay(state.view === 'month' ? state.anchor : days[0]);
+  cal.title = titleFor(state.view, days, cal.format);
+  writeText(cal.titleText, cal.title);
+  writeViews(cal);
+  const pending = state.pending;
+  const events = pending ? state.events.map((event) => (event.id === pending.id ? { ...event, ...pending.times } : event)) : state.events;
+  cal.root.setAttribute('data-view', state.view);
+  if (state.view === 'month') renderMonth(cal, days, events);
+  else renderTimeGrid(cal, days, events);
+  writeTabStops(cal);
+  restoreFocus(cal);
+  return days;
+}
+
+function applyModel(cal, model) {
+  const { state } = cal;
+  state.views = (Array.isArray(model.views) ? model.views : CALENDAR_VIEWS).filter((view) => CALENDAR_VIEWS.includes(view));
+  if (state.views.length === 0) throw new TypeError('Calendar needs at least one of month, week, day');
+  if (model.view !== cal.last.view && state.views.includes(model.view)) state.view = model.view;
+  if (!state.views.includes(state.view)) state.view = state.views[0];
+  const date = model.date === undefined ? null : toDate(model.date);
+  if (model.date !== undefined && !date) throw new TypeError(`Calendar date is not a date: ${String(model.date)}`);
+  if (date && dayKey(date) !== cal.last.date) {
+    state.anchor = startOfDay(date);
+    state.focusDate = state.anchor;
+  }
+  cal.last = { view: model.view, date: date ? dayKey(date) : cal.last.date };
+  state.events = normalizeEvents(model.events ?? []);
+  state.weekStartsOn = Number.isInteger(model.weekStartsOn) ? ((model.weekStartsOn % 7) + 7) % 7 : 0;
+  state.now = toDate(model.now) ?? new Date();
+  state.snap = Number.isInteger(model.snapMinutes) && model.snapMinutes > 0 && model.snapMinutes <= 240 ? model.snapMinutes : 15;
+  const start = Number.isInteger(model.hours?.start) ? clamp(model.hours.start, 0, 23) : 0;
+  const end = Number.isInteger(model.hours?.end) ? clamp(model.hours.end, 1, 24) : 24;
+  state.hours = end > start ? { start, end } : { start: 0, end: 24 };
+  if (model.locale !== state.locale || !cal.format) { state.locale = model.locale; cal.format = formattersFor(model.locale); }
+  cal.root.setAttribute('aria-label', String(model.label ?? 'Calendar'));
+}
+
+function createRecord(host, callbacks, labels) {
+  const doc = documentOf(host);
+  const life = createLife();
+  const root = el(doc, 'div', { className: CAL, attrs: { role: 'region' } });
+  const today = startOfDay(new Date());
+  const cal = { doc, life, root, callbacks, labels: { ...CALENDAR_LABELS, ...labels }, format: null, last: {}, focusAfter: null,
+    state: { view: 'month', anchor: today, focusDate: today, events: [], views: [...CALENDAR_VIEWS], pending: null } };
+  root.append(toolbar(cal));
+  cal.body = el(doc, 'div', { className: `${CAL}-body` });
+  root.append(cal.body);
+  cal.region = createLiveRegion(root);
+  cal.say = (text) => say(cal.region, text);
+  cal.render = () => render(cal);
+  return cal;
+}
+
+/**
+ * @param {HTMLElement} host
+ * @param {{onNavigate?: Function, onPick?: Function, onActivate?: Function, onMove?: Function,
+ *   labels?: Partial<typeof CALENDAR_LABELS>}} [callbacks]
+ * @returns {{update(model: object): void, destroy(): void}}
+ */
+export function createCalendar(host, callbacks = {}) {
+  const cal = createRecord(host, callbacks, callbacks.labels);
+  injectUiStyles(cal.doc);
+  cal.navigate = (view, date, { focus }) => {
+    cal.state.view = view;
+    cal.state.anchor = startOfDay(date);
+    cal.state.focusDate = startOfDay(date);
+    if (focus) cal.focusAfter = { day: true };
+    const days = cal.render();
+    callbacks.onNavigate?.({ view, date: dayKey(cal.state.anchor), start: days[0], end: addDays(days[days.length - 1], 1) });
+  };
+  cal.shift = (delta) => cal.navigate(cal.state.view, shiftAnchor(cal.state.view, cal.state.anchor, delta), { focus: false });
+  bindCalendar(cal);
+  host.append(cal.root);
+  return {
+    update(model = {}) {
+      if (cal.life.dead) return;
+      applyModel(cal, model);
+      if (!cal.state.pending) cal.render();
+    },
+    destroy() {
+      if (cal.life.destroy()) cal.root.remove();
+    }
+  };
+}

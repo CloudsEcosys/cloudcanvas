@@ -1,0 +1,39 @@
+/**
+ * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
+ *
+ * The UI kit's stylesheet: one `<style>` per document, injected by the first
+ * control that mounts there, never at import.
+ *
+ * Same discipline as the canvas sheet (`../graphics/style-gates.js`): every
+ * themable value is a `var(--cc-*, <dark default>)` read, every class carries
+ * the `cloudcanvas-` prefix, and there is no `!important` outside structural
+ * resets. The kit's own tokens chain to the core's (`--cc-ui-surface` falls back
+ * to `--cc-card-bg`), so a host that already themes the canvas themes the kit.
+ */
+import { UI_CONTROLS_CSS } from './css/controls.js';
+import { UI_VIEWS_CSS } from './css/views.js';
+
+/** Id of the kit's single style element. */
+export const UI_STYLE_ID = 'cloudcanvas-ui-styles';
+
+/** The whole kit sheet, for a host that ships its CSS as a file instead. */
+export const UI_CSS = `${UI_CONTROLS_CSS}${UI_VIEWS_CSS}`;
+
+/**
+ * Put the kit sheet in `doc` once. An existing element is returned untouched:
+ * rewriting a live `<style>` invalidates every rule already matched.
+ * @param {Document} [doc]
+ * @param {{nonce?: string}} [options] a CSP nonce for the style element
+ * @returns {HTMLStyleElement|null} null without a document
+ */
+export function injectUiStyles(doc = globalThis.document, { nonce } = {}) {
+  if (!doc?.createElement || !doc.head) return null;
+  const existing = doc.getElementById(UI_STYLE_ID);
+  if (existing) return existing;
+  const style = doc.createElement('style');
+  style.id = UI_STYLE_ID;
+  if (nonce) style.setAttribute('nonce', String(nonce));
+  style.textContent = UI_CSS;
+  doc.head.append(style);
+  return style;
+}

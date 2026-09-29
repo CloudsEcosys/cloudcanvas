@@ -1,0 +1,40 @@
+/**
+ * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
+ *
+ * `cloudcanvas/ui`: product-agnostic DOM controls.
+ *
+ * Every control has the same shape - `create<Name>(host, callbacks)` mounts it
+ * into `host` and returns `{ update(model), destroy() }` - takes plain data in
+ * and reports through callbacks, and never owns the application's state. None
+ * of them needs a canvas session. Each injects the kit stylesheet into its
+ * document on first mount (`injectUiStyles`), themed through `--cc-*` tokens.
+ * Nothing runs at import: an unused import of this entry bundles to nothing.
+ */
+
+export { BUTTON_CLASS, FIELD_CLASS, documentOf, el, button, input, textNode, writeText, clamp, uniqueItems, focusablesIn, uniqueId, createLife } from './dom.js';
+export { nextIndex, setTabStop, isTypingTarget } from './roving.js';
+export { UI_CSS, UI_STYLE_ID, injectUiStyles } from './styles.js';
+export { UI_TOKENS } from './tokens.js';
+export { trackDrag, DRAG_START_PX, TOUCH_DRAG_DELAY_MS } from './drag.js';
+
+export { createDialog } from './dialog.js';
+export { createTabs } from './tabs.js';
+export { createSplitter, splitterLimits, splitterKeyValue } from './splitter.js';
+export { createResults } from './results.js';
+export { createStatus, STATUS_LABELS } from './status.js';
+export { createToaster } from './toast.js';
+export { createComposer } from './composer.js';
+export { createVoiceDraft, VOICE_MAX_LENGTH, VOICE_MESSAGES } from './voice-draft.js';
+export { createVoiceInput, VOICE_LABELS } from './voice.js';
+export { renderMarkdown, createMarkdownView, toggleTaskLine, safeHref } from './markdown.js';
+
+export { createKanban, moveVerdict } from './kanban.js';
+export { createCalendar, CALENDAR_LABELS } from './calendar/calendar.js';
+export {
+  CALENDAR_VIEWS, addDays, addMinutes, addMonths, atMinutes, dayKey, daysBetween, fromDayKey, minutesOfDay,
+  monthGrid, sameDay, shiftAnchor, startOfDay, startOfMonth, startOfWeek, toDate, touchesDay, viewDays
+} from './calendar/dates.js';
+export { createTimeline, TIMELINE_LABELS } from './timeline/timeline.js';
+export { TIMELINE_SCALES } from './timeline/model.js';
+export { createGraph, GRAPH_LABELS } from './graph/graph.js';
+export { layoutGraph } from './graph/layout.js';

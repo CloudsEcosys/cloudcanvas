@@ -15,7 +15,8 @@
  * (`closest('[data-blit]')`) or null on bare canvas. `installMenu` takes the
  * subject and `resolve(event)` as options: the legacy session passes itself
  * and `{pin, x, y}`. A submenu trigger opens a flyout beside itself; a chain keeps
- * to the side its first flyout took. Up/Down rove a panel, Right opens,
+ * to the side its first flyout took. Up/Down rove a panel, Enter runs on press
+ * and Space on release (once, as a native button), Right opens,
  * Left and Escape step out, a press outside closes.
  *
  * When nothing applies the platform's menu opens; a right-click another
@@ -57,7 +58,9 @@ function mountMenu(m) {
     onOver: (event) => armHover(m, event),
     onOut: (event) => { if (itemOf(m, event.target)) clearHover(m); },
     onDocumentPointerDown: (event) => { if (!panelOf(m, event.target)) closeMenu(m); },
-    onDocumentKeyDown: (event) => onMenuKeyDown(m, event)
+    onDocumentKeyDown: (event) => onMenuKeyDown(m, event),
+    onDocumentKeyUp: (event) => onMenuKeyUp(m, event),
+    spaceTarget: null
   });
   panelListeners(m, element, true);
   m.overlay.appendChild(element);
@@ -93,6 +96,7 @@ export function closeMenu(m) {
   m.items.clear();
   m.panels = [];
   m.context = null;
+  m.spaceTarget = null;
   documentListeners(m, false);
   if (held && typeof m.host.focus === 'function') m.host.focus({ preventScroll: true });
   return true;
@@ -121,6 +125,7 @@ function documentListeners(m, on) {
   const method = on ? 'addEventListener' : 'removeEventListener';
   document[method]('pointerdown', m.onDocumentPointerDown);
   document[method]('keydown', m.onDocumentKeyDown);
+  document[method]('keyup', m.onDocumentKeyUp);
 }
 
 /* ------------------ PANELS ------------------ */
@@ -298,10 +303,33 @@ function onMenuKeyDown(m, event) {
     handled = Boolean(item) && isTrigger(m, item) && openFlyout(m, item, active);
   } else if (event.key === 'ArrowLeft') {
     handled = stepOut(m, panelOf(m, active));
-  } else if (event.key === 'Enter' || event.key === ' ') {
-    handled = Boolean(panelOf(m, active) && itemOf(m, active)) && runClickedItem(m, { target: active });
+  } else if (event.key === 'Enter') {
+    handled = isOpenItem(m, active) && runClickedItem(m, { target: active });
+  } else if (event.key === ' ') {
+    // Space runs on release, as a native button does. The press only claims the
+    // key, so the platform neither scrolls nor clicks the button a second time.
+    m.spaceTarget = isOpenItem(m, active) ? active : null;
+    handled = m.spaceTarget !== null;
   }
   if (handled && typeof event.preventDefault === 'function') event.preventDefault();
+}
+
+/**
+ * The release of a Space the menu claimed: runs the item it was pressed on, once.
+ * Cancelling the release as well is what stops a browser that activates a
+ * button on keyup (Firefox) from clicking it again.
+ */
+function onMenuKeyUp(m, event) {
+  if (event.key !== ' ' || !m.spaceTarget) return;
+  const target = m.spaceTarget;
+  m.spaceTarget = null;
+  if (typeof event.preventDefault === 'function') event.preventDefault();
+  if (target === m.element.ownerDocument.activeElement && isOpenItem(m, target)) runClickedItem(m, { target });
+}
+
+/** Whether `node` is a command in one of the open panels. */
+function isOpenItem(m, node) {
+  return Boolean(panelOf(m, node) && itemOf(m, node));
 }
 
 /** Close a flyout and step back to its trigger. @returns {boolean} there was a flyout */
