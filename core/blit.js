@@ -9,8 +9,9 @@
  */
 import {
   BLIT_ATTR, PLACEMENT_KEYS, ROOT_ATTR, SLOT_ATTR, SLOT_HTML_ATTR,
-  boundsOf, createState, isWithin, parentElementOf, rootOf, scopeContainerOf, sizeOf, stateOf
+  boundsOf, childBlitsOf, createState, isWithin, parentElementOf, rootOf, scopeContainerOf, sizeOf, stateOf
 } from './state.js';
+import { createLogger } from '../log.js';
 import { readSpec, writeAttribute } from './spec.js';
 import { PHASES, paint, schedule } from './frame.js';
 import {
@@ -20,6 +21,8 @@ import { TYPE_ATTR, defineType, findType, instantiate, isTemplate } from './type
 import { runTraits, specTraits, use, writeTraitKey } from './use.js';
 
 const PLACEMENT = /* @__PURE__ */ new Set(PLACEMENT_KEYS);
+
+const logger = /* @__PURE__ */ createLogger('blit');
 
 export class Blit {
   #s;
@@ -48,12 +51,9 @@ export class Blit {
     return element ? blit(element) : null;
   }
 
-  /** The blits directly inside this one, in document order. */
+  /** The blits directly inside this one, in document order, parked ones included. */
   get blits() {
-    const element = this.#s.el;
-    return Array.from(element.querySelectorAll(`[${BLIT_ATTR}]`))
-      .filter((child) => parentElementOf(child) === element)
-      .map(blit);
+    return childBlitsOf(this.#s.el).map(blit);
   }
 
   /** `data-*` keys, placement, slot text, named traits and port: `parent.blit(b.spec)` reproduces it. */
@@ -219,7 +219,14 @@ export function blit(target) {
 
   const root = mountRoot(state);
   runTraits(state);
-  for (const found of root.host.querySelectorAll(`[${BLIT_ATTR}]`)) blit(found);
+  // One blit whose trait throws costs that blit, never the rest of the markup.
+  for (const found of root.host.querySelectorAll(`[${BLIT_ATTR}]`)) {
+    try {
+      blit(found);
+    } catch (error) {
+      logger.error(`blit: #${found.id || '?'} could not be adopted`, error);
+    }
+  }
   return handle;
 }
 

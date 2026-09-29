@@ -142,8 +142,15 @@ function fillOf(b, key) {
   return (contentKeyOf(b) ? contentOf(b)[key] : b.spec.fill?.[key]) ?? '';
 }
 
-/** Write `patch` where the blit keeps its contents: a widget's own key, else its slots. */
+/** Content keys a reaction may never write: the markup key, prototype keys, and the `cc:` back-references. */
+function isReservedKey(key) {
+  return key === 'html' || key === '__proto__' || key === 'constructor' || key === 'prototype' || key.startsWith('cc:');
+}
+
+/** Write `patch` where the blit keeps its contents: a widget's own key, else its slots; a reserved key throws. */
 function writeFill(b, patch) {
+  const reserved = Object.keys(patch).find(isReservedKey);
+  if (reserved !== undefined) throw new TypeError(`reactions: the content key "${reserved}" is reserved`);
   return contentKeyOf(b) ? setContents(b, patch) : b.set({ fill: patch });
 }
 

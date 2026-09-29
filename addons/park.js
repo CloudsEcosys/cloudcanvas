@@ -10,16 +10,11 @@
  * the blits inside it are (re)indexed under their current ids on the way out, so
  * their root still finds them.
  */
-import { BLIT_ATTR, rootOf, stateOf } from '../core/state.js';
+import { BLIT_ATTR, holdPlace, parkedStateOf, rootOf, stateOf } from '../core/state.js';
 import { indexBlit } from '../core/root.js';
 
-/** @type {WeakMap<Comment, import('../core/state.js').BlitState>} anchor -> the record it holds a place for */
-const OWNERS = /* @__PURE__ */ new WeakMap();
-
-/** The record an anchor node holds a place for, or undefined for any other node. */
-export function parkedStateOf(node) {
-  return OWNERS.get(node);
-}
+/** The record an anchor node holds a place for, or undefined for any other node (kept by the core). */
+export { parkedStateOf };
 
 /**
  * Take the element out, leaving an anchor where it was; its traits stop unless `keepTraits` (offload's
@@ -40,7 +35,7 @@ export function park(state, keepTraits = false) {
   element.parentNode.insertBefore(anchor, element);
   element.parentNode.removeChild(element);
   state.anchor = anchor;
-  OWNERS.set(anchor, state);
+  holdPlace(anchor, state);
   return true;
 }
 
@@ -50,7 +45,7 @@ export function unpark(state, keepTraits = false) {
   if (!anchor) return false;
 
   state.anchor = null;
-  OWNERS.delete(anchor);
+  holdPlace(anchor, null);
   if (!anchor.parentNode) return false;
   anchor.parentNode.insertBefore(state.el, anchor);
   anchor.parentNode.removeChild(anchor);
@@ -64,7 +59,7 @@ export function dropAnchor(state) {
   if (!anchor) return false;
 
   state.anchor = null;
-  OWNERS.delete(anchor);
+  holdPlace(anchor, null);
   if (anchor.parentNode) anchor.parentNode.removeChild(anchor);
   return true;
 }

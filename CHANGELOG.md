@@ -4,10 +4,10 @@
 All notable changes to CloudCanvas. Versions follow semantic versioning; this file
 records the migration surface, not the commit history.
 
-## 0.5.0 (unreleased)
+## 0.5.0 (2026-09-29)
 
 The blit release. The Pin engine is gone; CloudCanvas is now a two-export core and a set of add-ons,
-each its own subpath, each costing nothing unless imported. `import 'cloudcanvas'` is 6.7 KB gzipped (0.4:
+each its own subpath, each costing nothing unless imported. `import 'cloudcanvas'` is 6.9 KB gzipped (0.4:
 about 60 KB). Projects that must stay on the Pin API can pin the `legacy/0.4` branch of
 `CloudsEcosys/cloudcanvas`.
 

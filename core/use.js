@@ -87,11 +87,14 @@ export function runTraits(state) {
   for (const { name, value } of Array.from(state.el.attributes)) {
     const key = name.startsWith('data-') ? camelCase(name.slice(5)) : '';
     const opts = NAMED.has(key) ? decodeAttribute(value, name) : undefined;
-    if (opts !== undefined) start(state, root, key, NAMED.get(key), opts);
+    if (opts !== undefined && opts !== false) start(state, root, key, NAMED.get(key), opts);
   }
 }
 
-/** Run one trait, marked running first so a trait that writes its own blit is not re-entered. */
+/**
+ * Run one trait, marked running first so a trait that writes its own blit is not re-entered. A named trait
+ * that throws takes its own `data-*` with it, so the refused value is not retried by every later write.
+ */
 function start(state, root, key, fn, opts) {
   if (state.cleanups?.has(key)) return;
   (state.cleanups ??= new Map()).set(key, null);
@@ -100,15 +103,22 @@ function start(state, root, key, fn, opts) {
     if (typeof cleanup === 'function') state.cleanups.set(key, cleanup);
   } catch (error) {
     state.cleanups.delete(key);
+    if (typeof key === 'string') writeAttribute(state.el, key, null);
     throw error;
   }
 }
 
-/** Stop one running trait (`key` a name or a function), or every one without a key. */
+/** Stop one running trait (`key` a name or a function), or every one without a key; a cleanup that throws
+ * is logged and the rest still run. */
 export function stopTraits(state, key) {
   for (const each of key === undefined ? Array.from(state.cleanups?.keys() ?? []) : [key]) {
     const cleanup = state.cleanups?.get(each);
-    if (state.cleanups?.delete(each) && cleanup) cleanup();
+    if (!state.cleanups?.delete(each) || !cleanup) continue;
+    try {
+      cleanup();
+    } catch (error) {
+      logger.error(`blit: the cleanup of ${typeof each === 'string' ? `"${each}"` : 'a trait'} threw`, error);
+    }
   }
 }
 

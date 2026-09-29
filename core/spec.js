@@ -74,12 +74,15 @@ export function readSpec(element) {
 const UNSAFE_KEYS = /* @__PURE__ */ new Set(['__proto__', 'constructor', 'prototype']);
 
 /**
- * A `data-*` value read back as trait options: bare or `"true"` is `true`, JSON is parsed with its prototype keys
+ * A `data-*` value read back as trait options: bare or `"true"` is `true`, `"false"` is `false`, a plain number is a
+ * number, JSON is parsed with its prototype keys
  * dropped. Authored HTML is untrusted, so JSON that does not parse is warned about and read as `undefined`.
  * @param {string} name the attribute, for the warning
  */
 export function decodeAttribute(value, name = 'data-*') {
   if (value === '' || value === 'true') return true;
+  if (value === 'false') return false;
+  if (/^-?\d+(\.\d+)?$/.test(value)) return Number(value);
   if (!/^[[{]/.test(value)) return value;
   try {
     return JSON.parse(value, (key, each) => {

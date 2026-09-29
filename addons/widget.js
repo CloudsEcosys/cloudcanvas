@@ -23,6 +23,7 @@
  */
 import { blit, type } from '../core/blit.js';
 import { camelCase } from '../core/spec.js';
+import { findType } from '../core/type.js';
 import { createLogger } from '../log.js';
 import { deferRender } from './edit.js';
 
@@ -100,10 +101,30 @@ function dismiss(b) {
   return true;
 }
 
+/** The selector of a template's first element (its classes, else its tag): how an instance's structure is recognised. */
+function structureSelector(template) {
+  const first = template?.content.firstElementChild;
+  if (!first) return null;
+  // By class when it has one: a render may swap the element for another tag (text's `as`) but keeps its class.
+  const classes = Array.from(first.classList, (name) => `.${CSS.escape(name)}`).join('');
+  return classes || first.localName;
+}
+
+/**
+ * An instance adopted from markup that already had children (so the core cloned nothing) gets the widget's
+ * structure put in front of them: `bind` can rely on it however the element was made.
+ */
+function ensureStructure(element, name) {
+  const template = findType(name);
+  const selector = structureSelector(template);
+  if (selector && !element.querySelector(`:scope > ${selector}`)) element.prepend(template.content.cloneNode(true));
+}
+
 /** The widget's trait: bind the instance, render its options (deferred while edited), stop listening on cleanup. */
 function traitOf({ name, bind, render }, keys) {
   return (b, options) => {
     const contents = contentsOf(name, keys, options);
+    ensureStructure(b.el, name);
     const offs = [];
     const on = (target, eventType, listener) => {
       target.addEventListener(eventType, listener);
@@ -136,6 +157,11 @@ export function widget(spec) {
     DEFINED.set(name, spec);
   }
   return type(name);
+}
+
+/** Every defined widget's content key: spec keys that carry contents, never a behaviour. */
+export function contentKeys() {
+  return Array.from(DEFINED.keys(), (name) => camelCase(name));
 }
 
 /** Whether `name` is a defined widget. */
