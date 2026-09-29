@@ -32,6 +32,9 @@ function readBox(bounds) {
   return { x, y, w, h };
 }
 
+/** The smallest homogeneous `w` a point may have and still be in front of the viewer. */
+const NEAR_W = 1e-6;
+
 /** `a · b` for 4x4 column-major matrices. */
 export function multiply(a, b) {
   const out = new Float64Array(16);
@@ -155,14 +158,16 @@ export class Camera {
     return multiply(Float64Array.of(1, 0, 0, 0, 0, 1, 0, 0, -cx / p, -cy / p, 1, -1 / p, 0, 0, 0, 1), view);
   }
 
-  /** A canvas point (on z) to host pixels. @returns {{x: number, y: number}} */
+  /** A canvas point (on z) to host pixels, or null when it is behind the viewer. @returns {{x, y}|null} */
   project(x, y, hostRect = {}, z = 0) {
     const m = this.projected(hostRect);
     const w = m[3] * x + m[7] * y + m[11] * z + m[15];
+    if (w <= NEAR_W) return null;
     return { x: (m[0] * x + m[4] * y + m[8] * z + m[12]) / w, y: (m[1] * x + m[5] * y + m[9] * z + m[13]) / w };
   }
 
-  /** A host-pixel point back to the canvas plane (z = 0) through the tilt and perspective; null when edge-on. */
+  /** A host-pixel point back to the canvas plane (z = 0) through the tilt and perspective; null when the ray misses
+   * it (edge-on, or the plane is behind the viewer there: above the horizon). */
   unproject(sx, sy, hostRect = {}) {
     const m = this.projected(hostRect);
     const a = m[0] - sx * m[3];
@@ -173,6 +178,8 @@ export class Camera {
     if (Math.abs(det) < 1e-12) return null;
     const e = sx * m[15] - m[12];
     const f = sy * m[15] - m[13];
-    return { x: (e * d - b * f) / det, y: (a * f - e * c) / det };
+    const x = (e * d - b * f) / det;
+    const y = (a * f - e * c) / det;
+    return m[3] * x + m[7] * y + m[15] > NEAR_W ? { x, y } : null;
   }
 }

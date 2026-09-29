@@ -200,19 +200,20 @@ export class MotionCamera extends Camera {
     this.scale = interpolateScale(animation.startScale, animation.targetScale, ease);
   }
 
-  /** Screen (client) coordinates to canvas coordinates. */
+  /** Screen (client) coordinates to canvas coordinates; null above a tilted board's horizon. */
   screenToCanvas(screenX, screenY, hostRect = {}) {
     const [left, top] = [hostRect.left || 0, hostRect.top || 0];
-    if (this.is3d) return this.unproject(screenX - left, screenY - top, hostRect) ?? { x: 0, y: 0 };
+    if (this.is3d) return this.unproject(screenX - left, screenY - top, hostRect);
     return { x: (screenX - left - this.x) / this.scale, y: (screenY - top - this.y) / this.scale };
   }
 
-  /** Canvas coordinates to screen (client) coordinates, through the tilt and perspective when there is one. */
+  /** Canvas coordinates to screen (client) coordinates, through the tilt and perspective when there is one; null
+   * for a point behind the viewer. */
   canvasToScreen(canvasX, canvasY, hostRect = {}) {
     const [left, top] = [hostRect.left || 0, hostRect.top || 0];
     if (this.is3d) {
       const at = this.project(canvasX, canvasY, hostRect);
-      return { x: at.x + left, y: at.y + top };
+      return at && { x: at.x + left, y: at.y + top };
     }
     return { x: canvasX * this.scale + this.x + left, y: canvasY * this.scale + this.y + top };
   }

@@ -117,13 +117,16 @@ export function requireRootOf(b, root, name) {
 
 /** A root's projection: client coordinates to canvas coordinates through its camera. */
 export function rootEnv(root) {
+  let last = { x: 0, y: 0 };
   return {
     root,
     point(event) {
       const rect = root.host.getBoundingClientRect();
       const camera = root.camera;
       if (!camera.is3d) return { x: (event.clientX - rect.left - camera.x) / camera.scale, y: (event.clientY - rect.top - camera.y) / camera.scale };
-      return camera.unproject(event.clientX - rect.left, event.clientY - rect.top, rect) ?? { x: 0, y: 0 };
+      // Above a tilted board's horizon there is no canvas: a gesture holds its last point on the plane.
+      last = camera.unproject(event.clientX - rect.left, event.clientY - rect.top, rect) ?? last;
+      return last;
     }
   };
 }

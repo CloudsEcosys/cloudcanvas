@@ -83,18 +83,22 @@ function canvasBoxOf(target) {
   return { minX: x, minY: y, maxX: x + w, maxY: y + h, width: w, height: h };
 }
 
-/** A target's canvas box projected into host-relative screen pixels (unprojected without a viewport). */
+/**
+ * A target's canvas box projected into host-relative screen pixels (unprojected without a viewport): the box
+ * around its four corners, so a tilted camera's quad is enclosed; null when every corner is behind the viewer.
+ */
 export function screenBoundsOf(target, context = {}) {
   const hostRect = context.hostRect || DEFAULT_HOST_RECT;
   const viewport = context.viewport;
   const bounds = canvasBoxOf(target);
   if (!viewport || typeof viewport.canvasToScreen !== 'function') return bounds;
 
-  const topLeft = viewport.canvasToScreen(bounds.minX, bounds.minY, hostRect);
-  const bottomRight = viewport.canvasToScreen(bounds.maxX, bounds.maxY, hostRect);
-  const left = hostRect.left || 0;
-  const top = hostRect.top || 0;
-  return { minX: topLeft.x - left, minY: topLeft.y - top, maxX: bottomRight.x - left, maxY: bottomRight.y - top };
+  const corners = [[bounds.minX, bounds.minY], [bounds.maxX, bounds.minY], [bounds.minX, bounds.maxY], [bounds.maxX, bounds.maxY]]
+    .map(([x, y]) => viewport.canvasToScreen(x, y, hostRect)).filter(Boolean);
+  if (corners.length === 0) return null;
+  const xs = corners.map((corner) => corner.x - (hostRect.left || 0));
+  const ys = corners.map((corner) => corner.y - (hostRect.top || 0));
+  return { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) };
 }
 
 /** Whether a target is drawable: in the document, not inside a hidden branch (a promotion hides one), participating. */
@@ -164,7 +168,9 @@ export const CURSOR_METHODS = {
     this._drawnVersion = frame.viewportVersion;
     if (!target) return this._setVisible(false);
 
-    this.draw(this.group(), screenBoundsOf(target, frame.context), frame.context);
+    const box = screenBoundsOf(target, frame.context);
+    if (!box) return this._setVisible(false);
+    this.draw(this.group(), box, frame.context);
     this._setVisible(true);
     return true;
   },
@@ -263,7 +269,7 @@ export const CURSOR_KINDS = /* @__PURE__ */ Object.freeze({
         const parent = this.target ? this.target.parent : null;
         if (!parent) return '';
         const parentBounds = screenBoundsOf(parent, context);
-        if (!(parentBounds.maxX - parentBounds.minX > 0)) return '';
+        if (!(parentBounds?.maxX - parentBounds?.minX > 0)) return '';
         return createFrustumProjectionSVG(parentBounds, bounds, { stroke: this.color });
       }
     }
@@ -325,10 +331,11 @@ function boxKey(target) {
 /** The camera's projection, in the shape `screenBoundsOf` reads. */
 function projectionOf(camera) {
   return {
-    canvasToScreen: (x, y, rect = {}) => ({
-      x: x * camera.scale + camera.x + (rect.left || 0),
-      y: y * camera.scale + camera.y + (rect.top || 0)
-    })
+    canvasToScreen: (x, y, rect = {}) => {
+      if (!camera.is3d) return { x: x * camera.scale + camera.x + (rect.left || 0), y: y * camera.scale + camera.y + (rect.top || 0) };
+      const at = camera.project(x, y, rect);
+      return at && { x: at.x + (rect.left || 0), y: at.y + (rect.top || 0) };
+    }
   };
 }
 

@@ -154,7 +154,10 @@ export class Blit {
     if (!root) throw new TypeError('blit.root: only a root collection has a root to set');
     const element = blit(target ?? root.host).el;
     if (element !== root.host && !isWithin(root.host, element)) throw new TypeError('blit.root: not a blit of this root');
-    if (setViewRoot(root, element)) demoteOthers(root);
+    if (setViewRoot(root, element)) {
+      demoteOthers(root);
+      schedule(root);
+    }
   }
 
   /** The blit this blit's root indexes under `id`, a parked one included, or null. */

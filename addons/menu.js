@@ -119,7 +119,8 @@ function focusFirstItem(element) {
 /** Listen on the document while open (`on`), or stop: a press outside closes, keys drive the panels. */
 function documentListeners(m, on) {
   const method = on ? 'addEventListener' : 'removeEventListener';
-  document[method]('pointerdown', m.onDocumentPointerDown);
+  // Capture: a press another listener stops (orbit's, say) still closes the menu.
+  document[method]('pointerdown', m.onDocumentPointerDown, true);
   document[method]('keydown', m.onDocumentKeyDown);
 }
 
