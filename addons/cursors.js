@@ -24,7 +24,7 @@ import {
   safeColor,
   safeNumber
 } from '../graphics/primitives/primitives.js';
-import { defineTrait } from './trait.js';
+import { defineTrait, titleOf } from './trait.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -108,19 +108,6 @@ export function isTargetVisible(target, context = {}) {
   if (element && (element.isConnected === false || element.closest?.('[hidden]'))) return false;
   const participates = context.participates;
   return !(typeof participates === 'function' && !participates(target));
-}
-
-/** An element's own name: `aria-label`, else a `title` in a widget's contents or its `data-title`, else ''. */
-function titleOf(element) {
-  const label = element.getAttribute('aria-label');
-  if (label) return label;
-  const type = element.getAttribute('data-type');
-  const raw = type ? element.getAttribute(`data-${type}`) : null;
-  try {
-    const title = raw && raw.startsWith('{') ? JSON.parse(raw).title : null;
-    if (typeof title === 'string') return title;
-  } catch { /* contents that do not parse carry no title */ }
-  return element.getAttribute('data-title') ?? '';
 }
 
 /* ------------------ THE RECORD ------------------ */
@@ -373,6 +360,14 @@ function mount(s, b, root) {
     else if (c.target === target) c.setTarget(null);
     schedule(root);
   };
+  // A restart (new options) picks up what is focused and selected now, rather than waiting for the next change.
+  const seed = (name, selector) => {
+    const element = Array.from(root.host.querySelectorAll(selector)).pop();
+    const target = element && stateOf(element)?.handle;
+    if (target) byName.get(name).setTarget(target);
+  };
+  seed(CURSOR_FOCUS, '.is-focused');
+  seed(CURSOR_SELECTED, '.is-selected');
   const offs = Object.keys(SIGNALS).map((type) => listenOn(root.host, type, onSignal));
   offs.push(b.tick((ctx) => {
     if (ctx.cameraMoved) version += 1;

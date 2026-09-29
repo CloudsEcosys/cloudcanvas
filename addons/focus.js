@@ -71,6 +71,16 @@ export function focusBlit(s, b, root) {
   return camera;
 }
 
+/** Take the focus off whatever holds it in `app`'s root. @returns {object|null} the blit that had it */
+export function unfocus(app) {
+  const element = app.el.querySelector(`.${FOCUSED_CLASS}`);
+  if (!element) return null;
+  element.classList.remove(FOCUSED_CLASS);
+  const b = stateOf(element)?.handle ?? null;
+  b?.emit('focus:change', false);
+  return b;
+}
+
 /** A click on a core blit, with `focusOnClick`, focuses it. */
 function release(s, b, event, env) {
   if (!clickReleased(s, event) || !s.focusOnClick) return false;

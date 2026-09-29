@@ -70,6 +70,24 @@ export function passedThreshold(s, event) {
 /** The class a selected element carries (`./select.js` owns the selection). */
 export const SELECTED_CLASS = 'is-selected';
 
+/**
+ * A blit's own title, for a caption or a spoken name: `aria-label`, else the `title` in a widget's
+ * contents (`data-<type>` JSON), else `data-title`; '' when it has none.
+ */
+export function titleOf(element) {
+  const label = element.getAttribute('aria-label');
+  if (label) return label;
+  const type = element.getAttribute('data-type');
+  const raw = type ? element.getAttribute(`data-${type}`) : null;
+  if (raw && raw.startsWith('{')) {
+    try {
+      const { title } = JSON.parse(raw);
+      if (typeof title === 'string' && title) return title;
+    } catch { /* contents that do not parse carry no title */ }
+  }
+  return element.getAttribute('data-title') ?? '';
+}
+
 /** The selection a handle reports: a Pin's from its trait, a blit's from its class. */
 export function selectedOf(b) {
   if (typeof b.selected === 'boolean') return b.selected;

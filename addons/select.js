@@ -57,6 +57,8 @@ function deselectOthers(b) {
 /** Native wiring: the record is findable, and a press selects. */
 function mount(s, b) {
   RECORDS.set(b.el, s);
+  // A blit born selected says so, so a trait that shows on selection (handles, a grip) catches up.
+  if (s.selected) b.emit('select', true);
   const off = b.on('pointerdown', (event) => {
     if (!isPrimaryPress(event) || !ownsEvent(b, event)) return;
     if (event.shiftKey) {

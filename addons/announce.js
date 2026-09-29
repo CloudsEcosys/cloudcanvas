@@ -15,7 +15,7 @@
  * is named by its `aria-label`, `data-title`, then id.
  */
 import { LIVE_REGION_CSS } from '../graphics/css/announce.js';
-import { injectAddonCss, listen, requireRootOf } from './trait.js';
+import { injectAddonCss, listen, requireRootOf, titleOf } from './trait.js';
 
 /** Class of the live region; the canvas stylesheet hides it visually. */
 export const LIVE_REGION_CLASS = 'cloudcanvas-live-region';
@@ -52,9 +52,9 @@ export function say(region, text) {
   return true;
 }
 
-/** A blit's spoken name. */
+/** A blit's spoken name: its title (`titleOf`), else its id. */
 export function nameOf(element) {
-  return element.getAttribute('aria-label') || element.getAttribute('data-title') || element.id || 'item';
+  return titleOf(element) || element.id || 'item';
 }
 
 /**
