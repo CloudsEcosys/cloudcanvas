@@ -17,7 +17,7 @@
 import { schedule } from '../core/frame.js';
 import { stateOf } from '../core/state.js';
 import { SVG_NS, h } from '../graphics/primitives/element.js';
-import { connectorPathData, safeColor, safeNumber } from '../graphics/primitives/primitives.js';
+import { connectorPathData, edgeConnectorPathData, safeColor, safeNumber } from '../graphics/primitives/primitives.js';
 import { reconcileKeyedList } from './keyed-list.js';
 import { defineTrait } from './trait.js';
 
@@ -61,13 +61,15 @@ export function removeConnection(s, id) {
 /* ------------------ DRAWING ------------------ */
 
 /**
- * One connector to draw: its key, the path between two `{centerX, centerY}`
- * boxes, and the drawing record's stroke.
+ * One connector to draw: its key, the path between two boxes - edge to edge for
+ * a full `{minX, maxX, minY, maxY, centerX, centerY}` box, centre to centre for
+ * a `{centerX, centerY}` point - and the drawing record's stroke.
  */
 export function connectorItem(key, from, to, s) {
+  const boxes = Number.isFinite(from.minX) && Number.isFinite(to.minX);
   return {
     key,
-    d: connectorPathData(from.centerX, from.centerY, to.centerX, to.centerY),
+    d: boxes ? edgeConnectorPathData(from, to) : connectorPathData(from.centerX, from.centerY, to.centerX, to.centerY),
     stroke: safeColor(s.stroke, CONNECTOR_STROKE),
     strokeWidth: safeNumber(s.strokeWidth || 2, 2),
     dashed: s.dashed
@@ -115,10 +117,10 @@ export function svgLayerOf(root) {
   return svg;
 }
 
-/** A blit's global box as the `{centerX, centerY}` a connector reads. */
-function centreOf(b) {
+/** A blit's global box as the edge-routing box a connector reads. */
+function boxOf(b) {
   const { x, y, w, h: height } = b.bounds;
-  return { centerX: x + w / 2, centerY: y + height / 2 };
+  return { minX: x, minY: y, maxX: x + w, maxY: y + height, centerX: x + w / 2, centerY: y + height / 2 };
 }
 
 /** The connected blit an id names in the root's document, or null. */
@@ -135,7 +137,7 @@ function drawGroup(root, group) {
     if (!b.el.isConnected) continue;
     for (const id of s.connections) {
       const target = targetOf(root, id);
-      if (target && target !== b) items.push(connectorItem(`${b.el.id}->${id}`, centreOf(b), centreOf(target), s));
+      if (target && target !== b) items.push(connectorItem(`${b.el.id}->${id}`, boxOf(b), boxOf(target), s));
     }
   }
   updateConnectors(group.host, items);

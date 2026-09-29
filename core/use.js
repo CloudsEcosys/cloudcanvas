@@ -12,7 +12,7 @@ const logger = /* @__PURE__ */ createLogger('blit');
 
 /** A name round-trips through `data-*` unchanged and is no key or marker the core routes itself. */
 const NAME = /^[a-z][a-zA-Z0-9]*$/;
-const TAKEN = /* @__PURE__ */ new Set(['blit', 'blitRoot', 'port', 'with', 'fill', 'type', 'slot', ...PLACEMENT_KEYS]);
+const TAKEN = /* @__PURE__ */ new Set(['blit', 'blitRoot', 'id', 'port', 'with', 'fill', 'type', 'slot', ...PLACEMENT_KEYS]);
 
 /** @type {Map<string, Function>} name -> the trait or port */
 const NAMED = /* @__PURE__ */ new Map();

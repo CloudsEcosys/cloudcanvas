@@ -4,8 +4,8 @@
  * `blit`: a thin handle over any DOM element, HTML or SVG. State lives in `./state.js` keyed by the element,
  * the handle cached there (`blit(el) === blit(el)`); the DOM tree is the hierarchy; events are native. A blit is
  * *potential* (detached or a `<template>`: writes apply at once), *indexed* (in a root: placement waits for the
- * write phase) or a *collection*. `set()` routes `x y z w h` to the port, `fill` into `[data-slot]`s, `port`,
- * `with` and `blit.use()` names to `./use.js`, the rest to `data-*`.
+ * write phase) or a *collection*. `set()` routes `x y z w h` to the port, `id` to the element (the root's
+ * index), `fill` into `[data-slot]`s, `port`, `with` and `blit.use()` names to `./use.js`, the rest to `data-*`.
  */
 import {
   BLIT_ATTR, PLACEMENT_KEYS, ROOT_ATTR, SLOT_ATTR, SLOT_HTML_ATTR,
@@ -13,7 +13,9 @@ import {
 } from './state.js';
 import { readSpec, writeAttribute } from './spec.js';
 import { PHASES, paint, schedule } from './frame.js';
-import { allows, attachBlit, demoteOthers, findBlit, heldRootOf, mountRoot, releaseBlits, setViewRoot } from './root.js';
+import {
+  allows, attachBlit, demoteOthers, findBlit, heldRootOf, indexBlit, mountRoot, releaseBlits, setViewRoot
+} from './root.js';
 import { defineType, findType, instantiate, isTemplate } from './type.js';
 import { runTraits, specTraits, use, writeTraitKey } from './use.js';
 
@@ -60,6 +62,7 @@ export class Blit {
     const spec = readSpec(s.el);
     for (const key of PLACEMENT_KEYS) delete spec[key];
     specTraits(s, spec);
+    if (s.el.id) spec.id = s.el.id;
     spec.x = s.x;
     spec.y = s.y;
     if (s.z !== 0) spec.z = s.z;
@@ -81,6 +84,7 @@ export class Blit {
     let measure = false;
     for (const [key, value] of Object.entries(patch)) {
       if (PLACEMENT.has(key)) writePlacement(s, key, value);
+      else if (key === 'id') writeId(s, value);
       else if (key === 'fill') { writeFill(s.el, value); measure = true; }
       else if (!writeTraitKey(s, key, value)) { writeAttribute(s.el, key, value); measure = true; }
       s.changed.add(key);
@@ -238,6 +242,14 @@ function writePlacement(state, key, value) {
   const unset = (key === 'w' || key === 'h') && (value === null || value === undefined);
   if (!unset && !Number.isFinite(Number(value))) throw new TypeError(`blit.set: ${key}=${String(value)} is not a number`);
   state[key] = unset ? null : Number(value);
+}
+
+/** The element id, which a root indexes the blit under (`find`); null or '' removes it. */
+function writeId(state, value) {
+  if (value === null || value === undefined || value === '') state.el.removeAttribute('id');
+  else state.el.id = String(value);
+  const root = heldRootOf(state.el);
+  if (root && root.host !== state.el) indexBlit(root, state.el);
 }
 
 /** Text into the element's own slots; markup only into a slot its template marks `data-slot-html`. */

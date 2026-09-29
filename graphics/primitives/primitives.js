@@ -199,6 +199,30 @@ export function connectorPathData(fromX, fromY, toX, toY) {
 }
 
 /**
+ * The `d` of an edge-to-edge connector between two boxes (`{minX, maxX, minY,
+ * maxY, centerX, centerY}`): the larger centre delta picks the axis, the curve
+ * leaves and enters each box on the face nearest the other, and the control
+ * points push out along that axis by 40% of the gap (at least 40px), so a
+ * connector meets each border rather than diving through the centre.
+ * @returns {string} an SVG path `d` (`M x1 y1 C ...`)
+ */
+export function edgeConnectorPathData(from, to) {
+  const dx = safeNumber(to.centerX, 0) - safeNumber(from.centerX, 0);
+  const dy = safeNumber(to.centerY, 0) - safeNumber(from.centerY, 0);
+  const horizontal = Math.abs(dx) >= Math.abs(dy);
+  const sign = (horizontal ? dx : dy) >= 0 ? 1 : -1;
+  const offset = sign * Math.max(40, Math.abs(horizontal ? dx : dy) * 0.4);
+  const exit = (box, forward) => (horizontal
+    ? [forward ? box.maxX : box.minX, box.centerY]
+    : [box.centerX, forward ? box.maxY : box.minY]);
+  const [x1, y1] = exit(from, sign > 0).map((each) => safeNumber(each, 0));
+  const [x2, y2] = exit(to, sign < 0).map((each) => safeNumber(each, 0));
+  const [c1x, c1y, c2x, c2y] = horizontal ? [x1 + offset, y1, x2 - offset, y2] : [x1, y1 + offset, x2, y2 - offset];
+  const n = (value) => value.toFixed(1);
+  return `M ${n(x1)} ${n(y1)} C ${n(c1x)} ${n(c1y)}, ${n(c2x)} ${n(c2y)}, ${n(x2)} ${n(y2)}`;
+}
+
+/**
  * Generate an SVG connector path between two Pin coordinates
  */
 export function createConnectorPathSVG(fromX, fromY, toX, toY, options = {}) {
