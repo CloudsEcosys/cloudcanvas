@@ -98,11 +98,21 @@ export class Camera {
     this.scale = this.clamp(scale);
   }
 
-  /** Zoom by a factor about a screen-space focal point, which stays put. */
-  zoomAt(factor, focalX = 0, focalY = 0) {
+  /** Zoom by a factor about a host-pixel focal point, which stays put; a 3D camera given `hostRect` keeps the canvas
+   * point there under it (one above the horizon zooms nothing). */
+  zoomAt(factor, focalX = 0, focalY = 0, hostRect = null) {
     const oldScale = this.scale;
     const scale = this.clamp(oldScale * factor);
     if (scale === oldScale) return;
+    if (hostRect && this.is3d) {
+      const grabbed = this.unproject(focalX, focalY, hostRect);
+      if (!grabbed) return;
+      this.scale = scale;
+      const under = this.unproject(focalX, focalY, hostRect) ?? grabbed;
+      this.x += scale * (under.x - grabbed.x);
+      this.y += scale * (under.y - grabbed.y);
+      return;
+    }
     this.x = focalX - ((focalX - this.x) / oldScale) * scale;
     this.y = focalY - ((focalY - this.y) / oldScale) * scale;
     this.scale = scale;

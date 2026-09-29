@@ -67,8 +67,10 @@ export function specTraits(state, spec) {
     if (NAMED.has(key)) spec[key] = decodeAttribute(spec[key], `data-${kebabCase(key)}`);
     if (spec[key] === undefined) delete spec[key];
   }
-  for (const fn of [...(state.with ?? []), ...(state.port ? [state.port] : [])]) {
-    const kind = fn === state.port ? 'port' : 'trait';
+  // A stand-in port (layout's `flow`) holds the one it replaced in `heldPort`; the spec names that one.
+  const port = state.heldPort ?? state.port;
+  for (const fn of [...(state.with ?? []), ...(port ? [port] : [])]) {
+    const kind = fn === port ? 'port' : 'trait';
     const name = Array.from(NAMED.keys()).find((each) => NAMED.get(each) === fn);
     if (!name) logger.warn(`blit.spec: an anonymous ${kind} is not serialised; name it with blit.use()`);
     else if (kind === 'port') spec.port = name;

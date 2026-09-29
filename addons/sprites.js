@@ -22,6 +22,9 @@ import { gpuContent } from './gpu.js';
 
 const logger = /* @__PURE__ */ createLogger('sprites');
 
+/** The most frames a grid may cut from one sheet: every frame is a record kept for the sheet's life. */
+export const MAX_SPRITE_FRAMES = 4096;
+
 /** @type {Map<string, object>} name -> the sheet record */
 const SHEETS = /* @__PURE__ */ new Map();
 
@@ -45,7 +48,11 @@ function cutGrid(record, grid) {
   const h = Number(grid.h) || w;
   if (!(w > 0 && h > 0)) throw new TypeError('sheet: grid needs a positive w (and h)');
   const columns = Math.floor(record.width / w);
-  const count = Math.min(Number(grid.count) || Infinity, columns * Math.floor(record.height / h));
+  const cut = columns * Math.floor(record.height / h);
+  if (cut > MAX_SPRITE_FRAMES && !(Number(grid.count) <= MAX_SPRITE_FRAMES)) {
+    logger.warn(`a ${w}x${h} grid cuts ${cut} frames; the first ${MAX_SPRITE_FRAMES} are kept`);
+  }
+  const count = Math.min(Number(grid.count) || Infinity, cut, MAX_SPRITE_FRAMES);
   for (let i = 0; i < count; i += 1) record.frames.set(String(i), [(i % columns) * w, Math.floor(i / columns) * h, w, h]);
 }
 
@@ -112,14 +119,19 @@ function tickerOf(root) {
   root.hooks.write.add((ctx) => {
     for (const player of Array.from(ticker.playing)) step(ticker, player, ctx.dt * FRAME_MS);
   });
-  root.hooks.busy.add(() => ticker.playing.size > 0);
+  // A player on a hidden or parked blit neither steps nor keeps the loop awake; it goes on when shown.
+  root.hooks.busy.add(() => Array.from(ticker.playing).some((player) => showing(player.b.el)));
   TICKERS.set(root, ticker);
   return ticker;
 }
 
+/** Whether an element is on screen as far as the DOM knows: in the document, under no `hidden`. */
+const showing = (element) => element.isConnected && !element.closest('[hidden]');
+
 /** Advance one playing sprite by `ms`; a new frame is shown, a finished one-shot ends. */
 function step(ticker, player, ms) {
   const { animation, record, b } = player;
+  if (!showing(b.el)) return;
   player.time += ms;
   const at = Math.floor(player.time * (Number(animation.fps) || 12) / 1000);
   if (animation.loop === false && at >= animation.frames.length) {
@@ -181,7 +193,7 @@ export function sprite(b, opts, root) {
   let player = null;
   record.ready.then(() => {
     if (!alive || !stateOf(b.el)) return;
-    const animation = o.play === undefined ? null : record.animations[o.play];
+    const animation = o.play === undefined || !Object.hasOwn(record.animations, o.play) ? null : record.animations[o.play];
     if (o.play !== undefined && !animation?.frames?.length) logger.warn(`sheet "${o.sheet}" has no animation "${o.play}"`);
     const first = animation ? animation.frames[0] : (o.frame ?? 0);
     const rect = rectOf(record, first);

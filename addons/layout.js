@@ -52,8 +52,6 @@ export const SCOPE_POPULATED_CLASS = 'cc-populated';
 /** @type {WeakMap<Element, string>} container blit element -> its mode */
 const CONTAINERS = /* @__PURE__ */ new WeakMap();
 
-/** @type {WeakMap<Element, Function|null>} flow child element -> the port it had before flow */
-const SAVED_PORTS = /* @__PURE__ */ new WeakMap();
 
 /** @type {WeakMap<object, object>} root -> its layout record */
 const RECORDS = /* @__PURE__ */ new WeakMap();
@@ -97,20 +95,25 @@ function containerOf(state) {
 /**
  * The `flow` port: a flow child's declared size and no transform. A blit that
  * carries it outside a flow container (a spec saved mid-flow) places as usual.
+ * The port it stands in for is held in `state.heldPort` (the spec names that
+ * one); a held port that declares `inFlow` still runs, with `ctx.flow` set, for
+ * its work beyond placement - the `gpu` port keeps drawing a flow child.
  */
 export function flow(b, ctx) {
   const element = b.el;
   if (!isFlowLayout(CONTAINERS.get(parentElementOf(element)))) return defaultPort(b);
-  const { w, h } = stateOf(element);
+  const state = stateOf(element);
+  const { w, h } = state;
   if (w !== null && (ctx.first || ctx.changed.has('w'))) element.style.width = `${w}px`;
   if (h !== null && (ctx.first || ctx.changed.has('h'))) element.style.height = `${h}px`;
+  if (state.heldPort?.inFlow) state.heldPort(b, { ...ctx, flow: true });
   return false;
 }
 
 /** Put a child on the flow port (no DOM write): the port it had is kept to hand back. */
 function enterFlowPort(state) {
   if (state.port === flow) return false;
-  SAVED_PORTS.set(state.el, state.port);
+  state.heldPort = state.port;
   state.port = flow;
   return true;
 }
@@ -120,8 +123,8 @@ function leaveFlowPort(state, root) {
   state.fx = null;
   state.fy = null;
   if (state.port !== flow) return false;
-  state.port = SAVED_PORTS.get(state.el) ?? null;
-  SAVED_PORTS.delete(state.el);
+  state.port = state.heldPort ?? null;
+  state.heldPort = null;
   forgetPlacement(state.el);
   state.changed.add('x');
   if (root) {

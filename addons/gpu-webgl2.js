@@ -305,6 +305,8 @@ function destroyState(state) {
   gl.deleteProgram(state.program);
   state.meshes.destroy();
   state.destroyed = true;
+  // Hand the context back now rather than at the browser's leisure: pages cap how many are live.
+  gl.getExtension('WEBGL_lose_context')?.loseContext();
 }
 
 /**

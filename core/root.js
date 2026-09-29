@@ -37,20 +37,27 @@ export function mountRoot(state) {
   root.hooks.read.add(() => measureBlits(root));
   root.hooks.write.add(() => paintBlits(root));
   root.hooks.write.add((ctx) => planePass(root, ctx));
+  // The tilt is about the host's centre: a resize re-reads the box next frame, as a camera move does.
+  if (typeof ResizeObserver === 'function') new ResizeObserver(() => { root.applied = null; schedule(root); }).observe(host);
 
   state.root = root;
   return root;
 }
 
-/** Rewrite the plane's transform on the frames the camera moved; a 3D camera adds the host's perspective. */
+/**
+ * Rewrite the plane's transform on the frames the camera moved. A 3D camera writes the host's perspective and the
+ * plane's `preserve-3d` (`root.wrote3d`); a flat one clears only what it wrote, so an author's own perspective stays.
+ */
 function planePass(root, ctx) {
   if (!ctx.cameraMoved) return;
   const camera = root.camera;
   const { x, y, scale } = camera;
   const flat = !camera.is3d;
-  const lens = camera.perspective ? `${camera.perspective}px` : '';
-  if (root.host.style.perspective !== lens) root.host.style.perspective = lens;
-  if (root.plane.style.transformStyle !== (flat ? '' : 'preserve-3d')) root.plane.style.transformStyle = flat ? '' : 'preserve-3d';
+  if (!flat || root.wrote3d) {
+    root.host.style.perspective = camera.perspective ? `${camera.perspective}px` : '';
+    root.plane.style.transformStyle = flat ? '' : 'preserve-3d';
+    root.wrote3d = !flat;
+  }
   root.plane.style.transform = flat
     ? formatTransform3D(x, y, 0, scale)
     : `matrix3d(${Array.from(camera.view(ctx.hostRect), (n) => +n.toFixed(6)).join(',')})`;

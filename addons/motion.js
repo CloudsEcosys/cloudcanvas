@@ -119,7 +119,7 @@ export class MotionCamera extends Camera {
   panBy(dx, dy) { this.stopAnimation(); super.panBy(dx, dy); this._wake(); }
   panTo(x, y) { this.stopAnimation(); super.panTo(x, y); this._wake(); }
   setZoom(scale) { this.stopAnimation(); super.setZoom(scale); this._wake(); }
-  zoomAt(factor, focalX, focalY) { this.stopAnimation(); super.zoomAt(factor, focalX, focalY); this._wake(); }
+  zoomAt(factor, focalX, focalY, hostRect) { this.stopAnimation(); super.zoomAt(factor, focalX, focalY, hostRect); this._wake(); }
 
   /**
    * Frame a box: fly there, or jump with `{immediate: true}`. Adds `duration`

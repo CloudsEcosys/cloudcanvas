@@ -137,8 +137,8 @@ function applyHostBinding(k, binding, event, env) {
     const step = PAN_STEP_PX * (event.shiftKey === true ? PAN_SHIFT_MULTIPLIER : 1);
     camera.panBy(binding.dx * step, binding.dy * step);
   } else if (binding.action === 'zoom') {
-    const { width, height } = env.root.hostRect;
-    camera.zoomAt(binding.direction > 0 ? ZOOM_STEP : 1 / ZOOM_STEP, width / 2, height / 2);
+    const rect = env.root.hostRect;
+    camera.zoomAt(binding.direction > 0 ? ZOOM_STEP : 1 / ZOOM_STEP, rect.width / 2, rect.height / 2, rect);
   } else if (binding.action === 'enter-blits') {
     return enterNavigation(k, env);
   } else if (typeof actions[binding.action] === 'function') {

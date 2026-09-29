@@ -63,10 +63,11 @@ export function parseTint(value) {
 
 /**
  * The port: the default port places the element (the hit proxy), and the blit's record is queued for the
- * scene. Under a root without `gpu(app)` it is the default port and nothing more.
+ * scene. Under a root without `gpu(app)` it is the default port and nothing more. It runs under layout's `flow`
+ * port too (`inFlow`), where the layout places the element and the port only draws.
  */
-export function gpuPort(b) {
-  defaultPort(b);
+export const gpuPort = /* @__PURE__ */ Object.assign(function gpuPort(b, ctx) {
+  if (!ctx?.flow) defaultPort(b);
   const state = stateOf(b.el);
   const joined = state && JOINED.get(state);
   const controller = joined && !joined.destroyed ? joined : state && controllerOf(state);
@@ -78,7 +79,10 @@ export function gpuPort(b) {
   controller.members.add(state);
   JOINED.set(state, controller);
   controller.touched.add(state);
-}
+}, { inFlow: true });
+
+/** Whether a blit is on the gpu port: its own, or held behind a stand-in (layout's `flow`). */
+const onGpuPort = (state) => state.port === gpuPort || state.heldPort === gpuPort;
 
 /**
  * Give a blit what it draws; null goes back to its `tint`, and a list draws each part in order. A part is a quad,
@@ -143,7 +147,7 @@ export function punch(b) {
 }
 
 /** Whether a blit draws on the GPU: on the port, or a punch that is not. */
-const drawsOnGpu = (state) => state.port === gpuPort || PUNCHED.has(state);
+const drawsOnGpu = (state) => onGpuPort(state) || PUNCHED.has(state);
 
 /** A blit becomes a member and is recorded next frame. */
 function join(controller, state) {
@@ -196,7 +200,7 @@ function recordOf(state, box, part, tint) {
 /** Every part a blit draws, in order; `topLevel` (its parent is the root) reads its box without a walk. */
 function recordsOf(state, topLevel) {
   const box = topLevel ? { x: state.fx ?? state.x, y: state.fy ?? state.y, ...sizeOf(state) } : boundsOf(state);
-  if (state.port !== gpuPort) return [{ ...box, z: state.z, erase: true }];
+  if (!onGpuPort(state)) return [{ ...box, z: state.z, erase: true }];
   const content = CONTENT.get(state);
   const parts = Array.isArray(content) ? content : [content ?? null];
   return parts.map((part) => recordOf(state, box, part, tintOf(state)));
@@ -260,6 +264,8 @@ export function gpu(app, options = {}) {
   controller.ready = loadBackend(controller, options.backend || 'auto', layer).then((backend) => {
     if (controller.destroyed) {
       backend.destroy();
+      controller.canvas?.remove();
+      controller.canvas = null;
       return backend.kind;
     }
     controller.backend = backend;
@@ -284,15 +290,6 @@ export function gpu(app, options = {}) {
     observer.observe(root.host, { subtree: true, childList: true, attributes: true, attributeFilter: ['hidden'] });
     controller.offs.push(() => observer.disconnect());
   }
-  if (typeof ResizeObserver === 'function') {
-    const observer = new ResizeObserver(() => {
-      // The tilt is about the host's centre, so a new host size re-derives the camera as if it had moved.
-      root.applied = null;
-      schedule(root);
-    });
-    observer.observe(root.host);
-    controller.offs.push(() => observer.disconnect());
-  }
 
   controller.api = {
     get canvas() { return controller.canvas; },
@@ -305,7 +302,7 @@ export function gpu(app, options = {}) {
   // Blits already on the port (it was named before this root drew) join now.
   for (const element of root.host.querySelectorAll(`[${BLIT_ATTR}]`)) {
     const each = stateOf(element);
-    if (each?.port === gpuPort && each.handle) gpuPort(each.handle);
+    if (each && onGpuPort(each) && each.handle) gpuPort(each.handle, { flow: each.port !== gpuPort });
     else if (each && PUNCHED.has(each)) join(controller, each);
   }
   schedule(root);
@@ -334,17 +331,18 @@ async function loadBackend(controller, wanted, layer) {
     throw new TypeError(`gpu: unknown backend "${wanted}"`);
   }
   for (const name of order) {
-    const canvas = mountCanvas(controller, layer);
     try {
       const create = typeof name === 'function' ? name : (await BACKENDS[name]()).createBackend;
-      return await create(canvas);
+      // Destroyed while a backend was loading: no canvas is mounted again.
+      if (controller.destroyed) break;
+      return await create(mountCanvas(controller, layer));
     } catch (error) {
       logger.info(`${typeof name === 'function' ? 'the custom backend' : name} is unavailable`, error);
     }
   }
   controller.canvas?.remove();
   controller.canvas = null;
-  throw new Error('gpu: no backend available');
+  throw new Error(controller.destroyed ? 'gpu: destroyed while loading' : 'gpu: no backend available');
 }
 
 /**
@@ -361,7 +359,7 @@ function readPass(controller) {
     if (!members.has(state)) continue;
     // A punch moves without the port, so its own changes are read here.
     if (!drawsOnGpu(state)) forget(controller, state);
-    else if (state.port !== gpuPort) controller.touched.add(state);
+    else if (!onGpuPort(state)) controller.touched.add(state);
   }
 }
 

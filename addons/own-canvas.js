@@ -4,12 +4,13 @@
  * own-canvas: a blit you draw yourself. `ownCanvas(b, draw)` puts a `<canvas>` filling the blit, sized to its box
  * at the device pixel ratio, and calls `draw(ctx, {w, h, ratio})` with the context already scaled to CSS pixels -
  * now, whenever the box changes size, and on `redraw(b)`. On a `gpu` root the canvas is the blit's texture,
- * re-uploaded after each draw; without one the canvas itself shows. Removing the blit ends it, like `off()`.
+ * re-uploaded after each draw; without one the canvas itself shows. Removing the blit - or an ancestor - ends
+ * it, like `off()`.
  *
  *   const off = ownCanvas(chart, (ctx, { w, h }) => { ctx.fillRect(0, h / 2, w, 1); });
  *   redraw(chart);   // after the data changes
  */
-import { rootOf, stateOf } from '../core/state.js';
+import { isWithin, rootOf, stateOf } from '../core/state.js';
 import { createLogger } from '../log.js';
 import { gpuContent } from './gpu.js';
 
@@ -51,7 +52,12 @@ function sizedOf(root) {
   if (sized) return sized;
   sized = new Set();
   root.hooks.read.add(() => {
-    for (const record of sized) {
+    for (const record of Array.from(sized)) {
+      // Gone with an ancestor (no `remove` of its own fired): let go.
+      if (!isWithin(root.host, record.b.el)) {
+        record.off();
+        continue;
+      }
       const { w, h } = record.b.size;
       if (record.key !== `${w}x${h}@${globalThis.devicePixelRatio || 1}`) paint(record);
     }
@@ -76,8 +82,8 @@ export function ownCanvas(b, draw) {
   canvas.setAttribute(OWN_CANVAS_ATTR, '');
   Object.assign(canvas.style, { display: 'block', width: '100%', height: '100%' });
   b.el.appendChild(canvas);
-  const record = { b, canvas, draw, key: '', version: 0 };
   const root = rootOf(state);
+  const record = { b, canvas, draw, key: '', version: 0, root };
   const sized = root ? sizedOf(root) : null;
   sized?.add(record);
   let offRemove = null;
@@ -98,6 +104,7 @@ export function ownCanvas(b, draw) {
 /** Call a blit's draw function again (its data changed). @returns {boolean} whether it has one */
 export function redraw(b) {
   const record = DRAWN.get(stateOf(b.el));
-  if (record) paint(record);
-  return Boolean(record);
+  if (record?.root && !isWithin(record.root.host, b.el)) record.off();
+  else if (record) paint(record);
+  return Boolean(record) && DRAWN.has(stateOf(b.el));
 }

@@ -14,6 +14,9 @@
  * claimer (`target.press(event)`: the element a press belongs to instead, or
  * null). `opts.wheel: false` leaves the wheel to the page.
  *
+ * Under a 3D camera a drag keeps the grabbed canvas point under the pointer, and
+ * a wheel or pinch zoom the point under the cursor or midpoint.
+ *
  * Pointer capture is deferred to the drag threshold, so a press that turns out
  * to be a click keeps its native `click`; a press on a control or in selectable
  * text (`TEXT_REGION_FLAG`) never takes the stream at all.
@@ -205,9 +208,9 @@ export function updatePinch(g, env) {
 
   const hostRect = env.host.getBoundingClientRect();
   if (previous.dist > 0 && next.dist > 0) {
-    env.camera.zoomAt(next.dist / previous.dist, previous.midX - hostRect.left, previous.midY - hostRect.top);
+    env.camera.zoomAt(next.dist / previous.dist, previous.midX - hostRect.left, previous.midY - hostRect.top, hostRect);
   }
-  env.camera.panBy(next.midX - previous.midX, next.midY - previous.midY);
+  dragCamera(env, { x: previous.midX, y: previous.midY }, { x: next.midX, y: next.midY });
   env.wake();
   g.pinch = next;
   return true;
@@ -229,6 +232,24 @@ export function endPinch(g) {
 }
 
 /* ------------------ THE GESTURE ------------------ */
+
+/**
+ * Pan so the canvas point under client point `from` comes under `to`: the screen delta when flat; under a 3D
+ * camera both are unprojected through it, and a point above the horizon moves nothing. @returns {boolean} moved
+ */
+export function dragCamera(env, from, to) {
+  const camera = env.camera;
+  if (!camera.is3d) {
+    camera.panBy(to.x - from.x, to.y - from.y);
+    return true;
+  }
+  const rect = env.host.getBoundingClientRect();
+  const grabbed = camera.unproject(from.x - rect.left, from.y - rect.top, rect);
+  const under = camera.unproject(to.x - rect.left, to.y - rect.top, rect);
+  if (!grabbed || !under) return false;
+  camera.panBy(camera.scale * (under.x - grabbed.x), camera.scale * (under.y - grabbed.y));
+  return true;
+}
 
 /** Whether a pan or a pinch is running. */
 export function isPanActive(g) {
@@ -281,9 +302,10 @@ export function panMove(g, event, env) {
   if (tracked && isPanActive(g)) takeDeferredCapture(g, event, env.host);
   if (!g.isPanning) return false;
 
-  env.camera.panBy(event.clientX - g.lastPointer.x, event.clientY - g.lastPointer.y);
+  const at = { x: event.clientX, y: event.clientY };
+  // Above a tilted board's horizon the pan waits on its last point on the plane, so the grab resumes on return.
+  if (dragCamera(env, g.lastPointer, at)) g.lastPointer = at;
   env.wake();
-  g.lastPointer = { x: event.clientX, y: event.clientY };
   return true;
 }
 
@@ -326,7 +348,7 @@ export function panWheel(event, env) {
 
   if (dy !== 0 && (zoomModifier || isDiscreteWheel(event))) {
     const factor = wheelZoomFactor(dy, zoomModifier ? PINCH_ZOOM_K : WHEEL_ZOOM_K);
-    env.camera.zoomAt(factor, event.clientX - hostRect.left, event.clientY - hostRect.top);
+    env.camera.zoomAt(factor, event.clientX - hostRect.left, event.clientY - hostRect.top, hostRect);
   } else {
     env.camera.panBy(-dx, -dy);
   }
