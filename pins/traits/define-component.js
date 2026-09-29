@@ -40,6 +40,8 @@ import { traitRegistry } from './registry.js';
  *   subtree once and returns the live node references the update pass writes
  * @property {(pin: Pin, contents: Map<string, *>, bindings: object, cache: object) => void} update
  *   mutates those nodes; runs on every render
+ * @property {(pin: Pin, bindings: object, reason: 'rebuild'|'detach') => void} [dispose]
+ *   optional cleanup before a build is discarded or the trait detaches
  * @property {object} [defaults] options every instance starts from (a caller's
  *   own options win over these)
  * @property {string[]|Set<string>} [allowedKeys] content keys this component
@@ -70,13 +72,16 @@ import { traitRegistry } from './registry.js';
  *   silently replace a definition other code depends on)
  */
 export function defineComponent(spec = {}) {
-  const { name, build, update } = spec;
+  const { name, build, update, dispose } = spec;
 
   if (typeof name !== 'string' || name.length === 0) {
     throw new TypeError('defineComponent: name must be a non-empty string');
   }
   if (typeof build !== 'function' || typeof update !== 'function') {
     throw new TypeError(`defineComponent: "${name}" requires both build() and update()`);
+  }
+  if (dispose !== undefined && typeof dispose !== 'function') {
+    throw new TypeError(`defineComponent: "${name}" dispose, if given, must be a function`);
   }
 
   const registry = spec.registry || traitRegistry;
@@ -118,7 +123,7 @@ function typeDefinition(template) {
  * make a swap between them invisible - the subtree would never be rebuilt.
  */
 function identity(spec) {
-  return { name: spec.name, build: spec.build, update: spec.update };
+  return { name: spec.name, build: spec.build, update: spec.update, dispose: spec.dispose };
 }
 
 /**
@@ -137,7 +142,8 @@ function traitDefaults(spec) {
     name: spec.name,
     displayType: (spec.defaults && spec.defaults.displayType) || spec.name,
     build: spec.build,
-    update: spec.update
+    update: spec.update,
+    dispose: spec.dispose
   };
 
   if (spec.allowedKeys !== undefined) defaults.allowedKeys = spec.allowedKeys;

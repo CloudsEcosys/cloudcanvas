@@ -39,8 +39,16 @@ export class DisplayTrait extends PinTrait {
     // Template mode: a caller-supplied build/update pair joins the same
     // build-once/mutate-after contract and outranks an opaque renderer.
     this.customTemplate = (typeof options.build === 'function' && typeof options.update === 'function')
-      ? { build: options.build, update: options.update }
+      ? { build: options.build, update: options.update, dispose: options.dispose }
       : null;
+
+    // PinTrait accepts an instance onDetach option. Wrap it so that a caller's
+    // hook cannot bypass component cleanup, and preserve its existing behavior.
+    const onDetach = this.onDetach;
+    this.onDetach = (pin, reason = 'detach') => {
+      this.discardBuild(pin, reason);
+      if (onDetach !== PinTrait.prototype.onDetach) onDetach.call(this, pin, reason);
+    };
   }
 
   validate(contentsMap) {
@@ -101,11 +109,17 @@ export class DisplayTrait extends PinTrait {
       return state;
     }
 
+    if (state) {
+      const owner = state.owner || this;
+      owner.discardBuild(pin, 'rebuild');
+    }
+
     const built = {
       type: signature,
       element,
       bindings: template.build(pin, element),
-      cache: {}
+      cache: {},
+      owner: this
     };
     pin._display = built;
     return built;
@@ -135,7 +149,13 @@ export class DisplayTrait extends PinTrait {
    * Owned here rather than reached at from outside because `pin._display` is this
    * trait's private render state; `Pin.rebuildDisplay` is the public spelling.
    */
-  discardBuild(pin) {
-    if (pin && pin._display) pin._display = null;
+  discardBuild(pin, reason = 'rebuild') {
+    const state = pin?._display;
+    if (!state || (state.owner && state.owner !== this)) return;
+    pin._display = null;
+    if (state.owner === this) {
+      const dispose = this.customTemplate?.dispose;
+      if (typeof dispose === 'function') dispose(pin, state.bindings, reason);
+    }
   }
 }

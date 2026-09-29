@@ -174,7 +174,19 @@ function itemButton(m, doc, item) {
 /** `renderItem` runs on the built button: it decorates in place, or returns a replacement element. */
 function decorate(m, item, button) {
   const out = item.renderItem ? item.renderItem(button, item, m.context) : null;
-  return out && out !== button && out.nodeType === 1 ? out : button;
+  if (!out || out === button || out.nodeType !== 1) return button;
+  out.classList.add(MENU_ITEM_CLASS);
+  out.setAttribute(MENU_ITEM_ATTR, item.id);
+  out.setAttribute('role', 'menuitem');
+  if (out.localName === 'button') out.type = 'button';
+  if (typeof out.tabIndex !== 'number' || out.tabIndex < 0) out.setAttribute('tabindex', '0');
+  if (!out.textContent.trim() && !out.getAttribute('aria-label')) out.setAttribute('aria-label', item.label);
+  if (isTrigger(m, item)) {
+    out.classList.add(MENU_ITEM_SUBMENU_CLASS);
+    out.setAttribute('aria-haspopup', 'menu');
+    out.setAttribute('aria-expanded', 'false');
+  }
+  return out;
 }
 
 /**
@@ -286,6 +298,8 @@ function onMenuKeyDown(m, event) {
     handled = Boolean(item) && isTrigger(m, item) && openFlyout(m, item, active);
   } else if (event.key === 'ArrowLeft') {
     handled = stepOut(m, panelOf(m, active));
+  } else if (event.key === 'Enter' || event.key === ' ') {
+    handled = Boolean(panelOf(m, active) && itemOf(m, active)) && runClickedItem(m, { target: active });
   }
   if (handled && typeof event.preventDefault === 'function') event.preventDefault();
 }
@@ -349,6 +363,7 @@ export function menu(b, opts, root) {
     registry: options.registry ?? registryOf(options.items),
     subject: b,
     resolve: (event) => blitContext(b.el, event),
-    overlay: found.overlay
+    overlay: found.overlay,
+    insets: options.insets
   });
 }
