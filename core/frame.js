@@ -98,10 +98,11 @@ export function runFrame(root, dt = 1) {
 
 /** Whether the camera differs from the one last written to the plane. */
 function syncCamera(root) {
-  const { x, y, scale } = root.camera;
-  const applied = root.applied;
-  if (applied && applied.x === x && applied.y === y && applied.scale === scale) return false;
-  root.applied = { x, y, scale };
+  const { x, y, scale, perspective, rotateX, rotateY } = root.camera;
+  const a = root.applied;
+  if (a && a.x === x && a.y === y && a.scale === scale && a.perspective === perspective
+    && a.rotateX === rotateX && a.rotateY === rotateY) return false;
+  root.applied = { x, y, scale, perspective, rotateX, rotateY };
   return true;
 }
 

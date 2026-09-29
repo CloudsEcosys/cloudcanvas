@@ -121,8 +121,9 @@ export function rootEnv(root) {
     root,
     point(event) {
       const rect = root.host.getBoundingClientRect();
-      const { x, y, scale } = root.camera;
-      return { x: (event.clientX - rect.left - x) / scale, y: (event.clientY - rect.top - y) / scale };
+      const camera = root.camera;
+      if (!camera.is3d) return { x: (event.clientX - rect.left - camera.x) / camera.scale, y: (event.clientY - rect.top - camera.y) / camera.scale };
+      return camera.unproject(event.clientX - rect.left, event.clientY - rect.top, rect) ?? { x: 0, y: 0 };
     }
   };
 }

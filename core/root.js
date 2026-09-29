@@ -42,11 +42,18 @@ export function mountRoot(state) {
   return root;
 }
 
-/** Rewrite the plane's transform on the frames the camera moved. */
+/** Rewrite the plane's transform on the frames the camera moved; a 3D camera adds the host's perspective. */
 function planePass(root, ctx) {
   if (!ctx.cameraMoved) return;
-  const { x, y, scale } = root.camera;
-  root.plane.style.transform = formatTransform3D(x, y, 0, scale);
+  const camera = root.camera;
+  const { x, y, scale } = camera;
+  const flat = !camera.is3d;
+  const lens = camera.perspective ? `${camera.perspective}px` : '';
+  if (root.host.style.perspective !== lens) root.host.style.perspective = lens;
+  if (root.plane.style.transformStyle !== (flat ? '' : 'preserve-3d')) root.plane.style.transformStyle = flat ? '' : 'preserve-3d';
+  root.plane.style.transform = flat
+    ? formatTransform3D(x, y, 0, scale)
+    : `matrix3d(${Array.from(camera.view(ctx.hostRect), (n) => +n.toFixed(6)).join(',')})`;
 }
 
 /** The host's client box, or the default framing box without one. */

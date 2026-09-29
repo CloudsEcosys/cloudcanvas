@@ -202,18 +202,19 @@ export class MotionCamera extends Camera {
 
   /** Screen (client) coordinates to canvas coordinates. */
   screenToCanvas(screenX, screenY, hostRect = {}) {
-    return {
-      x: (screenX - (hostRect.left || 0) - this.x) / this.scale,
-      y: (screenY - (hostRect.top || 0) - this.y) / this.scale
-    };
+    const [left, top] = [hostRect.left || 0, hostRect.top || 0];
+    if (this.is3d) return this.unproject(screenX - left, screenY - top, hostRect) ?? { x: 0, y: 0 };
+    return { x: (screenX - left - this.x) / this.scale, y: (screenY - top - this.y) / this.scale };
   }
 
-  /** Canvas coordinates to screen (client) coordinates. */
+  /** Canvas coordinates to screen (client) coordinates, through the tilt and perspective when there is one. */
   canvasToScreen(canvasX, canvasY, hostRect = {}) {
-    return {
-      x: canvasX * this.scale + this.x + (hostRect.left || 0),
-      y: canvasY * this.scale + this.y + (hostRect.top || 0)
-    };
+    const [left, top] = [hostRect.left || 0, hostRect.top || 0];
+    if (this.is3d) {
+      const at = this.project(canvasX, canvasY, hostRect);
+      return { x: at.x + left, y: at.y + top };
+    }
+    return { x: canvasX * this.scale + this.x + left, y: canvasY * this.scale + this.y + top };
   }
 }
 
