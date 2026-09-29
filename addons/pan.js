@@ -8,12 +8,11 @@
  *   const off = pan(blit('#app'));
  *
  * A press on a blit is the blit's - its own traits move it - and never a pan.
- * The gesture is written once, as functions over a state record `g` and an env
+ * The gesture is written as functions over a state record `g` and an env
  * (`host`, `camera`, `wake`, `target`), and the trait wires them to native
  * events. `installPan` takes the record `g` lives in (`state`) and the press
- * claimer (`target`: `press`, `move`, `release`, `cancel`, `active`): that is
- * how the legacy session routes its Pin drags through this same code.
- * `opts.wheel: false` leaves the wheel to the page.
+ * claimer (`target.press(event)`: the element a press belongs to instead, or
+ * null). `opts.wheel: false` leaves the wheel to the page.
  *
  * Pointer capture is deferred to the drag threshold, so a press that turns out
  * to be a click keeps its native `click`; a press on a control or in selectable
@@ -22,7 +21,8 @@
 import { createLogger } from '../log.js';
 import { schedule } from '../core/frame.js';
 import { BLIT_ATTR } from '../core/state.js';
-import { DRAG_THRESHOLD_PX, isControlTarget, listen, requireRootOf } from './trait.js';
+import { PAN_CSS } from '../graphics/css/pan.js';
+import { DRAG_THRESHOLD_PX, injectAddonCss, isControlTarget, listen, requireRootOf } from './trait.js';
 
 const logger = /* @__PURE__ */ createLogger('pan');
 
@@ -185,9 +185,8 @@ export function takeDeferredCapture(g, event, host) {
 
 /* ------------------ PINCH ------------------ */
 
-/** A second finger turns whatever ran into a pinch: the claimed drag and the pan end, both contacts are captured. */
+/** A second finger turns a pan into a pinch: the pan ends, both contacts are captured. */
 export function beginPinch(g, env) {
-  env.target?.cancel?.();
   g.isPanning = false;
   for (const pointerId of g.activePointers.keys()) pointerCapture(env.host, pointerId, 'setPointerCapture');
   g._pendingCapture = null;
@@ -231,14 +230,13 @@ export function endPinch(g) {
 
 /* ------------------ THE GESTURE ------------------ */
 
-/** Whether a pan, a pinch or a claimed drag is running. */
-export function isPanActive(g, env) {
-  return Boolean(g.isPanning || env.target?.active?.() || g.pinch);
+/** Whether a pan or a pinch is running. */
+export function isPanActive(g) {
+  return Boolean(g.isPanning || g.pinch);
 }
 
 /** Abandon every gesture and forget every pointer, as a `pointercancel` for all of them. */
-export function cancelPan(g, env) {
-  env.target?.cancel?.();
+export function cancelPan(g) {
   g.pinch = null;
   g.isPanning = false;
   g.activePointers.clear();
@@ -247,9 +245,10 @@ export function cancelPan(g, env) {
 }
 
 /**
- * Begin a claimed drag, a pan or a pinch. A gesture starts on the primary
- * pointer's main button; touch's second finger (non-primary by definition) is
- * admitted only while exactly one pointer is down. @returns the claim, or null
+ * Begin a pan or a pinch, unless the claimer takes the press. A gesture starts
+ * on the primary pointer's main button; touch's second finger (non-primary by
+ * definition) is admitted only while exactly one pointer is down.
+ * @returns the element that claimed the press, or null
  */
 export function panPress(g, event, env) {
   const second = event.button === 0 && g.activePointers.size === 1;
@@ -270,7 +269,7 @@ export function panPress(g, event, env) {
   return null;
 }
 
-/** Continue the gesture: the pinch, the claimed drag, or the pan. @returns {boolean} handled */
+/** Continue the gesture: the pinch or the pan. @returns {boolean} handled */
 export function panMove(g, event, env) {
   const tracked = g.activePointers.get(event.pointerId);
   if (tracked) {
@@ -279,12 +278,7 @@ export function panMove(g, event, env) {
   }
   // A pinch is driven only by its own pointers; anything else is a hover.
   if (g.pinch) return tracked ? updatePinch(g, env) : false;
-  if (tracked && isPanActive(g, env)) takeDeferredCapture(g, event, env.host);
-
-  if (env.target?.active?.()) {
-    env.target.move(event);
-    return true;
-  }
+  if (tracked && isPanActive(g)) takeDeferredCapture(g, event, env.host);
   if (!g.isPanning) return false;
 
   env.camera.panBy(event.clientX - g.lastPointer.x, event.clientY - g.lastPointer.y);
@@ -293,23 +287,23 @@ export function panMove(g, event, env) {
   return true;
 }
 
-/** End whatever gesture this pointer was part of. @returns the released claim, or null */
+/** End whatever gesture this pointer was part of. @returns {boolean} whether it ended a pan */
 export function panRelease(g, event, env) {
   pointerCapture(env.host, event ? event.pointerId : undefined, 'releasePointerCapture');
   if (event && event.pointerId !== undefined) g.activePointers.delete(event.pointerId);
   g._pendingCapture = null;
 
-  if (g.pinch && endPinch(g)) return null;
-  const claim = env.target?.release?.(event) ?? null;
+  if (g.pinch && endPinch(g)) return false;
+  const panned = g.isPanning;
   g.isPanning = false;
-  return claim || null;
+  return panned;
 }
 
 /** A secondary click mid-gesture cancels it and is swallowed. @returns {boolean} whether it was */
-export function panContextMenu(g, event, env) {
-  if (!isPanActive(g, env)) return false;
+export function panContextMenu(g, event) {
+  if (!isPanActive(g)) return false;
   if (event && typeof event.preventDefault === 'function') event.preventDefault();
-  cancelPan(g, env);
+  cancelPan(g);
   return true;
 }
 
@@ -356,17 +350,18 @@ export function installPan(host, root, options) {
     listen(host, ['pointerdown'], (event) => panPress(g, event, env)),
     listen(window, ['pointermove'], (event) => panMove(g, event, env)),
     listen(window, ['pointerup', 'pointercancel'], (event) => panRelease(g, event, env)),
-    listen(host, ['contextmenu'], (event) => panContextMenu(g, event, env))
+    listen(host, ['contextmenu'], (event) => panContextMenu(g, event))
   ];
   if (options.wheel !== false) offs.push(listen(host, ['wheel'], (event) => panWheel(event, env), { passive: false }));
   return () => {
     for (const off of offs) off();
-    if (!options.state) cancelPan(g, env);
+    if (!options.state) cancelPan(g);
   };
 }
 
 /** The root trait; `opts.wheel: false` leaves the wheel to the page, `opts.press: false` the background press. @returns {() => void} off */
 export function pan(b, opts, root) {
   const o = opts && typeof opts === 'object' ? opts : {};
+  injectAddonCss('pan', PAN_CSS);
   return installPan(b.el, requireRootOf(b, root, 'pan'), { wheel: o.wheel !== false, press: o.press !== false, target: blitTarget(b.el) });
 }

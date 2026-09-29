@@ -2,11 +2,10 @@
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
  * The layout add-on's CSS chunk (`../../addons/layout.js`), injected once when a
- * core container first takes a layout. Core selectors only (`[data-blit]`,
- * `[data-scope]`), so it never meets the legacy sheet's `.cloudcanvas-pin-scope`
- * rules. Every mode pins its cross-axis start edge: a flow container decides where
- * its children sit, never how big they are (a stretch would be measured back as
- * the child's own size).
+ * container first takes a layout. Core selectors only (`[data-blit]`,
+ * `[data-scope]`). Every mode states its cross-axis start edge: a flow container
+ * decides where its children sit, never how big they are (a stretch would be
+ * measured back as the child's own size).
  */
 
 /** The three flow modes, and the flow child dropping out of absolute placement. */

@@ -13,8 +13,8 @@
  * module-wide menu. `when` and `action` get the subject - the root's handle -
  * and the context `{target, x, y}`, `target` the blit under the click
  * (`closest('[data-blit]')`) or null on bare canvas. `installMenu` takes the
- * subject and `resolve(event)` as options: the legacy session passes itself
- * and `{pin, x, y}`. A submenu trigger opens a flyout beside itself; a chain keeps
+ * subject and `resolve(event)` as options, so a host that reads its clicks
+ * another way passes its own. A submenu trigger opens a flyout beside itself; a chain keeps
  * to the side its first flyout took. Up/Down rove a panel, Right opens,
  * Left and Escape step out, a press outside closes.
  *

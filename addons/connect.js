@@ -29,7 +29,7 @@ export const CONNECTOR_STROKE = 'var(--cc-connector, rgba(56, 189, 248, 0.6))';
 /** The marker on the `<svg>` a root's plane-space drawings go into. */
 export const SVG_LAYER_ATTR = 'data-blit-svg';
 
-/** The group name, shared with the legacy class. */
+/** The group name the connector layer's `<g>` carries (`data-trait`). */
 const NAME = 'connectable';
 
 /** @type {WeakMap<object, object>} root -> its connector group */
@@ -150,7 +150,7 @@ function drawGroup(root, group) {
   updateConnectors(group.host, items);
 }
 
-/** Native: join the root's group; the last source out takes the group and its pass. */
+/** Join the root's group; the last source out takes the group and its pass. */
 function mount(s, b, root) {
   let group = GROUPS.get(root);
   if (!group) {
@@ -174,10 +174,4 @@ function mount(s, b, root) {
   };
 }
 
-/** The behaviour both shells share: the record; each shell draws through its own layer. */
-export const connectBehaviour = {
-  capabilities: ['connectable', 'graph-node', 'global-render'],
-  init
-};
-
-export const connect = /* @__PURE__ */ defineTrait(connectBehaviour, { mount });
+export const connect = /* @__PURE__ */ defineTrait({ init, mount });

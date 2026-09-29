@@ -3,7 +3,7 @@
  *
  * `data-*` <-> spec: the one conversion between attributes and the plain object a blit is described by. Only
  * declared kinds are coerced (placement is numeric); a numeric key that does not parse throws rather than reaching
- * the port as `NaN`. Prefix and kinds are parameters so the legacy `data-cc-*` hydration reads through it too.
+ * the port as `NaN`. Prefix and kinds are parameters, so a caller can read its own namespace through it too.
  */
 import { createLogger } from '../log.js';
 import { BLIT_ATTR, PLACEMENT_KEYS, ROOT_ATTR } from './state.js';

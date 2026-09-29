@@ -4,23 +4,14 @@
  * `h()`: the one namespace-aware element factory for building live DOM and SVG
  * subtrees.
  *
- * The framework already had two element helpers, and they belong to a different
- * layer than this one. `makeElement`/`setAttr` (`../../pins/traits/template-kit.js`)
- * are the Pin *display* kit: `makeElement(tag, className)` is an HTML-only,
- * structure-only shorthand, and `setAttr` is a *diff* - it writes an attribute
- * only when the value moved, because it runs on every frame of a Pin's update
- * pass. Those two are the update-loop's primitives and stay exactly as they are.
- *
- * `h()` is the *build* primitive, and it is what the display kit never had: a
- * factory that knows the SVG namespace, takes attributes and children in one
- * call, and is meant to run once - inside a `build()`/`onGlobalBuild()` pass -
- * not on every frame. So it is deliberately not a diff: it assigns what it is
- * given and returns the node, and the update pass that follows is where the
- * diffing helpers (`setAttr`, `setText`, `reconcileKeyedList`) take over. That
- * split - build with `h()`, mutate with the kit - is the same discipline
- * `DisplayTrait` and the SVG group layer are built on, and having one factory for
- * both idioms is what lets an HTML template and an SVG group be written the same
- * way.
+ * It is the *build* primitive: it knows the SVG namespace, takes attributes and
+ * children in one call, and is meant to run once, while a subtree is built -
+ * never on every frame. So it is deliberately not a diff: it assigns what it is
+ * given and returns the node, and the updates that follow go through the
+ * diffing helpers (`setAttr` and `setText` in `../../addons/widget.js`,
+ * `reconcileKeyedList` in `../../addons/keyed-list.js`). Build with `h()`,
+ * mutate with the helpers - which is what lets an HTML template and an SVG
+ * group (the connect and svg-state add-ons) be written the same way.
  */
 
 /** The SVG namespace every vector tag is created in. */

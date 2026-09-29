@@ -8,14 +8,15 @@
  *   blit.use({ focus });
  *   app.blit({ focus: { focusOnClick: true } });
  *
- * On a core blit that click moves `is-focused` onto it from the root's
+ * That click moves `is-focused` onto it from the root's
  * previously focused blit, frames it through the root's `view()`, and announces
  * `focus:change` (payload `true`) on it and `focus:change` (`false`) on the one it
  * left.
  */
 import { schedule } from '../core/frame.js';
 import { stateOf } from '../core/state.js';
-import { CLICK_TRAVEL_PX, coordinate, defineTrait } from './trait.js';
+import { FOCUS_CSS } from '../graphics/css/focus.js';
+import { CLICK_TRAVEL_PX, coordinate, defineTrait, injectAddonCss } from './trait.js';
 
 /** The class the focused element carries. */
 export const FOCUSED_CLASS = 'is-focused';
@@ -55,6 +56,7 @@ export function clickReleased(s, event) {
  * @returns {{x: number, y: number, scale: number}} the camera in force
  */
 export function focusBlit(s, b, root) {
+  injectAddonCss('focus', FOCUS_CSS);
   const previous = root.host.querySelector(`.${FOCUSED_CLASS}`);
   if (previous && previous !== b.el) {
     previous.classList.remove(FOCUSED_CLASS);
@@ -81,14 +83,14 @@ export function unfocus(app) {
   return b;
 }
 
-/** A click on a core blit, with `focusOnClick`, focuses it. */
+/** A click, with `focusOnClick`, focuses the blit. */
 function release(s, b, event, env) {
   if (!clickReleased(s, event) || !s.focusOnClick) return false;
   focusBlit(s, b, env.root);
   return true;
 }
 
-/** Native only: a focused blit that stops being focussable gives the focus up. */
+/** A focused blit that stops being focussable gives the focus up. */
 function mount(s, b) {
   return () => {
     if (!b.el.classList.contains(FOCUSED_CLASS)) return;
@@ -97,11 +99,4 @@ function mount(s, b) {
   };
 }
 
-/** The behaviour both shells share; the click's outcome is each shell's own. */
-export const focusBehaviour = {
-  capabilities: ['focussable', 'zoom-target'],
-  init,
-  press: pressFocus
-};
-
-export const focus = /* @__PURE__ */ defineTrait(focusBehaviour, { release, mount });
+export const focus = /* @__PURE__ */ defineTrait({ init, press: pressFocus, release, mount });

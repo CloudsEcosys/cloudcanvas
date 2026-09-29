@@ -7,7 +7,7 @@ records the migration surface, not the commit history.
 ## 0.5.0 (unreleased)
 
 The blit release. The Pin engine is gone; CloudCanvas is now a two-export core and a set of add-ons,
-each its own subpath, each costing nothing unless imported. `import 'cloudcanvas'` is 6.6 KB gzipped (0.4:
+each its own subpath, each costing nothing unless imported. `import 'cloudcanvas'` is 6.7 KB gzipped (0.4:
 about 60 KB). Projects that must stay on the Pin API can pin the `legacy/0.4` branch of
 `CloudsEcosys/cloudcanvas`.
 
@@ -28,6 +28,17 @@ about 60 KB). Projects that must stay on the Pin API can pin the `legacy/0.4` br
 - **The sandbox speaks boards**: `createBoard`, `serializeBoard`, `deserializeBoard`, `clearBoard`,
   `autoSaveBoard`, `attachBoardPart`; the static export bundles `dist/cloudcanvas.board.iife.js`.
 - `cloudcanvas/styles` is `cloudcanvas/graphics`; the `cloudcanvas/styles.css` alias is removed.
+- **CSS ships per add-on.** Each add-on puts its own chunk in the page once, the first time it runs; the
+  board's (the root's canvas surface and type, and `user-select: none` so a gesture never selects page
+  text) comes with `createBoard`, `cloudcanvas/defaults` and `injectBoardStyles()`. `injectCanvasStyles()`
+  and `CANVAS_DEFAULT_CSS` are every chunk at once. The 0.4 shell's rules (`.cloudcanvas-host`, the layer
+  classes, the focus veil, `.cloudcanvas-primitive-card`, `cc-elevated`) are gone, with the tokens only
+  they read: `--cc-z-svg`, `--cc-z-plane`, `--cc-z-veil`, `--cc-z-elevated`, `--cc-focus-veil`.
+- **The display widgets' classes are `cloudcanvas-card-*`** (`CLS`, `cloudcanvas/types`), the slotted
+  type's `cloudcanvas-card-slot*`. The drag grip is on every drag blit and CSS shows it (selected and
+  `chrome: false`, or `{handle: true}`), so a `chrome` write needs no drag restart. `KEY_BINDINGS.pin` is
+  `KEY_BINDINGS.blit`; `createPinIconSVG` is removed; `--cc-sticky-pin(-shadow)` is
+  `--cc-sticky-pinhead(-shadow)`.
 
 ### Migration
 
@@ -57,6 +68,7 @@ about 60 KB). Projects that must stay on the Pin API can pin the `legacy/0.4` br
 | `attachReactions(session)`, `reactionsFor(session)` | `app.set({reactions: true})`, `reactionsOf(app)` |
 | `serializeSession` / `deserializeSession` | `serializeBoard` / `deserializeBoard` |
 | `data-pin-id`, `.cloudcanvas-pin` | the element id, `[data-blit]` |
+| `.cloudcanvas-pin-title` and every `cloudcanvas-pin-*` template class | `.cloudcanvas-card-title`, ... (`CLS`, `cloudcanvas/types`) |
 
 ### Added
 

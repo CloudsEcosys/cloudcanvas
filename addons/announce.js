@@ -12,7 +12,7 @@
  * Heard on the host, as the native events bubble: `focus:change` (the focus
  * add-on's), `edit` (payload true on entry, false on exit), `children:load` and
  * `children:error` (the lazy add-on's), and `announce` (payload the text). A root change is read each frame from `b.root`. A blit
- * is named by its `aria-label`, `data-title`, then id.
+ * is named by its title (`titleOf`: its `aria-label`, the `title` in its contents, `data-title`), else its id.
  */
 import { LIVE_REGION_CSS } from '../graphics/css/announce.js';
 import { injectAddonCss, listen, requireRootOf, titleOf } from './trait.js';

@@ -5,8 +5,8 @@
  * tree leaves a Comment anchor in its place. The anchor keeps the element's
  * logical ancestry readable (`parentElementOf` walks through it) and its
  * position among its siblings, so the element returns to exactly where it was.
- * A core blit's traits stop on the way out and run again on the way back
- * (`state.traits`, set by `../core/use.js` once it is indexed). A core blit and
+ * A blit's traits stop on the way out and run again on the way back
+ * (`state.traits`, set by `../core/use.js` once it is indexed). A blit and
  * the blits inside it are (re)indexed under their current ids on the way out, so
  * their root still finds them.
  */

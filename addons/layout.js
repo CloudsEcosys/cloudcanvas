@@ -26,11 +26,11 @@
  */
 import { stateOf, parentElementOf, parentNodeOf, rootOf, scopeContainerOf, sizeOf } from '../core/state.js';
 import { schedule } from '../core/frame.js';
-import { injectStyle } from '../core/css.js';
 import { defaultPort, forgetPlacement } from '../core/port.js';
 import { use } from '../core/use.js';
 import { LAYOUT_CSS } from '../graphics/css/layout.js';
 import { nodeOf } from './park.js';
+import { injectAddonCss } from './trait.js';
 
 /** The four modes; `free` is placement by transform. */
 export const LAYOUT_MODES = /* @__PURE__ */ Object.freeze({ FREE: 'free', ROW: 'row', COLUMN: 'column', GRID: 'grid' });
@@ -72,7 +72,7 @@ export function layoutModeOf(value) {
   return value;
 }
 
-/** Write one well: `min-height` unless it flows or is empty, and the populated class. Shared by both shells. */
+/** Write one well: `min-height` unless it flows or is empty, and the populated class. */
 export function writeWell(scope, { height, populated, flow }) {
   scope.style.minHeight = populated && !flow ? `${height}px` : '';
   scope.classList.toggle(SCOPE_POPULATED_CLASS, populated);
@@ -250,7 +250,7 @@ function recordOf(root) {
   const host = stateOf(root.host).handle;
   record.offs.push(host.tick(() => readPass(record, root), 'read'), host.tick(() => writePass(record, root), 'write'));
   RECORDS.set(root, record);
-  injectStyle('blit-css-layout', LAYOUT_CSS);
+  injectAddonCss('layout', LAYOUT_CSS);
   use({ flow });
   return record;
 }

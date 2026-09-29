@@ -1,11 +1,10 @@
 /**
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
- * The frame: structure, read and write phases, and the one loop every root (a `blit('#app')` host or the legacy
- * session) runs on. A root asks for a frame (`schedule`, the only way) while it has work - a dirty blit, a pending
- * measurement, a camera in flight, a busy pass - and stops once settled. The host box is read first, then
- * structure passes (the legacy engine's; blits need none), every layout read, then every write. Every pass is
- * registered, a blit root's own included (`./root.js`).
+ * The frame: structure, read and write phases, and the one loop every root (a `blit('#app')` host) runs on. A
+ * root asks for a frame (`schedule`, the only way) while it has work - a dirty blit, a pending measurement, a
+ * camera in flight, a busy pass - and stops once settled. The host box is read first, then any structure pass,
+ * every layout read, then every write. Every pass is registered, a root's own included (`./root.js`).
  */
 import { defaultPort } from './port.js';
 import { scopeContainerOf } from './state.js';

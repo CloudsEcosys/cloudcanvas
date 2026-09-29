@@ -32,8 +32,8 @@ note.on('drag:end', (event) => console.log('came to rest at', event.detail.paylo
 ```
 <!-- /quickstart -->
 
-`#app` is any element with a size. That is the whole application: 6.4 KB gzipped for the core, plus
-2.7 KB for drag and 2.6 KB for pan. 
+`#app` is any element with a size. That is the whole application: 6.5 KB gzipped for the core, plus
+2.0 KB for drag and 2.7 KB for pan. 
 
 ## The model
 
@@ -57,41 +57,41 @@ gzipped and include the core they reach.
 
 | Subpath | What it adds | gz |
 |---|---|---|
-| `cloudcanvas` / `cloudcanvas/core` | `blit`, `type` | 6.6 KB |
-| `cloudcanvas/drag` | press past 3px moves the blit; a grip for chromeless controls | 2.7 KB |
-| `cloudcanvas/select` | `is-selected`, the `select` event, `setSelected` | 1.0 KB |
-| `cloudcanvas/resize` | edge and corner handles, min/max, `resize:*` events | 3.4 KB |
-| `cloudcanvas/focus` | a zoom target: framing on click, `focus:change` | 1.2 KB |
-| `cloudcanvas/pan` | root camera gestures: drag, wheel, trackpad, pinch | 2.6 KB |
+| `cloudcanvas` / `cloudcanvas/core` | `blit`, `type` | 6.7 KB |
+| `cloudcanvas/drag` | press past 3px moves the blit; a grip for chromeless controls | 2.0 KB |
+| `cloudcanvas/select` | `is-selected`, the `select` event, `setSelected` | 1.2 KB |
+| `cloudcanvas/resize` | edge and corner handles, min/max, `resize:*` events | 3.2 KB |
+| `cloudcanvas/focus` | a zoom target: framing on click, `focus:change` | 1.4 KB |
+| `cloudcanvas/pan` | root camera gestures: drag, wheel, trackpad, pinch | 2.7 KB |
 | `cloudcanvas/keyboard` | the root as one tab stop; arrows pan, rove, Enter/Space act | 2.4 KB |
-| `cloudcanvas/menu` | the root's right-click menu: items by value or a registry, flyouts | 4.6 KB |
+| `cloudcanvas/menu` | the root's right-click menu: items by value or a registry, flyouts | 4.5 KB |
 | `cloudcanvas/announce` | a polite live region for focus, edits and root changes | 1.3 KB |
-| `cloudcanvas/cursors` | focus reticle, selection ring and brackets in the overlay | 4.1 KB |
+| `cloudcanvas/cursors` | focus reticle, selection ring and brackets in the overlay | 4.2 KB |
 | `cloudcanvas/motion` | an easing camera: `view()` flies, reduced motion respected | 2.2 KB |
-| `cloudcanvas/layout` | `layout: row \| column \| grid \| free`, `gap`, scope wells sized to children | 4.0 KB |
+| `cloudcanvas/layout` | `layout: row \| column \| grid \| free`, `gap`, scope wells sized to children | 3.9 KB |
 | `cloudcanvas/style` | whitelisted per-blit appearance overrides | 1.6 KB |
 | `cloudcanvas/edit` | the edit lock: renders defer while a field has the caret | 0.5 KB |
-| `cloudcanvas/place` | free-spot search, `move` (reparent in place), `hit` | 7.6 KB |
-| `cloudcanvas/history` | `go` / `back` / `forward` / `reset` over promoted views, `breadcrumb` | 7.1 KB |
-| `cloudcanvas/connect` | edge-routed SVG connectors between blits | 3.4 KB |
+| `cloudcanvas/place` | free-spot search, `move` (reparent in place), `hit` | 7.7 KB |
+| `cloudcanvas/history` | `go` / `back` / `forward` / `reset` over promoted views, `breadcrumb` | 7.2 KB |
+| `cloudcanvas/connect` | edge-routed SVG connectors between blits | 3.3 KB |
 | `cloudcanvas/physics` | velocity and damping, stepped in the frame | 1.0 KB |
-| `cloudcanvas/svg-state` | named SVG states with animated transitions, 3D tilt | 4.8 KB |
-| `cloudcanvas/reactions` | "when A emits X, run action Y on B", saved with the board | 10.9 KB |
+| `cloudcanvas/svg-state` | named SVG states with animated transitions, 3D tilt | 4.7 KB |
+| `cloudcanvas/reactions` | "when A emits X, run action Y on B", saved with the board | 11.0 KB |
 | `cloudcanvas/lazy` | children loaded on demand from a provider | 0.7 KB |
 | `cloudcanvas/offload` | off-screen blits parked out of the DOM, state kept | 1.2 KB |
 | `cloudcanvas/observe` | markup added later becomes blits | 6.8 KB |
-| `cloudcanvas/types` | display widgets: `card`, `media`, `vector-pointer`, `raw` | 10.8 KB |
-| `cloudcanvas/widget` | `widget({name, html, keys, bind, render})`: a type that renders its contents | 7.5 KB |
-| `cloudcanvas/defaults` | every add-on named at once, for markup-first pages | 33.1 KB |
+| `cloudcanvas/types` | display widgets: `card`, `media`, `vector-pointer`, `raw` | 12.1 KB |
+| `cloudcanvas/widget` | `widget({name, html, keys, bind, render})`: a type that renders its contents | 7.6 KB |
+| `cloudcanvas/defaults` | every add-on named at once, for markup-first pages | 34.4 KB |
 
-`cloudcanvas/graphics` (the full stylesheet), `cloudcanvas/theme` (`applyTheme`, `LIGHT_THEME`, the
+`cloudcanvas/graphics` (the board's CSS, or every add-on's at once), `cloudcanvas/theme` (`applyTheme`, `LIGHT_THEME`, the
 `--cc-*` tokens), `cloudcanvas/primitives` (SVG and URL/colour guards) and `cloudcanvas/log` (a pluggable,
 non-blocking logger) round out the engine.
 
 ## More
 
 This repository is the engine. The widget kit, the board (save, load, static export) and the site builder
-are separate packages; the changelog below records the engine's releases. Projects on the 0.4 Pin API can
+are separate packages; the changelog below records the engine's releases. Projects on the 0.4 API can
 stay on the `legacy/0.4` branch.
 
 - [CHANGELOG.md](CHANGELOG.md)

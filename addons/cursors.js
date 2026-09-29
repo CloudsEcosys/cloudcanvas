@@ -28,9 +28,6 @@ import { defineTrait, titleOf } from './trait.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
-/** Capability every cursor declares, whatever implements it. */
-export const CURSOR_CAPABILITY = 'cursor';
-
 export const CURSOR_FOCUS = 'cursor-focus';
 export const CURSOR_SELECTED = 'cursor-selected';
 export const CURSOR_ACTIVATED = 'cursor-activated';
@@ -80,9 +77,8 @@ export function createCursorLayer(overlay) {
   return layer;
 }
 
-/** A target's canvas box `{minX minY maxX maxY ...}`: a Pin's global bounds, or a blit's. */
+/** A blit's canvas box `{minX minY maxX maxY width height}`. */
 function canvasBoxOf(target) {
-  if (typeof target.getGlobalBounds === 'function') return target.getGlobalBounds();
   const { x, y, w, h } = target.bounds;
   return { minX: x, minY: y, maxX: x + w, maxY: y + h, width: w, height: h };
 }
@@ -132,9 +128,8 @@ export function cursorFields(options, fixed) {
 }
 
 /**
- * What every cursor does, as methods over its own record: the legacy classes
- * take them onto their prototype, a native record inherits them. `draw(group,
- * screenBounds, context)` is each kind's own.
+ * What every cursor does, as methods over its own record, which inherits them.
+ * `draw(group, screenBounds, context)` is each kind's own.
  */
 export const CURSOR_METHODS = {
   /** Point at a target, or clear with null. @returns {boolean} whether it changed */
@@ -343,7 +338,7 @@ function drawRecord(c, context, version) {
   if (c.renderCursor(frame)) c._drawnKey = c._drawnTarget ? boxKey(c._drawnTarget) : undefined;
 }
 
-/** Native: three records on the root's overlay, following the signals, drawn in the write phase. */
+/** Three records on the root's overlay, following the signals, drawn in the write phase. */
 function mount(s, b, root) {
   const layer = createCursorLayer(root.overlay);
   const records = CURSOR_TRAIT_NAMES.map((name) => createCursor(name, { ...(s.options[name] || {}), layer }));
@@ -388,7 +383,6 @@ function listenOn(element, type, listener) {
 }
 
 export const cursors = /* @__PURE__ */ defineTrait({
-  capabilities: [CURSOR_CAPABILITY],
   init: (options) => ({ options }),
   mount
 });

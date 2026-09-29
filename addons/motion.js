@@ -7,7 +7,7 @@
  * (`animateTo`, stepped by `update`), an animated `fit`, the reduced-motion
  * rule and the screen <-> canvas projection. `motion(b)` gives a root one, so
  * its `view()` flies. `MOVING_CLASS` is the one compositor-hint class any
- * add-on grants an element while it is in motion. The legacy `Viewport` (`../engine/viewport.js`) extends it.
+ * add-on grants an element while it is in motion.
  */
 import { Camera } from '../core/camera.js';
 import { schedule } from '../core/frame.js';
@@ -102,8 +102,8 @@ export class MotionCamera extends Camera {
     /** The in-flight eased move, or null. */
     this.animation = null;
     /**
-     * Owner wake hook, fired whenever the camera is moved programmatically. The
-     * session and `motion()` point it at the root's `schedule`, so a fit or a
+     * Owner wake hook, fired whenever the camera is moved programmatically.
+     * `motion()` points it at the root's `schedule`, so a fit or a
      * flight started on the camera directly still wakes an idle loop.
      * @type {(() => void)|null}
      */

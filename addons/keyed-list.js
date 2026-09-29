@@ -3,9 +3,8 @@
  *
  * Keyed list: the one list reconciler, owned by the add-on side.
  *
- * The connect add-on and the legacy template kit both reconcile a container's
- * children against a keyed list; this is the single implementation.
- * `../pins/traits/template-kit.js` re-exports it under the same names.
+ * The connect add-on and every widget that renders a list reconcile a
+ * container's children against a keyed list; this is the single implementation.
  */
 
 /**
@@ -63,7 +62,7 @@ function indexByKey(container) {
  * Reconcile a container's keyed children against `items`, in place.
  *
  * The list is DOM-as-state: the children carry their own keys, so there is no
- * shadow array to keep in sync and no state to lose when a Pin is rebuilt. Each
+ * shadow array to keep in sync and no state to lose when a widget re-renders. Each
  * pass reuses the element already holding an item's key, creates one only for a
  * key that is genuinely new, moves an element only when it is not already in the
  * right place, and removes what is left over.

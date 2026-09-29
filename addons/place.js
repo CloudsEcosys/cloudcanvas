@@ -9,7 +9,7 @@
  *   hit(app, { clientX, clientY })           the deepest blit under a point
  *
  * `spot` is a deterministic ring spiral around an anchor - the same scene and
- * request always answer the same point - which the legacy `place()` shares. Rings
+ * request always answer the same point. Rings
  * enumerate candidates nearest-first, and the samples per ring grow with the
  * radius, so the angular resolution stays about constant.
  */

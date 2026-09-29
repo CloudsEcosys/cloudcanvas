@@ -6,15 +6,14 @@
  *   blit.use({ physics });
  *   app.blit({ physics: { driftIntensity: 0.4 } });
  *
- * Options: `floatDrift` (true), `driftIntensity` (0.4); on a core blit also
+ * Options: `floatDrift` (true), `driftIntensity` (0.4), and
  * `mass` (1), `friction` (0.92) and `vector` (0), the phase the field reads.
- * The field and the integration are the ones the legacy particle engine runs
- * (`../particles/pin-particle.js` delegates to `applyForce` and `integrate`);
- * a core blit steps in its root's read phase and writes through `set()`.
+ * The field and the integration (`driftForce`, `applyForce`, `integrate`) are
+ * pure; a blit steps in its root's read phase and writes through `set()`.
  */
 import { defineTrait } from './trait.js';
 
-/** The record; `options` rides along (the legacy class holds the same object) for the native body. */
+/** The record; `options` rides along for the body `mount` builds. */
 function init(options) {
   return {
     options,
@@ -65,7 +64,7 @@ export function integrate(body, dt = 1) {
   if (Math.abs(body.vy) < 0.001) body.vy = 0;
 }
 
-/** Native: a body of the blit's own, stepped in the read phase. */
+/** A body of the blit's own, stepped in the read phase. */
 function mount(s, b) {
   const options = s.options;
   const body = {
@@ -91,10 +90,4 @@ function mount(s, b) {
   }, 'read');
 }
 
-/** The behaviour both shells share: the options; each shell integrates its own body. */
-export const physicsBehaviour = {
-  capabilities: ['dynamic-physics', 'floatable'],
-  init
-};
-
-export const physics = /* @__PURE__ */ defineTrait(physicsBehaviour, { mount });
+export const physics = /* @__PURE__ */ defineTrait({ init, mount });

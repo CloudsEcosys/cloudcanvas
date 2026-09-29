@@ -1,32 +1,31 @@
 /**
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
- * The framework's default stylesheet, as one string composed from `./css/`.
+ * The whole stylesheet: every add-on's CSS chunk (`./css/`) as one string.
  *
- * Its own file for one reason: it is data, not code. `./styles.js` is the door -
- * injection, session sheets, the theming re-export - and holding the sheet
- * inside it made the twenty lines of logic hard to find. The rules
- * governing what may appear below are stated there and enforced by
- * `tests/unit/styles.test.js`; nothing imports this module directly except
- * `./styles.js`, which re-exports the constant unchanged.
+ * Each chunk belongs to the add-on that needs it and is injected by that code,
+ * once, when it first runs - a page pays for the rules it uses. This is the
+ * other way in: `injectCanvasStyles()` (`./styles.js`) puts every chunk in the
+ * document at once, and an add-on finding it there adds nothing. Data, not
+ * code; nothing imports this module directly except `./styles.js`.
  */
 
 import { LIVE_REGION_CSS } from './css/announce.js';
-import { CANVAS_CSS } from './css/canvas.js';
-import { BORDER_CSS, GRAB_HANDLE_CSS, REDUCED_MOTION_CSS } from './css/chrome.js';
+import { BOARD_CSS } from './css/board.js';
 import { CARD_CSS } from './css/card.js';
-import { CONTENT_CSS } from './css/content.js';
+import { DRAG_CSS } from './css/drag.js';
+import { FOCUS_CSS } from './css/focus.js';
+import { LAYOUT_CSS } from './css/layout.js';
 import { MENU_CSS } from './css/menu.js';
+import { PAN_CSS } from './css/pan.js';
 import { RESIZE_CSS } from './css/resize.js';
+import { SELECT_CSS } from './css/select.js';
 import { SVG_STATE_CSS } from './css/svg-state.js';
+import { TOAST_CSS } from './css/toast.js';
 
 /**
- * Default stylesheet. Injected once per document by `injectCanvasStyles()`.
- *
- * Composed from per-owner chunks (`./css/`), in sheet order, byte for byte the
- * one string it always was. An add-on that owns a chunk (menu, resize,
- * svg-state, announce) injects just that chunk when it installs; the legacy
- * chunks travel only in this whole.
+ * Every chunk, in the order the whole sheet holds them: the board, then the
+ * surfaces and state classes that sit on it, then the overlays.
  *
  * Token groups: foundations (`--cc-font`, `--cc-type-*`, `--cc-space-*`,
  * `--cc-radius-*`, `--cc-shadow-*`, `--cc-z-*`) and parts (`--cc-bg`,
@@ -34,15 +33,20 @@ import { SVG_STATE_CSS } from './css/svg-state.js';
  * `--cc-badge-*`, `--cc-btn-*`, `--cc-meter-*`). `LIGHT_THEME` (`./theme.js`) is
  * the reference override set.
  */
-export const CANVAS_DEFAULT_CSS = /* @__PURE__ */ [
-  CANVAS_CSS,
-  CONTENT_CSS,
+export const CSS_CHUNKS = /* @__PURE__ */ Object.freeze([
+  BOARD_CSS,
+  PAN_CSS,
   CARD_CSS,
-  MENU_CSS,
-  BORDER_CSS,
+  LAYOUT_CSS,
+  SELECT_CSS,
+  FOCUS_CSS,
+  DRAG_CSS,
   RESIZE_CSS,
-  GRAB_HANDLE_CSS,
   SVG_STATE_CSS,
-  LIVE_REGION_CSS,
-  REDUCED_MOTION_CSS
-].join('');
+  MENU_CSS,
+  TOAST_CSS,
+  LIVE_REGION_CSS
+]);
+
+/** The whole stylesheet. Injected once per document by `injectCanvasStyles()`. */
+export const CANVAS_DEFAULT_CSS = /* @__PURE__ */ CSS_CHUNKS.join('');

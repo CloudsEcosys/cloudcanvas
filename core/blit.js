@@ -203,9 +203,8 @@ export function blit(target) {
   const element = typeof target === 'string' ? document.querySelector(target) : (target instanceof Blit ? target.el : target);
   if (!element || element.nodeType !== 1) throw new TypeError(`blit: no element for ${String(target)}`);
 
-  // A record made without a handle (the Pin engine's element state) gets one here.
   const existing = stateOf(element);
-  if (existing) return existing.handle || new Blit(existing);
+  if (existing) return existing.handle;
 
   const state = createState(element);
   const handle = new Blit(state);

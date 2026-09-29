@@ -8,11 +8,12 @@
  *   blit.use({ select });
  *   app.blit({ select: { selected: true } });
  *
- * On a core blit a press selects it and deselects the root's other selections;
+ * A press selects the blit and deselects the root's other selections;
  * a shift-press toggles it alone. `setSelected(b, value)` is the call form.
  */
 import { rootOf, stateOf } from '../core/state.js';
-import { SELECTED_CLASS, defineTrait, isPrimaryPress, ownsEvent } from './trait.js';
+import { SELECT_CSS } from '../graphics/css/select.js';
+import { SELECTED_CLASS, defineTrait, injectAddonCss, isPrimaryPress, ownsEvent } from './trait.js';
 
 export { SELECTED_CLASS };
 
@@ -39,7 +40,7 @@ export function applySelection(s, b, selected) {
   return true;
 }
 
-/** Select or deselect a core blit carrying the trait. @returns {boolean} whether it changed */
+/** Select or deselect a blit carrying the trait. @returns {boolean} whether it changed */
 export function setSelected(b, selected) {
   const s = RECORDS.get(b.el);
   return s ? applySelection(s, b, Boolean(selected)) : false;
@@ -54,8 +55,9 @@ function deselectOthers(b) {
   }
 }
 
-/** Native wiring: the record is findable, and a press selects. */
+/** The wiring: the chunk, the record findable, and a press selects. */
 function mount(s, b) {
+  injectAddonCss('select', SELECT_CSS);
   RECORDS.set(b.el, s);
   // A blit born selected says so, so a trait that shows on selection (handles, a grip) catches up.
   if (s.selected) b.emit('select', true);
@@ -74,12 +76,9 @@ function mount(s, b) {
   };
 }
 
-/** The behaviour both shells share. */
-export const selectBehaviour = {
-  capabilities: ['selectable', 'focussable'],
+export const select = /* @__PURE__ */ defineTrait({
   init,
   attach: syncSelectedClass,
-  detach: (s, b) => applySelection(s, b, false)
-};
-
-export const select = /* @__PURE__ */ defineTrait(selectBehaviour, { mount });
+  detach: (s, b) => applySelection(s, b, false),
+  mount
+});

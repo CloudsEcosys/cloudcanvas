@@ -2,8 +2,8 @@
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
  * The defaults (`cloudcanvas/defaults`): every add-on trait under its name, the
- * display widgets, and the reaction built-ins, registered on import - so markup
- * alone makes a live board:
+ * board's CSS chunk, the display widgets, and the reaction built-ins, registered
+ * on import - so markup alone makes a live board:
  *
  *   <script type="module">import 'cloudcanvas/defaults'; import { blit } from 'cloudcanvas'; blit('#app');</script>
  *   <div id="app" data-pan data-keyboard>
@@ -34,6 +34,7 @@ import { select } from './addons/select.js';
 import { style } from './addons/style.js';
 import { svgState } from './addons/svg-state.js';
 import { registerDisplayTypes } from './addons/types.js';
+import { injectBoardStyles } from './graphics/styles.js';
 
 /** Every trait `cloudcanvas/defaults` names, by the name markup uses. */
 export const DEFAULT_TRAITS = /* @__PURE__ */ Object.freeze({
@@ -42,5 +43,6 @@ export const DEFAULT_TRAITS = /* @__PURE__ */ Object.freeze({
 });
 
 blit.use(DEFAULT_TRAITS);
+injectBoardStyles();
 registerDisplayTypes();
 builtinActions();

@@ -13,14 +13,19 @@ export const CORE_STYLE_ID = 'blit-css';
 export const PLANE_ATTR = 'data-blit-plane';
 export const OVERLAY_ATTR = 'data-blit-overlay';
 
-export const CORE_CSS = `
+/** The sheet over the layer markers; a call so a bundle that only injects add-on chunks sheds the text. */
+function coreSheet(plane, overlay) {
+  return `
 [data-blit-root] { position: relative; overflow: hidden; }
-[${PLANE_ATTR}] { position: absolute; inset: 0; transform-origin: 0 0; will-change: transform; }
-[${OVERLAY_ATTR}] { position: absolute; inset: 0; pointer-events: none; }
+[${plane}] { position: absolute; inset: 0; transform-origin: 0 0; will-change: transform; }
+[${overlay}] { position: absolute; inset: 0; pointer-events: none; }
 [data-blit-root] [data-blit] { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 [data-blit] [data-scope] { position: relative; }
 [data-blit-root] [data-blit][hidden] { display: none; }
 `;
+}
+
+export const CORE_CSS = /* @__PURE__ */ coreSheet(PLANE_ATTR, OVERLAY_ATTR);
 
 /**
  * Put `css` in the document as the `<style id>` `id`, exactly once: rewriting a live `<style>` invalidates every

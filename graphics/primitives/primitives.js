@@ -2,7 +2,7 @@
  * CloudCanvas - NeoTec, LLC, Richard Christopher
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
- * Primitive graphics generators for Pins, canvas overlays, vector pointers, and visual indicators.
+ * Primitive graphics generators for widgets, the overlay's cursors, connectors, vector pointers and badges.
  */
 
 import { compositeOver, contrastTextFor } from './contrast.js';
@@ -124,19 +124,6 @@ export function safeUrl(value, fallback = '') {
 }
 
 /**
- * Generate an SVG icon string for a Pin head / anchor
- */
-export function createPinIconSVG(options = {}) {
-  const color = safeColor(options.color, '#38bdf8');
-  const size = safeNumber(options.size || 20, 20);
-  return `
-<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="cloudcanvas-svg-pin">
-  <circle cx="12" cy="12" r="9" fill="${color}" fill-opacity="0.2" stroke="${color}" stroke-width="2"/>
-  <circle cx="12" cy="12" r="3.5" fill="${color}"/>
-</svg>`.trim();
-}
-
-/**
  * Generate an SVG vector directional pointer / needle (representing vector angle or gradient)
  */
 export function createVectorPointerSVG(vectorValue, options = {}) {
@@ -176,10 +163,10 @@ export function createGradientMeterSVG(val, min = 0, max = 100, options = {}) {
 }
 
 /**
- * The `d` of a smooth connector between two Pin centres.
+ * The `d` of a smooth connector between two blit centres.
  *
  * Pulled out of {@link createConnectorPathSVG} so the string generator and the
- * live-node connector (`ConnectableTrait`, which builds real `<path>` elements
+ * live-node connector (the connect add-on, which builds real `<path>` elements
  * through `h()`) compute the *same* curve from the *same* code - the geometry is
  * one thing, and only its destination (a markup string vs. a node's `d`
  * attribute) differs. Coordinates are coerced through {@link safeNumber} so a
@@ -194,7 +181,7 @@ export function connectorPathData(fromX, fromY, toX, toY) {
   const y2 = safeNumber(toY, 0);
   const dx = (x2 - x1) * 0.5;
 
-  // Smooth bezier curve between pins
+  // A smooth bezier curve between the two centres.
   return `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
 }
 
@@ -223,7 +210,7 @@ export function edgeConnectorPathData(from, to) {
 }
 
 /**
- * Generate an SVG connector path between two Pin coordinates
+ * Generate an SVG connector path between two points in canvas coordinates
  */
 export function createConnectorPathSVG(fromX, fromY, toX, toY, options = {}) {
   const stroke = safeColor(options.stroke, 'var(--cc-connector, rgba(56, 189, 248, 0.6))');
@@ -299,7 +286,7 @@ function alphaSuffix(byte) {
 }
 
 /**
- * Generate a badge for Pin status or metadata.
+ * Generate a badge for a blit's status or metadata.
  *
  * For a six-digit hex tint the text color is *computed*: the fill is that tint
  * at {@link BADGE_BG_ALPHA} over {@link BADGE_SURFACE}, and the label takes
@@ -308,8 +295,7 @@ function alphaSuffix(byte) {
  * the badge still carries the color it was given.
  *
  * Any other color form - `rgb()`, a keyword, `var(--token)`, three-digit hex -
- * keeps the original behaviour untouched: tint-colored text and the legacy
- * alphas. Their value is only known after the cascade runs, and a contrast
+ * keeps the plain behaviour: tint-colored text and the fixed alphas. Their value is only known after the cascade runs, and a contrast
  * decision made on a guess is worse than no decision.
  *
  * Whatever is computed is emitted as the *fallback* of a
@@ -374,12 +360,12 @@ function frustumSpike(ax, ay, bx, by, half) {
 }
 
 /**
- * Four tapered spikes reaching from a *scope's* corners toward the focused Pin.
+ * Four tapered spikes reaching from a *scope's* corners toward the focused blit.
  *
- * `parentBounds` is the real box of the Pin's parent scope, in the same screen
+ * `parentBounds` is the real box of the blit's parent, in the same screen
  * space as `targetBounds` - not the host rectangle, which is what this used to
  * be handed and which made every reticle claim the whole viewport as its parent.
- * A Pin at the canvas root has no parent scope and so no frustum at all; the
+ * A blit at the canvas root has no parent and so no frustum at all; the
  * caller decides that, because only the caller knows.
  *
  * The spikes stop a third of the way in, and there is no dashed rectangle any
@@ -425,7 +411,7 @@ export function createFrustumProjectionSVG(parentBounds, targetBounds, options =
  * caption is text with a WCAG floor, and the focus red that works as the first
  * measures 2.29:1 as the second. The read resolves to the canvas's own body
  * colour, so a theme carries the caption without naming it (see
- * `CURSOR_LABEL_COLOR` in `src/pins/cursor.js`).
+ * the focus cursor in `../../addons/cursors.js`).
  */
 export const FOCUS_LABEL_COLOR = 'var(--cc-cursor-label, var(--cc-text, #e2e8f0))';
 
@@ -466,7 +452,7 @@ export function createFocusCursorSVG(targetBounds, options = {}) {
 /**
  * Neutral placeholder image markup: a slate tile with a low-contrast glyph.
  * Inline SVG keeps the fallback dependency-free, decodable by every browser, and
- * legible at any size the media Pin happens to be laid out at.
+ * legible at any size the media card happens to be laid out at.
  */
 const PLACEHOLDER_SVG = "<svg xmlns='http://www.w3.org/2000/svg' width='64' height='48' viewBox='0 0 64 48'>"
   + "<rect width='64' height='48' rx='4' fill='#1e293b'/>"
@@ -477,7 +463,7 @@ const PLACEHOLDER_SVG = "<svg xmlns='http://www.w3.org/2000/svg' width='64' heig
 const PLACEHOLDER_DATA_URI = `data:image/svg+xml,${encodeURIComponent(PLACEHOLDER_SVG)}`;
 
 /**
- * Data-URI placeholder for media Pins with no `src`.
+ * Data-URI placeholder for a media card with no `src`.
  *
  * Replaces the former truncated AVIF payload, which no decoder accepted and which
  * therefore always rendered as a broken image.

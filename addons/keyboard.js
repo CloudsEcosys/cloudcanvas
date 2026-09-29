@@ -19,9 +19,9 @@
  *     returns to the host. A roved-to blit is brought into view at its scale.
  *
  * Keys a text field, control or `contenteditable` owns are never taken. The
- * dispatch is written once over an env of hooks (`targetOf`, `order`,
- * `elementOf`, `boundsOf`, `current`, `actions`); the legacy session installs
- * it with Pin-shaped hooks through `installKeyboard`.
+ * dispatch runs over an env of hooks (`targetOf`, `order`, `elementOf`,
+ * `boundsOf`, `current`, `actions`); the trait passes a root's own, and
+ * `installKeyboard` takes any others.
  */
 import { schedule } from '../core/frame.js';
 import { BLIT_ATTR, stateOf } from '../core/state.js';
@@ -53,7 +53,7 @@ function table(entries) {
 
 /**
  * The key table, by `KeyboardEvent.key`: `host` while the host holds focus,
- * `pin` while a blit does. A key absent from the map keeps its default.
+ * `blit` while a blit does. A key absent from the map keeps its default.
  */
 export const KEY_BINDINGS = /* @__PURE__ */ table({
   host: {
@@ -66,11 +66,11 @@ export const KEY_BINDINGS = /* @__PURE__ */ table({
     '-': { action: 'zoom', direction: -1 },
     _: { action: 'zoom', direction: -1 },
     0: { action: 'reset' },
-    Enter: { action: 'enter-pins' },
+    Enter: { action: 'enter-blits' },
     Escape: { action: 'back' },
     Home: { action: 'unfocus' }
   },
-  pin: {
+  blit: {
     ArrowDown: { action: 'step', delta: 1 },
     ArrowRight: { action: 'step', delta: 1 },
     ArrowUp: { action: 'step', delta: -1 },
@@ -123,7 +123,7 @@ export function handleKey(k, event, env) {
   if (!event || ownsItsKeys(event.target)) return false;
 
   const target = env.targetOf(event);
-  const binding = (target ? KEY_BINDINGS.pin : KEY_BINDINGS.host)[event.key];
+  const binding = (target ? KEY_BINDINGS.blit : KEY_BINDINGS.host)[event.key];
   if (!binding) return false;
 
   const handled = target ? applyTargetBinding(k, binding, target, event, env) : applyHostBinding(k, binding, event, env);
@@ -139,7 +139,7 @@ function applyHostBinding(k, binding, event, env) {
   } else if (binding.action === 'zoom') {
     const { width, height } = env.root.hostRect;
     camera.zoomAt(binding.direction > 0 ? ZOOM_STEP : 1 / ZOOM_STEP, width / 2, height / 2);
-  } else if (binding.action === 'enter-pins') {
+  } else if (binding.action === 'enter-blits') {
     return enterNavigation(k, env);
   } else if (typeof actions[binding.action] === 'function') {
     actions[binding.action]();

@@ -27,26 +27,27 @@ import { leadingText, setAttr, setSlot, setText, setVisible, widget } from './wi
 
 /**
  * Every class name the display types carry. Public API twice over: consumers
- * style them and the default stylesheet matches them. `GAUGE_ROW` is the
- * modifier the vector-pointer body carries beside `BODY`.
+ * style them and the display widgets' chunk (`../graphics/css/card.js`)
+ * matches them. `GAUGE_ROW` is the modifier the vector-pointer body carries
+ * beside `BODY`.
  */
 export const CLS = /* @__PURE__ */ Object.freeze({
-  HEADER: 'cloudcanvas-pin-header',
-  TITLE: 'cloudcanvas-pin-title',
-  BADGE_SLOT: 'cloudcanvas-pin-badge-slot',
-  BODY: 'cloudcanvas-pin-body',
-  GAUGE_ROW: 'cloudcanvas-pin-gauge-row',
-  FOOTER: 'cloudcanvas-pin-footer',
-  AUTHOR: 'cloudcanvas-pin-author',
-  ACTION_BTN: 'cloudcanvas-pin-action-btn',
-  NEEDLE_SLOT: 'cloudcanvas-pin-needle-slot',
-  GAUGE: 'cloudcanvas-pin-gauge',
-  LABEL: 'cloudcanvas-pin-label',
-  METER_SLOT: 'cloudcanvas-pin-meter-slot',
-  MEDIA: 'cloudcanvas-pin-media',
-  CAPTION: 'cloudcanvas-pin-caption',
-  HTML: 'cloudcanvas-pin-html',
-  SCOPE: 'cloudcanvas-pin-scope'
+  HEADER: 'cloudcanvas-card-header',
+  TITLE: 'cloudcanvas-card-title',
+  BADGE_SLOT: 'cloudcanvas-card-badge-slot',
+  BODY: 'cloudcanvas-card-body',
+  GAUGE_ROW: 'cloudcanvas-card-gauge-row',
+  FOOTER: 'cloudcanvas-card-footer',
+  AUTHOR: 'cloudcanvas-card-author',
+  ACTION_BTN: 'cloudcanvas-card-action-btn',
+  NEEDLE_SLOT: 'cloudcanvas-card-needle-slot',
+  GAUGE: 'cloudcanvas-card-gauge',
+  LABEL: 'cloudcanvas-card-label',
+  METER_SLOT: 'cloudcanvas-card-meter-slot',
+  MEDIA: 'cloudcanvas-card-media',
+  CAPTION: 'cloudcanvas-card-caption',
+  HTML: 'cloudcanvas-card-html',
+  SCOPE: 'cloudcanvas-card-scope'
 });
 
 /**
