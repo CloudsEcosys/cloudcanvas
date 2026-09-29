@@ -12,7 +12,7 @@
 import { multiply } from '../core/camera.js';
 import { schedule } from '../core/frame.js';
 import { defaultPort } from '../core/port.js';
-import { BLIT_ATTR, boundsOf, isWithin, parentElementOf, rootOf, stateOf } from '../core/state.js';
+import { BLIT_ATTR, boundsOf, isWithin, parentElementOf, rootOf, sizeOf, stateOf } from '../core/state.js';
 import { use } from '../core/use.js';
 import { createLogger } from '../log.js';
 import { Scene, clipMatrix } from './gpu-scene.js';
@@ -30,6 +30,18 @@ const CONTENT = /* @__PURE__ */ new WeakMap();
 
 /** @type {WeakMap<object, object[]>} blit state -> the scene keys of its parts, one per content part */
 const PARTS = /* @__PURE__ */ new WeakMap();
+
+/** @type {WeakSet<object>} DOM blits wearing `punch`: holes in an `over` canvas */
+const PUNCHED = /* @__PURE__ */ new WeakSet();
+
+/** @type {WeakMap<object, object>} member state -> its controller: a port call skips the walk up to the root */
+const JOINED = /* @__PURE__ */ new WeakMap();
+
+/** @type {WeakMap<object, [string|null, number[]]>} blit state -> its last `data-tint` and that tint parsed */
+const TINTS = /* @__PURE__ */ new WeakMap();
+
+/** @type {WeakSet<object>} gpu blits whose element stays painted (`paintedProxy`) */
+const PAINTED = /* @__PURE__ */ new WeakSet();
 
 /** @type {WeakMap<Element, string>} proxy element -> the inline opacity it had before */
 const PROXIES = /* @__PURE__ */ new WeakMap();
@@ -56,13 +68,15 @@ export function parseTint(value) {
 export function gpuPort(b) {
   defaultPort(b);
   const state = stateOf(b.el);
-  const controller = state && controllerOf(state);
+  const joined = state && JOINED.get(state);
+  const controller = joined && !joined.destroyed ? joined : state && controllerOf(state);
   if (!controller) return;
-  if (!PROXIES.has(b.el)) {
+  if (!PROXIES.has(b.el) && !PAINTED.has(state)) {
     PROXIES.set(b.el, b.el.style.opacity);
     b.el.style.opacity = '0';
   }
   controller.members.add(state);
+  JOINED.set(state, controller);
   controller.touched.add(state);
 }
 
@@ -85,6 +99,58 @@ export function gpuContent(b, content) {
     schedule(controller.root);
   }
   return b;
+}
+
+/**
+ * Keep a gpu blit's element painted instead of transparent (`on`), or let it be a transparent proxy again. For
+ * content the browser must paint to capture - HTML-in-Canvas - whose element then shows nothing on screen by
+ * itself (`./html-canvas.js` clears its canvas after each capture). @returns {object} the blit
+ */
+export function paintedProxy(b, on = true) {
+  const state = stateOf(b.el);
+  if (!state) throw new TypeError('paintedProxy: not a blit');
+  if (on) {
+    PAINTED.add(state);
+    if (PROXIES.has(b.el)) {
+      b.el.style.opacity = PROXIES.get(b.el);
+      PROXIES.delete(b.el);
+    }
+  } else {
+    PAINTED.delete(state);
+    b.set({});
+  }
+  return b;
+}
+
+/**
+ * The `punch` trait, for a DOM blit (not on the `gpu` port) that shows under a canvas layered `over` the plane:
+ * the GPU clears its box at its `z`, so GPU content below that `z` makes way for the element, and content above
+ * it still draws over. Under an `under` canvas it changes nothing visible. @returns {() => void} cleanup
+ */
+export function punch(b) {
+  const state = stateOf(b.el);
+  PUNCHED.add(state);
+  const controller = controllerOf(state);
+  if (controller) join(controller, state);
+  return () => {
+    PUNCHED.delete(state);
+    const current = controllerOf(state);
+    if (current) {
+      forget(current, state);
+      schedule(current.root);
+    }
+  };
+}
+
+/** Whether a blit draws on the GPU: on the port, or a punch that is not. */
+const drawsOnGpu = (state) => state.port === gpuPort || PUNCHED.has(state);
+
+/** A blit becomes a member and is recorded next frame. */
+function join(controller, state) {
+  controller.members.add(state);
+  JOINED.set(state, controller);
+  controller.touched.add(state);
+  schedule(controller.root);
 }
 
 /** The controller of the gpu root a blit sits under, or null. */
@@ -122,18 +188,28 @@ function recordOf(state, box, part, tint) {
     return { mesh: part.mesh, transform: meshTransform(box, state.z, part), z: state.z, color, lit: part.lit !== false };
   }
   return {
-    ...box, z: state.z, rotation: part?.rotation ?? 0, color,
+    x: box.x, y: box.y, w: box.w, h: box.h, z: state.z, rotation: part?.rotation ?? 0, color,
     texture: part?.texture ?? null, uv: part?.uv, version: part?.version
   };
 }
 
-/** Every part a blit draws, in order. */
-function recordsOf(state) {
+/** Every part a blit draws, in order; `topLevel` (its parent is the root) reads its box without a walk. */
+function recordsOf(state, topLevel) {
+  const box = topLevel ? { x: state.fx ?? state.x, y: state.fy ?? state.y, ...sizeOf(state) } : boundsOf(state);
+  if (state.port !== gpuPort) return [{ ...box, z: state.z, erase: true }];
   const content = CONTENT.get(state);
   const parts = Array.isArray(content) ? content : [content ?? null];
-  const box = boundsOf(state);
-  const tint = parseTint(state.el.getAttribute('data-tint'));
-  return parts.map((part) => recordOf(state, box, part, tint));
+  return parts.map((part) => recordOf(state, box, part, tintOf(state)));
+}
+
+/** A blit's tint, parsed once per value of its `data-tint`. */
+function tintOf(state) {
+  const raw = state.el.getAttribute('data-tint');
+  const cached = TINTS.get(state);
+  if (cached && cached[0] === raw) return cached[1];
+  const tint = parseTint(raw);
+  TINTS.set(state, [raw, tint]);
+  return tint;
 }
 
 /** The scene keys for a blit's first `count` parts, made once and kept. */
@@ -152,10 +228,12 @@ function sameValue(a, b) {
   return true;
 }
 
-/** Whether two records draw the same (a texture's version included). */
+/** Whether two records draw the same (a texture's version included): the fields of their kind, compared. */
 function sameRecord(a, b) {
-  for (const key of new Set([...Object.keys(a), ...Object.keys(b)])) if (!sameValue(a[key], b[key])) return false;
-  return true;
+  if (a.mesh !== b.mesh || a.erase !== b.erase || a.z !== b.z || !sameValue(a.color, b.color)) return false;
+  if (a.mesh) return a.lit === b.lit && sameValue(a.transform, b.transform);
+  return a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h && a.rotation === b.rotation
+    && a.texture === b.texture && a.version === b.version && sameValue(a.uv, b.uv);
 }
 
 /**
@@ -175,6 +253,7 @@ export function gpu(app, options = {}) {
 
   const controller = {
     root, backend: null, canvas: null, scene: new Scene(), members: new Set(), touched: new Set(), records: new Map(),
+    loose: new Set(),
     sweep: true, redraw: true, view: root.view, destroyed: false, offs: []
   };
   const layer = options.layer === 'over' ? 'over' : 'under';
@@ -195,6 +274,16 @@ export function gpu(app, options = {}) {
     app.tick((ctx) => drawPass(controller, ctx), 'write'),
     app.on('remove', () => { controller.sweep = true; schedule(root); })
   );
+  // A blit hidden by hand, parked or moved out without `remove()` changes the tree or `hidden`: the next frame
+  // sweeps. Moves change neither, so they never cost a sweep.
+  if (typeof MutationObserver === 'function') {
+    const observer = new MutationObserver(() => {
+      controller.sweep = true;
+      schedule(root);
+    });
+    observer.observe(root.host, { subtree: true, childList: true, attributes: true, attributeFilter: ['hidden'] });
+    controller.offs.push(() => observer.disconnect());
+  }
   if (typeof ResizeObserver === 'function') {
     const observer = new ResizeObserver(() => {
       // The tilt is about the host's centre, so a new host size re-derives the camera as if it had moved.
@@ -217,6 +306,7 @@ export function gpu(app, options = {}) {
   for (const element of root.host.querySelectorAll(`[${BLIT_ATTR}]`)) {
     const each = stateOf(element);
     if (each?.port === gpuPort && each.handle) gpuPort(each.handle);
+    else if (each && PUNCHED.has(each)) join(controller, each);
   }
   schedule(root);
   return controller.api;
@@ -257,12 +347,22 @@ async function loadBackend(controller, wanted, layer) {
   throw new Error('gpu: no backend available');
 }
 
-/** Before the root paints: a blit that left the gpu port is let go, and something changed means a sweep. */
+/**
+ * Before the root paints: a blit that left the gpu port is let go, a new view means a sweep, and any change means
+ * the loose members (nested, or sized by the browser) are read again, since a parent or a measure may have moved
+ * them. A change elsewhere costs nothing more: a still sprite among ten thousand is never looked at.
+ */
 function readPass(controller) {
   const { root, members } = controller;
-  if (root.dirty.size > 0 || root.measure.size > 0 || root.view !== controller.view) controller.sweep = true;
+  if (root.view !== controller.view) controller.sweep = true;
   controller.view = root.view;
-  for (const state of root.dirty) if (members.has(state) && state.port !== gpuPort) forget(controller, state);
+  if (root.dirty.size > 0 || root.measure.size > 0) for (const state of controller.loose) controller.touched.add(state);
+  for (const state of root.dirty) {
+    if (!members.has(state)) continue;
+    // A punch moves without the port, so its own changes are read here.
+    if (!drawsOnGpu(state)) forget(controller, state);
+    else if (state.port !== gpuPort) controller.touched.add(state);
+  }
 }
 
 /** After the plane: bring the scene up to date and draw, only when something drawn changed or the camera moved. */
@@ -278,9 +378,12 @@ function drawPass(controller, ctx) {
   draw(controller);
 }
 
-/** Whether a member draws now: in the document and not hidden (a demoted branch, a parked blit). */
-function visible(state) {
-  return state.el.isConnected && !state.el.closest('[hidden]');
+/** Whether a member draws now: in the document and not hidden (a demoted branch, a parked blit). The walk up for
+ * a hidden ancestor runs only while the root has demoted branches. */
+function visible(controller, state) {
+  const element = state.el;
+  if (!element.isConnected || element.hidden) return false;
+  return controller.root.demoted.size === 0 || !element.closest('[hidden]');
 }
 
 /**
@@ -292,20 +395,24 @@ function sweep(controller) {
   const { root, members, scene } = controller;
   for (const state of Array.from(members)) {
     const element = state.el;
-    if (state.port !== gpuPort || !isWithin(root.host, element)) forget(controller, state);
-    else if (!visible(state)) {
-      unrecord(controller, state);
-    } else if (!controller.records.has(PARTS.get(state)?.[0]) || state.w === null || state.h === null
-      || parentElementOf(element)) {
-      controller.touched.add(state);
-    }
+    if (!drawsOnGpu(state) || !isWithin(root.host, element)) forget(controller, state);
+    else if (!visible(controller, state)) unrecord(controller, state);
+    else if (!controller.records.has(PARTS.get(state)?.[0]) || controller.loose.has(state)) controller.touched.add(state);
   }
 }
 
-/** Put a visible member's parts in the scene, each only when it draws differently than before. */
+/** Put a visible member's parts in the scene, each only when it draws differently than before; a hidden one's go. */
 function record(controller, state) {
-  if (!controller.members.has(state) || !visible(state)) return;
-  const next = recordsOf(state);
+  if (!controller.members.has(state)) return;
+  if (!visible(controller, state)) {
+    unrecord(controller, state);
+    return;
+  }
+  // Nested or browser-sized: its box can move without it, so it is read on every changed frame.
+  const topLevel = parentElementOf(state.el) === controller.root.host;
+  if (state.w === null || state.h === null || !topLevel) controller.loose.add(state);
+  else controller.loose.delete(state);
+  const next = recordsOf(state, topLevel);
   const keys = partKeys(state, next.length);
   next.forEach((rec, i) => {
     const previous = controller.records.get(keys[i]);
@@ -330,6 +437,8 @@ function unrecord(controller, state) {
 /** Let a blit go: out of the scene, its element visible again. */
 function forget(controller, state) {
   controller.members.delete(state);
+  JOINED.delete(state);
+  controller.loose.delete(state);
   unrecord(controller, state);
   const element = state.el;
   if (PROXIES.has(element)) {

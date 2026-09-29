@@ -250,7 +250,7 @@ function drawQuads(state, batch) {
 }
 
 /** Clear colour and depth over the whole canvas, update the instances, then draw each batch over the ones before
- * (a quad run, or a mesh when it has `mesh`); a no-op while lost. */
+ * (a quad run - erasing when `erase` - or a mesh when it has `mesh`); a no-op while lost. */
 function drawFrame(state, frame) {
   const { gl, canvas } = state;
   if (state.lost || state.destroyed) return;
@@ -265,7 +265,10 @@ function drawFrame(state, frame) {
   state.meshes.begin(frame.clip);
   gl.activeTexture(gl.TEXTURE0);
   for (const batch of frame.batches) {
-    if ('mesh' in batch) state.meshes.draw(batch);
+    const mesh = 'mesh' in batch;
+    // An erase run clears what is under it by its coverage; everything else paints over.
+    gl.blendFunc(!mesh && batch.erase === true ? gl.ZERO : gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    if (mesh) state.meshes.draw(batch);
     else drawQuads(state, batch);
   }
 }

@@ -33,9 +33,10 @@ export const FIELD = /* @__PURE__ */ Object.freeze({
  * @property {number} count
  * @property {[number, number]|null} dirty the instance range [first, end) changed since the last frame, or null.
  *   A backend whose buffer is smaller than `instances` reallocates and uploads all of it.
- * @property {Array<{texture: number|null, first: number, count: number}|{mesh: number, transform: Float32Array,
- *   normal: Float32Array, color: number[], lit: boolean}>} batches drawn in order, each alpha-blended over the ones
- *   before: a run of quads (`texture` null samples white), or one mesh - `transform` (mat4, column-major) takes
+ * @property {Array<{texture: number|null, first: number, count: number, erase?: true}|{mesh: number,
+ *   transform: Float32Array, normal: Float32Array, color: number[], lit: boolean}>} batches drawn in order, each
+ *   alpha-blended over the ones before: a run of quads (`texture` null samples white; `erase` clears instead - see
+ *   below), or one mesh - `transform` (mat4, column-major) takes
  *   its vertices to canvas px, `normal` (mat3, column-major) is that transform's inverse transpose
  * @property {[number, number, number, number]} clear premultiplied RGBA the frame starts from
  */
@@ -50,7 +51,9 @@ export const FIELD = /* @__PURE__ */ Object.freeze({
  * `clip * transform * (x, y, z, 1)`, coloured `color` (straight) times a shade - `lit`: 0.35 + 0.65 * max(dot(
  * normalize(normal * n), normalize(LIGHT)), 0), else 1 - written premultiplied with the same blend. Meshes test
  * depth less-equal and write it, against a depth buffer cleared to far each frame; quads never test or write it.
- * `clipMatrix` puts nearer points at smaller depth.
+ * `clipMatrix` puts nearer points at smaller depth. A quad run with `erase: true` punches a hole instead of painting:
+ * the same fragment, blended ZERO, ONE_MINUS_SRC_ALPHA on colour and alpha, so what is under it is cleared by its
+ * coverage (texture alpha times tint alpha) - the DOM under an `over` canvas shows through.
  * @typedef {object} GpuBackend
  * @property {'webgl2'|'webgpu'} kind
  * @property {'minus-one-to-one'|'zero-to-one'} depthRange for `clipMatrix`
@@ -164,7 +167,7 @@ const sourceOf = (record) => (record.mesh ? record.mesh : (record.texture ?? nul
 /**
  * Records keyed by any object (a blit's state), packed on demand. `set(key, record)` takes a quad -
  * `{x, y, w, h, z?, rotation?, color?: [r, g, b, a] (0..1), texture?: source|null, uv?: [u0, v0, u1, v1],
- * version?}`, where a new `version` on the same texture re-uploads it (a video frame, a redrawn canvas) - or a
+ * version?, erase?}`, where a new `version` on the same texture re-uploads it (a video frame, a redrawn canvas) - or a
  * mesh, `{mesh: {vertices, indices}, transform?: mat4, z?, color?, lit?: true}`.
  */
 export class Scene {
@@ -212,7 +215,7 @@ export class Scene {
     } else if (!record.mesh && source && record.version !== was.version) {
       this.#textures.refresh(source);
     }
-    if ((was.z ?? 0) !== (record.z ?? 0)) this.#resort = true;
+    if ((was.z ?? 0) !== (record.z ?? 0) || Boolean(was.erase) !== Boolean(record.erase)) this.#resort = true;
     entry.record = record;
     this.#changed.add(entry);
   }
@@ -278,8 +281,9 @@ export class Scene {
       entry.slot = slot;
       this.#write(entry);
       const last = batches[batches.length - 1];
-      if (last && !('mesh' in last) && last.texture === entry.id) last.count += 1;
-      else batches.push({ texture: entry.id, first: slot, count: 1 });
+      const erase = entry.record.erase === true;
+      if (last && !('mesh' in last) && last.texture === entry.id && Boolean(last.erase) === erase) last.count += 1;
+      else batches.push(erase ? { texture: entry.id, first: slot, count: 1, erase } : { texture: entry.id, first: slot, count: 1 });
       slot += 1;
     }
     this.#quads = slot;
@@ -287,12 +291,25 @@ export class Scene {
     this.#resort = false;
   }
 
+  /** One record into its slot, field by field (no array made per write: this runs for every move). */
   #write(entry) {
     const { record } = entry;
+    const data = this.#data;
     const at = entry.slot * STRIDE;
-    this.#data.set([record.x, record.y, record.w, record.h, record.z ?? 0, record.rotation ?? 0, 0, 0], at);
-    this.#data.set(record.color ?? WHITE, at + FIELD.r);
-    this.#data.set(record.uv ?? WHOLE, at + FIELD.u0);
+    const color = record.color ?? WHITE;
+    const uv = record.uv ?? WHOLE;
+    data[at] = record.x;
+    data[at + 1] = record.y;
+    data[at + 2] = record.w;
+    data[at + 3] = record.h;
+    data[at + 4] = record.z ?? 0;
+    data[at + 5] = record.rotation ?? 0;
+    data[at + 6] = 0;
+    data[at + 7] = 0;
+    for (let i = 0; i < 4; i += 1) {
+      data[at + FIELD.r + i] = color[i];
+      data[at + FIELD.u0 + i] = uv[i];
+    }
   }
 
   /** A mesh's batch, updated in place so the batch list needs no re-cut. */

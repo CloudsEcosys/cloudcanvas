@@ -82,14 +82,17 @@ export class Blit {
     }
 
     let measure = false;
+    // Traits re-run only when a key that names them changed: a move alone never walks the attributes.
+    let traits = false;
     for (const [key, value] of Object.entries(patch)) {
       if (PLACEMENT.has(key)) writePlacement(s, key, value);
       else if (key === 'id') writeId(s, value);
       else if (key === 'fill') { writeFill(s.el, value); measure = true; }
-      else if (!writeTraitKey(s, key, value)) { writeAttribute(s.el, key, value); measure = true; }
+      else if (writeTraitKey(s, key, value)) traits = true;
+      else { writeAttribute(s.el, key, value); measure = true; traits ||= key === 'type'; }
       s.changed.add(key);
     }
-    runTraits(s);
+    if (traits || s.retryTraits) runTraits(s);
 
     // A root or a template paints nothing; a detached blit paints now; an attached one next frame.
     if (s.root || isTemplate(s.el)) { s.changed.clear(); return this; }

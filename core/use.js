@@ -82,6 +82,7 @@ export function runTraits(state) {
   const root = rootOf(state);
   if (!root || !state.handle) return;
   state.traits = toggleTraits;
+  state.retryTraits = false;
   const anonymous = [...typeTraits(state.el.getAttribute(TYPE_ATTR)), ...(state.with ?? [])];
   for (const fn of anonymous) start(state, root, fn, fn, true);
   for (const { name, value } of Array.from(state.el.attributes)) {
@@ -103,7 +104,9 @@ function start(state, root, key, fn, opts) {
     if (typeof cleanup === 'function') state.cleanups.set(key, cleanup);
   } catch (error) {
     state.cleanups.delete(key);
+    // A named trait that threw loses its attribute; an anonymous one is tried again on the next set().
     if (typeof key === 'string') writeAttribute(state.el, key, null);
+    else state.retryTraits = true;
     throw error;
   }
 }

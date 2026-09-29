@@ -2,7 +2,9 @@
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
  * sprites: frames cut from sheet images. `sheet(name, {src | image, frames | grid, animations})` names a sheet;
- * the `sprite` trait (`{sheet, frame}` or `{sheet, play}`) shows one frame or plays an animation. On a `gpu`
+ * the `sprite` trait (`{sheet, frame}` or `{sheet, play}`) shows one frame or plays an animation. A sprite may carry
+ * its sheet instead of naming one - `{src, grid | frames, animations, frame | play}` - so a saved board holds all
+ * it needs; the same inline sheet is registered once. On a `gpu`
  * root the frame is the blit's GPU content - the sheet is one texture and a frame its uv rect, so every sprite
  * of a sheet draws in one batch - and it is also the element's CSS background, so without a GPU (or without
  * `gpu(app)`) the same sprite shows in the DOM. One ticker per root steps every playing sprite and keeps the
@@ -133,16 +135,48 @@ function step(ticker, player, ms) {
 }
 
 /**
- * The trait: `{sheet, frame}` shows a frame, `{sheet, play}` plays an animation from its first frame.
+ * The sheet a sprite's options name, or carry inline - registered once per distinct definition and counted by the
+ * sprites using it (`release` drops it with the last); `{record, release}`, or undefined if none.
+ */
+function sheetOf(o) {
+  if (o.sheet !== undefined) return SHEETS.has(o.sheet) ? { record: SHEETS.get(o.sheet), release() {} } : undefined;
+  if (typeof o.src !== 'string') return undefined;
+  const definition = { src: o.src, frames: o.frames, grid: o.grid, animations: o.animations };
+  const key = `inline:${JSON.stringify(definition)}`;
+  if (!SHEETS.has(key)) {
+    try {
+      sheet(key, definition).users = 0;
+    } catch (error) {
+      logger.warn('an inline sheet was refused', error);
+      return undefined;
+    }
+  }
+  const record = SHEETS.get(key);
+  record.users += 1;
+  let released = false;
+  return {
+    record,
+    release() {
+      if (released) return;
+      released = true;
+      if ((record.users -= 1) === 0 && SHEETS.get(key) === record) SHEETS.delete(key);
+    }
+  };
+}
+
+/**
+ * The trait: `{sheet, frame}` shows a frame, `{sheet, play}` plays an animation from its first frame; `src` and
+ * the sheet's own keys in place of `sheet` carry it inline.
  * @returns {() => void} cleanup: stops playing and clears what it showed
  */
 export function sprite(b, opts, root) {
   const o = opts && typeof opts === 'object' ? opts : {};
-  const record = SHEETS.get(o.sheet);
-  if (!record) {
-    logger.warn(`no sheet named "${String(o.sheet)}"`);
+  const found = sheetOf(o);
+  if (!found) {
+    logger.warn(`no sheet named "${String(o.sheet ?? o.src)}"`);
     return undefined;
   }
+  const { record } = found;
   let alive = true;
   let player = null;
   record.ready.then(() => {
@@ -164,6 +198,7 @@ export function sprite(b, opts, root) {
   }, () => {});
   return () => {
     alive = false;
+    found.release();
     if (player && root) tickerOf(root).playing.delete(player);
     gpuContent(b, null);
     Object.assign(b.el.style, { backgroundImage: '', backgroundSize: '', backgroundPosition: '', backgroundRepeat: '' });

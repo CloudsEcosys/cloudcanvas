@@ -3,8 +3,8 @@
  *
  * The WebGPU backend for the `gpu` add-on: hand-written WGSL drawing the scene of `./gpu-scene.js` in one pass -
  * instanced unit quads, one texture per run, and meshes (`./gpu-webgpu-mesh.js`) against a depth buffer - blended
- * premultiplied onto the canvas. `createBackend` resolves to the `GpuBackend` that contract describes; `./gpu.js`
- * loads it by `import()` only.
+ * premultiplied onto the canvas. An erase run clears it by coverage instead. `createBackend` resolves to the
+ * `GpuBackend` that contract describes; `./gpu.js` loads it by `import()` only.
  */
 import { FIELD, STRIDE } from './gpu-scene.js';
 import { createMeshes } from './gpu-webgpu-mesh.js';
@@ -47,6 +47,9 @@ fn fs(v: Varyings) -> @location(0) vec4f {
 
 /** Premultiplied source over: ONE, ONE_MINUS_SRC_ALPHA. */
 const BLEND = /* @__PURE__ */ Object.freeze({ srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' });
+
+/** An erase run's blend, ZERO, ONE_MINUS_SRC_ALPHA: the destination cleared by the fragment's coverage. */
+const ERASE = /* @__PURE__ */ Object.freeze({ srcFactor: 'zero', dstFactor: 'one-minus-src-alpha', operation: 'add' });
 
 /** The depth buffer both pipelines declare, as they share one pass: meshes test and write it, quads ignore it. */
 const DEPTH_FORMAT = 'depth24plus';
@@ -100,17 +103,32 @@ async function compile(device, code, label) {
   return module;
 }
 
-/** The instanced-quad pipeline, blended premultiplied, no culling; it neither tests nor writes depth. */
-async function createPipeline(device, format) {
-  const module = await compile(device, SHADER, 'gpu-webgpu');
-  return device.createRenderPipelineAsync({
+/** The quads' bind group layout, shared by both quad pipelines so one bind group serves either. */
+function createQuadLayout(device) {
+  return device.createBindGroupLayout({
     label: 'gpu-webgpu',
-    layout: 'auto',
+    entries: [
+      { binding: 0, visibility: GPUShaderStage.VERTEX, buffer: { type: 'uniform' } },
+      { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
+      { binding: 2, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } }
+    ]
+  });
+}
+
+/** The two instanced-quad pipelines, painting and erasing, alike but for the blend: no culling, no depth. */
+async function createQuadPipelines(device, format, layout) {
+  const module = await compile(device, SHADER, 'gpu-webgpu');
+  const pipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [layout] });
+  const create = (blend, label) => device.createRenderPipelineAsync({
+    label,
+    layout: pipelineLayout,
     vertex: { module, entryPoint: 'vs', buffers: [CORNER_LAYOUT, INSTANCE_LAYOUT] },
-    fragment: { module, entryPoint: 'fs', targets: [{ format, blend: { color: BLEND, alpha: BLEND } }] },
+    fragment: { module, entryPoint: 'fs', targets: [{ format, blend: { color: blend, alpha: blend } }] },
     primitive: { topology: 'triangle-strip', cullMode: 'none' },
     depthStencil: { format: DEPTH_FORMAT, depthCompare: 'always', depthWriteEnabled: false }
   });
+  const [paint, erase] = await Promise.all([create(BLEND, 'gpu-webgpu'), create(ERASE, 'gpu-webgpu-erase')]);
+  return { paint, erase };
 }
 
 /** A buffer holding `data` from the start. */
@@ -120,18 +138,20 @@ function bufferWith(device, data, usage) {
   return buffer;
 }
 
-/** The shared GPU objects: both pipelines, corner and clip buffers, sampler and the 1x1 white texture. */
+/** The shared GPU objects: the pipelines, corner and clip buffers, sampler and the 1x1 white texture. */
 async function createResources(device, format) {
   const uniform = device.createBuffer({ size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   const shared = { format, depthFormat: DEPTH_FORMAT, blend: { color: BLEND, alpha: BLEND }, clip: uniform };
-  const [pipeline, meshes] = await Promise.all([
-    createPipeline(device, format), createMeshes(device, { ...shared, compile, bufferWith })
+  const layout = createQuadLayout(device);
+  const [quads, meshes] = await Promise.all([
+    createQuadPipelines(device, format, layout), createMeshes(device, { ...shared, compile, bufferWith })
   ]);
   const usage = GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST;
   const white = device.createTexture({ size: [1, 1], format: 'rgba8unorm', usage });
   device.queue.writeTexture({ texture: white }, Uint8Array.of(255, 255, 255, 255), { bytesPerRow: 4 }, [1, 1]);
   return {
-    pipeline,
+    layout,
+    quads,
     meshes,
     white,
     uniform,
@@ -172,9 +192,9 @@ function groupFor(state, id) {
   const cached = state.groups.get(id);
   if (cached) return cached;
   const texture = (id !== null && state.textures.get(id)?.texture) || state.resources.white;
-  const { pipeline, uniform, sampler } = state.resources;
+  const { layout, uniform, sampler } = state.resources;
   const group = state.device.createBindGroup({
-    layout: pipeline.getBindGroupLayout(0),
+    layout,
     entries: [{ binding: 0, resource: { buffer: uniform } }, { binding: 1, resource: sampler },
       { binding: 2, resource: texture.createView() }]
   });
@@ -208,22 +228,23 @@ function depthFor(state, target) {
   return state.depth;
 }
 
-/** Each batch in list order: a quad run through the quad pipeline, a mesh through the mesh one. */
+/** Each batch in list order: a quad run through the painting or erasing quad pipeline, a mesh through its own. */
 function encodeBatches(state, pass, batches) {
   const { resources } = state;
   let meshIndex = 0;
-  let quadsBound = false;
+  let bound = null;
   for (const batch of batches) {
     if ('mesh' in batch) {
       resources.meshes.draw(pass, batch, meshIndex++);
-      quadsBound = false;
+      bound = null;
       continue;
     }
-    if (!quadsBound) {
-      pass.setPipeline(resources.pipeline);
+    const pipeline = batch.erase ? resources.quads.erase : resources.quads.paint;
+    if (bound !== pipeline) {
+      pass.setPipeline(pipeline);
       pass.setVertexBuffer(0, resources.corners);
       pass.setVertexBuffer(1, state.instances);
-      quadsBound = true;
+      bound = pipeline;
     }
     pass.setBindGroup(0, groupFor(state, batch.texture));
     pass.draw(4, batch.count, 0, batch.first);
