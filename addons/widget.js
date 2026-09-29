@@ -14,7 +14,8 @@
  *   render(bindings, contents, cache) `contents` (a Map) into them, diff-first through `cache`,
  *                                     which lives as long as the element
  *
- * A key the widget does not declare is refused. An open edit (`./edit.js`)
+ * A key the widget does not take is refused by `setContents`, and dropped with a
+ * warning when it arrives some other way. An open edit (`./edit.js`)
  * defers the render and replays the last one. `dismiss()` is the widget asking
  * to go: a cancelable `dismiss` event whose default action removes the blit.
  * The DOM writes every render shares - `setText`, `setVisible`, `setAttr`,
@@ -22,7 +23,13 @@
  */
 import { blit, type } from '../core/blit.js';
 import { camelCase } from '../core/spec.js';
+import { createLogger } from '../log.js';
 import { deferRender } from './edit.js';
+
+const logger = /* @__PURE__ */ createLogger('widget');
+
+/** Keys no contents may carry: copying one would rebind a prototype. */
+const PROTOTYPE_KEYS = /* @__PURE__ */ new Set(['__proto__', 'constructor', 'prototype']);
 
 /** @type {Map<string, object>} name -> the spec it was defined with */
 const DEFINED = /* @__PURE__ */ new Map();
@@ -62,14 +69,28 @@ export function leadingText(element) {
   return element.insertBefore(document.createTextNode(''), first);
 }
 
-/** A trait's options as contents: none is empty; an undeclared key is refused. */
+/** Whether a widget takes `key`: one it declares, or with `keys: null` any but a prototype key. */
+function permits(keys, key) {
+  return keys ? keys.has(key) : !PROTOTYPE_KEYS.has(key);
+}
+
+/**
+ * A trait's options as contents: none is empty. The trait renders what it is given, so a key the widget
+ * does not take is dropped with a warning here - never thrown, which would leave the blit's other traits
+ * unable to start. `setContents` is where a bad key is refused.
+ */
 function contentsOf(name, keys, options) {
   if (options === true || options === undefined || options === null || options === '') return new Map();
-  if (typeof options !== 'object' || Array.isArray(options)) throw new TypeError(`${name}: expected {key: value} contents`);
-  for (const key of Object.keys(options)) {
-    if (!keys.has(key)) throw new TypeError(`${name}: key "${key}" not permitted`);
+  if (typeof options !== 'object' || Array.isArray(options)) {
+    logger.warn(`${name}: expected {key: value} contents; rendering none`);
+    return new Map();
   }
-  return new Map(Object.entries(options));
+  const contents = new Map();
+  for (const [key, value] of Object.entries(options)) {
+    if (permits(keys, key)) contents.set(key, value);
+    else logger.warn(`${name}: key "${key}" not permitted`);
+  }
+  return contents;
 }
 
 /** Emit a cancelable `dismiss`, then remove the blit unless a listener prevented it. */
@@ -98,8 +119,10 @@ function traitOf({ name, bind, render }, keys) {
 
 /**
  * Define a widget: its type and its same-named trait, once. The same spec again is a no-op; another spec
- * under a taken name throws. @param {{name: string, html: string, keys: string[], bind: Function,
- * render: Function}} spec `html` is constant markup, never data
+ * under a taken name throws. @param {{name: string, html: string, keys: string[]|null, bind: Function,
+ * render: Function, defaults?: object}} spec `html` is constant markup, never data; `keys` are the contents
+ * it takes (`null`: any key but a prototype key); `defaults` are spec keys every instance starts with (a
+ * container's `layout: 'free'`, say)
  * @returns {object} the type's potential blit
  */
 export function widget(spec) {
@@ -108,8 +131,8 @@ export function widget(spec) {
   if (known && known !== spec) throw new TypeError(`widget: "${name}" is already defined`);
   if (!known) {
     const key = camelCase(name);
-    blit.use({ [key]: traitOf(spec, new Set(keys)) });
-    type(name, { html, defaults: { [key]: true } });
+    blit.use({ [key]: traitOf(spec, keys ? new Set(keys) : null) });
+    type(name, { html, defaults: { ...spec.defaults, [key]: true } });
     DEFINED.set(name, spec);
   }
   return type(name);
@@ -120,9 +143,9 @@ export function isWidget(name) {
   return DEFINED.has(name);
 }
 
-/** The keys a widget declares, or none. */
+/** The keys a widget declares: none for an unknown name, null for one that takes any key. */
 export function widgetKeys(name) {
-  return DEFINED.get(name)?.keys ?? [];
+  return DEFINED.has(name) ? DEFINED.get(name).keys : [];
 }
 
 /** The spec key a widget blit keeps its contents under, or null when `b` is no widget. */
@@ -138,10 +161,18 @@ export function contentOf(b) {
   return options && typeof options === 'object' ? { ...options } : {};
 }
 
-/** Write contents over a widget blit's own; a key set to undefined is removed. @returns {object} the blit */
+/** Write contents over a widget blit's own; a key set to undefined is removed, one it does not declare is
+ * refused before anything is written. @returns {object} the blit */
 export function setContents(b, patch) {
   const key = contentKeyOf(b);
-  if (!key) throw new TypeError(`setContents: "${b.el.getAttribute('data-type')}" is not a widget`);
+  const name = b.el.getAttribute('data-type');
+  if (!key) throw new TypeError(`setContents: "${name}" is not a widget`);
+  // Refused before anything is written, so a bad key never reaches the element.
+  const { keys } = DEFINED.get(name);
+  const declared = keys ? new Set(keys) : null;
+  for (const each of Object.keys(patch)) {
+    if (!permits(declared, each)) throw new TypeError(`${name}: key "${each}" not permitted`);
+  }
   const next = { ...contentOf(b), ...patch };
   for (const each of Object.keys(next)) if (next[each] === undefined) delete next[each];
   return b.set({ [key]: Object.keys(next).length > 0 ? next : true });
@@ -150,4 +181,24 @@ export function setContents(b, patch) {
 /** Write one content key. */
 export function setContent(b, key, value) {
   return setContents(b, { [key]: value });
+}
+
+/**
+ * A spec for `parent.blit()` of widget `name`: `options` split into its contents (its declared keys, plus any
+ * `contents` object) and everything else, which stays spec. @returns {object}
+ */
+export function widgetSpec(name, options = {}) {
+  const defined = DEFINED.get(name);
+  if (!defined) throw new TypeError(`widgetSpec: "${name}" is not a widget`);
+  const keys = new Set(defined.keys ?? []);
+  const contents = { ...(options.contents ?? {}) };
+  const spec = {};
+  for (const [key, value] of Object.entries(options)) {
+    if (key === 'contents' || value === undefined) continue;
+    if (keys.has(key)) contents[key] = value;
+    else spec[key] = value;
+  }
+  spec.type = name;
+  if (Object.keys(contents).length > 0) spec[camelCase(name)] = contents;
+  return spec;
 }

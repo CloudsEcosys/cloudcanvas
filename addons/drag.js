@@ -11,15 +11,31 @@
  * `{x, y, cancelled}`, the one come to rest at (`cancelled` when the gesture was
  * taken away rather than released). The blit carries `is-dragging` while
  * pressed. A press on a control (`isControlTarget`) is the page's and never drags.
+ *
+ * On a core blit two more: a press in the blit's own selectable text
+ * (`data-selectable-text`) places a caret instead, except on a
+ * `[data-drag-handle]` (a card header); and a grip at the corner, shown while
+ * the blit is selected - the one thing left to grab on a chromeless control
+ * whose whole surface is the page's. A `chrome: false` blit gets one unless
+ * `{handle: false}`; `{handle: true}` gives any blit one.
  */
-import { coordinate, defineTrait, isControlTarget, passedThreshold } from './trait.js';
+import { GRAB_HANDLE_CSS } from '../graphics/css/chrome.js';
+import { SELECTED_CLASS, coordinate, defineTrait, injectAddonCss, isControlTarget, passedThreshold } from './trait.js';
+
+/** The grip a chromeless blit is dragged by. */
+export const GRAB_HANDLE_CLASS = 'cloudcanvas-grab-handle';
+
+/** Where a press in selectable text still drags. */
+export const DRAG_HANDLE_ATTR = 'data-drag-handle';
 
 /** The class the element carries while a drag press is live. */
 export const DRAGGING_CLASS = 'is-dragging';
 
 /** A fresh drag record: the press, and whether it has become a drag. */
-function init() {
-  return { dragging: false, dragOffset: { x: 0, y: 0 }, _downX: null, _downY: null, _translating: false };
+function init(options = {}) {
+  return {
+    dragging: false, dragOffset: { x: 0, y: 0 }, _downX: null, _downY: null, _translating: false, handle: typeof options.handle === 'boolean' ? options.handle : null
+  };
 }
 
 /**
@@ -90,4 +106,27 @@ export const dragBehaviour = {
   detach: (s, b) => release(s, b)
 };
 
-export const drag = /* @__PURE__ */ defineTrait(dragBehaviour);
+/** Whether a press on `target` belongs to `b`'s selectable text, which keeps it for the caret. */
+export function isTextRegion(b, target) {
+  const text = target?.closest?.('[data-selectable-text]');
+  return text === b.el && text.getAttribute('data-selectable-text') !== 'false' && !target.closest(`[${DRAG_HANDLE_ATTR}]`);
+}
+
+/** The grip, shown while the blit is selected, and gone with the trait. */
+function mountHandle(s, b) {
+  if (!(s.handle ?? b.el.getAttribute('data-chrome') === 'false')) return undefined;
+  injectAddonCss('grab-handle', GRAB_HANDLE_CSS);
+  const grip = document.createElement('div');
+  grip.className = GRAB_HANDLE_CLASS;
+  grip.setAttribute('aria-hidden', 'true');
+  const sync = () => { grip.hidden = !b.el.classList.contains(SELECTED_CLASS); };
+  sync();
+  b.el.appendChild(grip);
+  const off = b.on('select', (event) => { if (event.detail?.source === b) sync(); });
+  return () => { off(); grip.remove(); };
+}
+
+export const drag = /* @__PURE__ */ defineTrait(dragBehaviour, {
+  press: (s, b, event, env) => !isTextRegion(b, event?.target) && pressDrag(s, b, event, env),
+  mount: mountHandle
+});

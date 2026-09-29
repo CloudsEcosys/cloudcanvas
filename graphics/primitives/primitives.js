@@ -77,7 +77,7 @@ export function safeColor(value, fallback = DEFAULT_COLOR) {
  * Contrast lives next door (`./contrast.js`) and is re-exported here, so
  * `primitives` stays the single import site for everything a generator needs.
  */
-export { contrastTextFor, relativeLuminance } from './contrast.js';
+export { compositeOver, contrastTextFor, relativeLuminance } from './contrast.js';
 
 /**
  * Coerce a caller-supplied numeric argument.

@@ -4,7 +4,7 @@
  * keyboard: the root as one tab stop, with roving focus among its blits.
  *
  *   blit.use({ keyboard });      // then <div id="app" data-keyboard>
- *   const off = keyboard(blit('#app'), { label: 'Project board' });
+ *   const off = keyboard(blit('#app'), { label: 'Project board' });   // `tabStop: false`: no tab stop
  *
  * The host gets `tabindex="0"` and, because it now gives every key back,
  * `role="application"` with its role description and name - only while this
@@ -315,6 +315,6 @@ function blitHooks(b) {
 
 /** The root trait: `opts.label` names the canvas. @returns {() => void} off */
 export function keyboard(b, opts, root) {
-  const label = opts && typeof opts === 'object' ? opts.label : undefined;
-  return installKeyboard(b.el, requireRootOf(b, root, 'keyboard'), { label, hooks: blitHooks(b) });
+  const { label, tabStop } = opts && typeof opts === 'object' ? opts : {};
+  return installKeyboard(b.el, requireRootOf(b, root, 'keyboard'), { label, tabStop, hooks: blitHooks(b) });
 }

@@ -2,15 +2,17 @@
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
  * The display widgets' CSS chunk (`../../addons/types.js`): the card surface a
- * `card`, `media` or `vector-pointer` blit wears unless `chrome` is false, the
- * border toggle, and the sections a widget hides while empty. Themed through
+ * `card`, `media` or `vector-pointer` blit wears unless `chrome` is false - and
+ * any blit wears with `chrome: true` - the border toggle, and the sections a
+ * widget hides while empty. Themed through
  * the tokens; the content classes themselves are the shared template rules.
  */
 
 /** The widget surface, its toggles, and the markup region. */
 export const CARD_CSS = `/* ------------------ DISPLAY WIDGETS ------------------ */
 
-:is([data-type="card"], [data-type="media"], [data-type="vector-pointer"])[data-blit]:not([data-chrome="false"]) {
+:is([data-type="card"], [data-type="media"], [data-type="vector-pointer"])[data-blit]:not([data-chrome="false"]),
+[data-blit][data-chrome="true"] {
   box-sizing: border-box;
   padding: var(--cc-space-3, 12px) var(--cc-space-4, 16px);
   background: var(--cc-card-bg, rgba(30, 41, 59, 0.85));
@@ -34,6 +36,19 @@ export const CARD_CSS = `/* ------------------ DISPLAY WIDGETS -----------------
 /* A widget toggles its empty sections with the hidden attribute; a host rule giving one a display must not show it. */
 [data-type] [hidden] {
   display: none;
+}
+
+/* Selectable text takes the caret; the header stays the drag handle. */
+[data-blit][data-selectable-text="true"] {
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: auto;
+}
+
+[data-blit][data-selectable-text="true"] [data-drag-handle] {
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
 }
 
 .cloudcanvas-pin-html {

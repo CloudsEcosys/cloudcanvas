@@ -131,11 +131,15 @@ export class Blit {
     return event;
   }
 
-  /** Take the element, and every blit inside it, out of the document, the frame and the id index. */
+  /** Announce `remove` (it bubbles), then take the element and every blit inside it out of the document, the
+   * frame and the id index. */
   remove() {
     const s = this.#s;
+    this.emit('remove');
     const root = heldRootOf(s.el);
     if (root) releaseBlits(root, s.el);
+    // A view root that goes, alone or inside this blit, hands the view back to the whole root.
+    if (root?.view && (root.view === s.el || s.el.contains(root.view)) && setViewRoot(root, null)) demoteOthers(root);
     s.anchor?.remove();
     s.anchor = null;
     s.el.remove();

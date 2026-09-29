@@ -2,8 +2,8 @@
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
  * focus: the blit as a zoom target. Its options say how the camera frames it -
- * `padding` (50) and `maxZoom` (3) - and with `focusOnClick` a click that
- * barely moved (under 5px) frames it.
+ * `padding` (50) and `maxZoom` (3), or with `frame: false` not at all - and
+ * with `focusOnClick` a click that barely moved (under 5px) focuses it.
  *
  *   blit.use({ focus });
  *   app.blit({ focus: { focusOnClick: true } });
@@ -26,6 +26,7 @@ function init(options) {
     maxZoom: options.maxZoom !== undefined ? Number(options.maxZoom) : 3.0,
     focusOnClick: Boolean(options.focusOnClick),
     promote: options.promote !== false,
+    frame: options.frame !== false,
     _downX: null,
     _downY: null
   };
@@ -51,7 +52,8 @@ export function clickReleased(s, event) {
 
 /**
  * Move the focus onto `b` and frame it in its root, as the root's `view()`
- * would. @returns {{x: number, y: number, scale: number}} the resolved camera
+ * would; with `{frame: false}` the focus moves and the camera stays.
+ * @returns {{x: number, y: number, scale: number}} the camera in force
  */
 export function focusBlit(s, b, root) {
   const previous = root.host.querySelector(`.${FOCUSED_CLASS}`);
@@ -63,6 +65,7 @@ export function focusBlit(s, b, root) {
     b.el.classList.add(FOCUSED_CLASS);
     b.emit('focus:change', true);
   }
+  if (s.frame === false) return { x: root.camera.x, y: root.camera.y, scale: root.camera.scale };
   const { x, y, w, h } = b.bounds;
   const camera = root.camera.fit({ x, y, width: w, height: h }, root.hostRect, { padding: s.padding, maxZoom: s.maxZoom });
   schedule(root);

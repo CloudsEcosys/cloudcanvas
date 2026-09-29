@@ -12,7 +12,8 @@
  *   setContent(card, 'badge', { text: 'new', color: '#22c55e' });
  *
  * Every type but `raw` holds its children in a `[data-scope]` well after its
- * content. Registration is a call, never an import side effect. `mountType`
+ * content, sized to them by the layout add-on (`layout: 'free'` is a type
+ * default). Registration is a call, never an import side effect. `mountType`
  * and `DISPLAY_TYPES` are how the legacy `DisplayTrait` renders the same
  * structure until it goes.
  */
@@ -112,7 +113,7 @@ const METER_MAX = 100;
 
 /** One element as markup, classed; constants only. */
 const el = (name, className, inner = '', extra = '') => `<${name} class="${className}"${extra}>${inner}</${name}>`;
-const HEADER = el('div', CLS.HEADER, el('div', CLS.TITLE) + el('span', CLS.BADGE_SLOT));
+const HEADER = el('div', CLS.HEADER, el('div', CLS.TITLE) + el('span', CLS.BADGE_SLOT), ' data-drag-handle');
 const HTML = el('div', CLS.HTML, '', ' hidden');
 const SCOPE = el('div', CLS.SCOPE, '', ' data-scope');
 
@@ -156,11 +157,16 @@ function renderMarkup(b, contents, cache, sections) {
   return markup !== null;
 }
 
+/** A container's children sit in its well, which the layout add-on sizes to them (`free`: by their own placement). */
+const CONTAINER = Object.freeze({ layout: 'free' });
+
 const CARD = {
   name: 'card',
+  defaults: CONTAINER,
   html: HEADER + el('div', CLS.BODY) + el('div', CLS.FOOTER, el('span', CLS.AUTHOR)
     + el('button', CLS.ACTION_BTN, '', ' type="button"')) + HTML + SCOPE,
-  keys: ['title', 'body', 'badge', 'author', 'actionText', 'html'],
+  // Open: a card holds any contents (a custom type's own fields among them); it renders the ones it knows.
+  keys: null,
   bind: (root) => {
     const b = { ...bindHeader(root), body: own(root, CLS.BODY), footer: own(root, CLS.FOOTER), action: own(root, CLS.ACTION_BTN) };
     return { ...b, bodyText: leadingText(b.body), authorText: leadingText(own(root, CLS.AUTHOR)), actionText: leadingText(b.action) };
@@ -183,6 +189,7 @@ const CARD = {
 
 const MEDIA = {
   name: 'media',
+  defaults: CONTAINER,
   html: HEADER + el('div', CLS.BODY, `<img class="${CLS.MEDIA}">` + el('p', CLS.CAPTION)) + SCOPE,
   keys: ['title', 'badge', 'src', 'alt', 'caption'],
   bind: (root) => {
@@ -201,6 +208,7 @@ const MEDIA = {
 
 const VECTOR_POINTER = {
   name: 'vector-pointer',
+  defaults: CONTAINER,
   html: HEADER + el('div', `${CLS.BODY} ${CLS.GAUGE_ROW}`, el('div', CLS.NEEDLE_SLOT)
     + el('div', CLS.GAUGE, el('div', CLS.LABEL) + el('div', CLS.METER_SLOT))) + SCOPE,
   keys: ['title', 'angle', 'magnitude', 'color', 'label'],

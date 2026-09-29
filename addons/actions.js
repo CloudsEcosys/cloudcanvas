@@ -14,6 +14,7 @@
 import { injectAddonCss } from './trait.js';
 import { STYLE_PROPERTIES, setStyle } from './style.js';
 import { go } from './history.js';
+import { contentKeyOf, contentOf, setContents } from './widget.js';
 import { TOAST_CSS } from '../graphics/css/toast.js';
 
 /** The controls a parameter can be edited with. */
@@ -136,9 +137,14 @@ const TOAST_VARIANTS = /* @__PURE__ */ Object.freeze([
   { value: 'info', label: 'Info' }, { value: 'success', label: 'Success' }, { value: 'warning', label: 'Warning' }
 ]);
 
-/** The text a blit's `fill` holds under `key`, or ''. */
+/** What a blit holds under `key`: a widget's contents, else its slot text; ''. */
 function fillOf(b, key) {
-  return b.spec.fill?.[key] ?? '';
+  return (contentKeyOf(b) ? contentOf(b)[key] : b.spec.fill?.[key]) ?? '';
+}
+
+/** Write `patch` where the blit keeps its contents: a widget's own key, else its slots. */
+function writeFill(b, patch) {
+  return contentKeyOf(b) ? setContents(b, patch) : b.set({ fill: patch });
 }
 
 /** Hide, show or flip a blit's visibility; the layout slot is kept. @returns {boolean} hidden now */
@@ -154,10 +160,10 @@ function toggleVisibility(b, { mode }) {
 function incrementCounter(b, { key = 'count', step }) {
   const name = key || 'count';
   const next = (Number(fillOf(b, name)) || 0) + (Number.isFinite(step) ? step : 1);
-  const fill = { [name]: String(next) };
-  const title = fillOf(b, 'title');
+  const fill = { [name]: contentKeyOf(b) ? next : String(next) };
+  const title = String(fillOf(b, 'title'));
   if (name !== 'title' && title.includes(':')) fill.title = `${title.split(':')[0].trim()}: ${next}`;
-  b.set({ fill });
+  writeFill(b, fill);
   return next;
 }
 
@@ -197,7 +203,7 @@ export function builtinActions(registry = actionRegistry) {
       { key: 'key', label: 'Content key', control: 'text', placeholder: 'title' },
       { key: 'value', label: 'Value', control: 'text' }
     ],
-    run: (b, { key, value }) => b.set({ fill: { [key]: value } })
+    run: (b, { key, value }) => writeFill(b, { [key]: value })
   });
   registry.register('set-style', {
     label: 'Set style',

@@ -11,9 +11,9 @@
  *   reactionsOf(app).add({ source: 'button', signal: 'press',
  *     action: { type: 'notify', target: 'panel', params: { message: 'Hi' } } });
  *
- * A signal is an event type (`SIGNALS`); `press` is the native `pointerdown`,
- * and `select` fires on selection only. The source is the innermost blit the
- * event came from. A binding whose target is gone is skipped, never thrown, and
+ * A signal is an event type (`SIGNALS`); `press` is the native `click`, so a
+ * keyboard activation counts, and `select` fires on selection only. The source
+ * is the innermost blit the event came from. A binding whose target is gone is skipped, never thrown, and
  * `prune` drops every binding naming a blit that is no longer there; an action
  * that throws is contained to its own binding. Actions: `./actions.js`.
  */
@@ -32,7 +32,7 @@ export const SIGNALS = /* @__PURE__ */ Object.freeze([
 ]);
 
 /** A signal the native event it is heard as, when they differ. */
-const NATIVE = /* @__PURE__ */ Object.freeze({ press: 'pointerdown' });
+const NATIVE = /* @__PURE__ */ Object.freeze({ press: 'click' });
 
 const SIGNAL_SET = /* @__PURE__ */ new Set(SIGNALS);
 

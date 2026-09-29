@@ -18,6 +18,9 @@ import { schedule } from '../core/frame.js';
 import { parentElementOf, stateOf, boundsOf } from '../core/state.js';
 import { park, unpark } from './park.js';
 
+/** The record an anchor comment holds a place for: how a walker reads an offloaded blit where it sits. */
+export { parkedStateOf } from './park.js';
+
 /** Screen pixels of clearance before a blit is parked. */
 export const DEFAULT_OFFLOAD_MARGIN = 400;
 
