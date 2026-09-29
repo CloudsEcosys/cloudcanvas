@@ -79,8 +79,15 @@ gzipped: what importing that subpath alone costs, the core code it reaches inclu
 | `cloudcanvas/reactions` | "when A emits X, run action Y on B", saved with the board | 11.3 KB |
 | `cloudcanvas/lazy` | children loaded on demand from a provider | 0.7 KB |
 | `cloudcanvas/offload` | off-screen blits parked out of the DOM, state kept | 1.2 KB |
-| `cloudcanvas/gpu` | blits drawn on the GPU (WebGPU, else WebGL2), elements kept as hit proxies; backend loaded on demand (+2.6-3.0 KB) | 9.6 KB |
+| `cloudcanvas/gpu` | blits drawn on the GPU (WebGPU, else WebGL2), elements kept as hit proxies; the backend loads on demand (WebGL2 +3.7 KB, WebGPU +4.6 KB) | 5.9 KB |
 | `cloudcanvas/orbit` | Alt + drag turns the camera in 3D, Alt + wheel moves the viewer | 1.0 KB |
+| `cloudcanvas/mesh` | lit box, plane and sphere on the GPU, fitted to the blit, turned by `rotate` | 1.3 KB |
+| `cloudcanvas/svg-path` | SVG path data filled and stroked as GPU triangles, sharp at any zoom; an inline `<svg>` without a GPU | 8.5 KB |
+| `cloudcanvas/sprites` | sheets, frames and animations: one texture per sheet, the CSS background as fallback | 2.2 KB |
+| `cloudcanvas/text` | GPU text, re-rastered per zoom bucket; the element keeps the text | 2.0 KB |
+| `cloudcanvas/video` | a playing video as a blit, re-uploaded per video frame | 1.6 KB |
+| `cloudcanvas/own-canvas` | `ownCanvas(b, draw)`: a blit you draw with Canvas2D | 1.2 KB |
+| `cloudcanvas/xml` | `fromXml(parent, source)`: blits from XML, checked whole before anything is built | 1.7 KB |
 | `cloudcanvas/observe` | markup added later becomes blits | 7.0 KB |
 | `cloudcanvas/types` | display widgets: `card`, `media`, `vector-pointer`, `raw` | 12.4 KB |
 | `cloudcanvas/widget` | `widget({name, html, keys, bind, render})`: a type that renders its contents | 7.9 KB |

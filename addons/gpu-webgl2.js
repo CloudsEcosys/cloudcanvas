@@ -1,12 +1,14 @@
 /**
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
- * The GPU add-on's WebGL2 backend: one hand-written GLSL 300 es program draws a unit quad per instance
- * (TRIANGLE_STRIP, `drawArraysInstanced`) from the STRIDE-float records of `./gpu-scene.js`, one call per batch.
- * WebGL2 has no base instance, so each batch rebinds the instance attributes at its first record. Textures are
- * straight-alpha RGBA8, linear and clamped; the fragment writes premultiplied, blended ONE, ONE_MINUS_SRC_ALPHA.
+ * The GPU add-on's WebGL2 backend: a hand-written GLSL 300 es program draws a unit quad per instance
+ * (TRIANGLE_STRIP, `drawArraysInstanced`) from the STRIDE-float records of `./gpu-scene.js`, one call per run;
+ * WebGL2 has no base instance, so each run rebinds the instance attributes at its first record. Mesh batches go
+ * to `./gpu-webgl2-mesh.js`. Textures are straight-alpha RGBA8, linear and clamped; both programs write
+ * premultiplied, blended ONE, ONE_MINUS_SRC_ALPHA.
  */
 import { FIELD, STRIDE } from './gpu-scene.js';
+import { MESH_FRAGMENT_SOURCE, MESH_VERTEX_SOURCE, MeshPipeline } from './gpu-webgl2-mesh.js';
 import { createLogger } from '../log.js';
 
 const logger = /* @__PURE__ */ createLogger('gpu-webgl2');
@@ -15,9 +17,10 @@ const logger = /* @__PURE__ */ createLogger('gpu-webgl2');
 const FLOAT_BYTES = 4;
 const RECORD_BYTES = STRIDE * FLOAT_BYTES;
 
-/** The drawing buffer the contract reads back: premultiplied, no multisampling, not kept past compositing. */
+/** The drawing buffer the contract reads back: premultiplied, a depth buffer for meshes, no multisampling, not
+ * kept past compositing. */
 const CONTEXT_ATTRIBUTES = /* @__PURE__ */ Object.freeze({
-  alpha: true, premultipliedAlpha: true, antialias: false, preserveDrawingBuffer: false
+  alpha: true, premultipliedAlpha: true, depth: true, antialias: false, preserveDrawingBuffer: false
 });
 
 /** Location 0 is the quad corner; each `[location, components, field]` below reads one run of a record. */
@@ -74,13 +77,13 @@ function compile(gl, type, source) {
   throw new Error(`gpu-webgl2: ${stage} shader failed to compile: ${info}`);
 }
 
-/** Compile and link the one program; the shaders are released either way, the program on failure. */
-function link(gl) {
+/** Compile and link one program; the shaders are released either way, the program on failure. */
+function link(gl, vertexSource, fragmentSource) {
   const program = gl.createProgram();
   const shaders = [];
   try {
-    shaders.push(compile(gl, gl.VERTEX_SHADER, VERTEX_SOURCE));
-    shaders.push(compile(gl, gl.FRAGMENT_SHADER, FRAGMENT_SOURCE));
+    shaders.push(compile(gl, gl.VERTEX_SHADER, vertexSource));
+    shaders.push(compile(gl, gl.FRAGMENT_SHADER, fragmentSource));
     for (const shader of shaders) gl.attachShader(program, shader);
     gl.linkProgram(program);
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
@@ -94,6 +97,18 @@ function link(gl) {
     throw error;
   } finally {
     for (const shader of shaders) gl.deleteShader(shader);
+  }
+}
+
+/** Link each `[vertex, fragment]` pair; a failure deletes the ones already linked, then throws. */
+function linkAll(gl, pairs) {
+  const programs = [];
+  try {
+    for (const [vertexSource, fragmentSource] of pairs) programs.push(link(gl, vertexSource, fragmentSource));
+    return programs;
+  } catch (error) {
+    for (const program of programs) gl.deleteProgram(program);
+    throw error;
   }
 }
 
@@ -126,19 +141,23 @@ function createTexture(gl) {
   return texture;
 }
 
-/** The program, geometry, 1x1 white texture and fixed pipeline state for a fresh context. */
+/** Both programs, the quad geometry, a 1x1 white texture and the fixed pipeline state for a fresh context. */
 function createState(gl, canvas) {
-  const program = link(gl);
+  const [program, meshProgram] = linkAll(gl, [
+    [VERTEX_SOURCE, FRAGMENT_SOURCE], [MESH_VERTEX_SOURCE, MESH_FRAGMENT_SOURCE]
+  ]);
   gl.useProgram(program);
   gl.uniform1i(gl.getUniformLocation(program, 'tex'), 0);
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-  gl.disable(gl.DEPTH_TEST);
+  gl.depthFunc(gl.LEQUAL);
+  gl.clearDepth(1);
   gl.disable(gl.CULL_FACE);
   const white = createTexture(gl);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, Uint8Array.of(255, 255, 255, 255));
   return {
     gl, canvas, program, white, ...createGeometry(gl),
+    meshes: new MeshPipeline(gl, meshProgram),
     clip: gl.getUniformLocation(program, 'clip'),
     textures: new Map(),
     instanceBytes: 0,
@@ -216,26 +235,39 @@ function textureFor(state, id) {
   return (id !== null && state.textures.get(id)?.texture) || state.white;
 }
 
-/** Clear the whole canvas, update the instances and draw each batch over the ones before; a no-op while lost. */
+/** One run of quads, depth neither tested nor written. */
+function drawQuads(state, batch) {
+  const { gl } = state;
+  if (batch.count <= 0) return;
+  gl.useProgram(state.program);
+  gl.disable(gl.DEPTH_TEST);
+  gl.bindVertexArray(state.vao);
+  gl.bindBuffer(gl.ARRAY_BUFFER, state.instances);
+  gl.bindTexture(gl.TEXTURE_2D, textureFor(state, batch.texture));
+  pointInstances(gl, batch.first);
+  gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, batch.count);
+  gl.bindVertexArray(null);
+}
+
+/** Clear colour and depth over the whole canvas, update the instances, then draw each batch over the ones before
+ * (a quad run, or a mesh when it has `mesh`); a no-op while lost. */
 function drawFrame(state, frame) {
   const { gl, canvas } = state;
   if (state.lost || state.destroyed) return;
   const [r, g, b, a] = frame.clear;
   gl.viewport(0, 0, canvas.width, canvas.height);
   gl.clearColor(r, g, b, a);
-  gl.clear(gl.COLOR_BUFFER_BIT);
-  gl.useProgram(state.program);
-  gl.bindVertexArray(state.vao);
+  gl.depthMask(true);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   uploadInstances(state, frame);
+  gl.useProgram(state.program);
   gl.uniformMatrix4fv(state.clip, false, frame.clip);
+  state.meshes.begin(frame.clip);
   gl.activeTexture(gl.TEXTURE0);
   for (const batch of frame.batches) {
-    if (batch.count <= 0) continue;
-    gl.bindTexture(gl.TEXTURE_2D, textureFor(state, batch.texture));
-    pointInstances(gl, batch.first);
-    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, batch.count);
+    if ('mesh' in batch) state.meshes.draw(batch);
+    else drawQuads(state, batch);
   }
-  gl.bindVertexArray(null);
 }
 
 /** GL's bottom-to-top rows, top to bottom, in a new array. */
@@ -268,12 +300,13 @@ function destroyState(state) {
   gl.deleteBuffer(state.instances);
   gl.deleteVertexArray(state.vao);
   gl.deleteProgram(state.program);
+  state.meshes.destroy();
   state.destroyed = true;
 }
 
 /**
  * A WebGL2 `GpuBackend` (see `./gpu-scene.js`) drawing into `canvas`; rejects when the canvas has no WebGL2
- * context. On `webglcontextlost` drawing stops (the loss is logged) until the backend is destroyed.
+ * context. On `webglcontextlost` drawing and uploads stop (the loss is logged) until the backend is destroyed.
  * @param {HTMLCanvasElement|OffscreenCanvas} canvas
  * @param {object} [options] none are read by this backend
  * @returns {Promise<import('./gpu-scene.js').GpuBackend>}
@@ -293,6 +326,12 @@ export async function createBackend(canvas, options = {}) {
     depthRange: 'minus-one-to-one',
     texture: (id, source) => uploadTexture(state, id, source),
     dropTexture: (id) => dropTexture(state, id),
+    mesh: (id, geometry) => {
+      if (!state.lost && !state.destroyed) state.meshes.upload(id, geometry);
+    },
+    dropMesh: (id) => {
+      if (!state.destroyed) state.meshes.drop(id);
+    },
     draw: (frame) => drawFrame(state, frame),
     read: () => readFrame(state),
     destroy: () => {

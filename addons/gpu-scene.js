@@ -1,16 +1,23 @@
 /**
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
- * The GPU scene: what a `gpu` root draws, packed for a backend. One record per drawn blit (its global box,
- * depth, rotation, tint, texture and uv rect) becomes STRIDE floats in one instance array, in draw order (by
- * `z`, then first seen), cut into batches of one texture each. A move rewrites that one record and reports the
- * range it touched; only an insert, a removal or a new `z` or texture re-sorts. This module is the contract
+ * The GPU scene: what a `gpu` root draws, packed for a backend. A quad record (a blit's global box, depth,
+ * rotation, tint, texture and uv rect) becomes STRIDE floats in one instance array; a mesh record (geometry, a
+ * transform, a colour) becomes one batch of its own. Both sit in one draw order (by `z`, then first seen), the
+ * quads cut into runs of one texture. A move rewrites that one record and reports the range it touched; only an
+ * insert, a removal, or a new `z`, texture or geometry re-sorts. This module is the contract
  * both backends (`./gpu-webgl2.js`, `./gpu-webgpu.js`) draw from; `./gpu.js` fills it from blits.
  */
 import { multiply } from '../core/camera.js';
 
 /** Floats per instance. */
 export const STRIDE = 16;
+
+/** Floats per mesh vertex: position `x, y, z`, then normal `nx, ny, nz`, in mesh units. */
+export const MESH_STRIDE = 6;
+
+/** The light a lit mesh is shaded by: a direction in canvas space (y down, z toward the viewer). */
+export const LIGHT = /* @__PURE__ */ Object.freeze([-0.4, -0.6, 0.7]);
 
 /** Where each field sits in an instance; 6 and 7 are reserved (zero). */
 export const FIELD = /* @__PURE__ */ Object.freeze({
@@ -26,8 +33,10 @@ export const FIELD = /* @__PURE__ */ Object.freeze({
  * @property {number} count
  * @property {[number, number]|null} dirty the instance range [first, end) changed since the last frame, or null.
  *   A backend whose buffer is smaller than `instances` reallocates and uploads all of it.
- * @property {Array<{texture: number|null, first: number, count: number}>} batches consecutive runs, drawn in
- *   order, alpha-blended over the ones before; `texture` null samples white
+ * @property {Array<{texture: number|null, first: number, count: number}|{mesh: number, transform: Float32Array,
+ *   normal: Float32Array, color: number[], lit: boolean}>} batches drawn in order, each alpha-blended over the ones
+ *   before: a run of quads (`texture` null samples white), or one mesh - `transform` (mat4, column-major) takes
+ *   its vertices to canvas px, `normal` (mat3, column-major) is that transform's inverse transpose
  * @property {[number, number, number, number]} clear premultiplied RGBA the frame starts from
  */
 
@@ -37,7 +46,11 @@ export const FIELD = /* @__PURE__ */ Object.freeze({
  * The shader: the unit quad's corner `c` maps to `(x, y) + (w, h) * c`, turned by `rotation` (radians,
  * clockwise on screen) about the box centre, at depth `z`, through `clip`; uv is `mix((u0, v0), (u1, v1), c)`
  * (v = 0 is the top row); colour is `texture(uv) * (r, g, b, a)`, straight alpha, written premultiplied and
- * blended ONE, ONE_MINUS_SRC_ALPHA; no depth test, no face culling.
+ * blended ONE, ONE_MINUS_SRC_ALPHA; no depth test, no face culling. A mesh batch draws its indexed triangles at
+ * `clip * transform * (x, y, z, 1)`, coloured `color` (straight) times a shade - `lit`: 0.35 + 0.65 * max(dot(
+ * normalize(normal * n), normalize(LIGHT)), 0), else 1 - written premultiplied with the same blend. Meshes test
+ * depth less-equal and write it, against a depth buffer cleared to far each frame; quads never test or write it.
+ * `clipMatrix` puts nearer points at smaller depth.
  * @typedef {object} GpuBackend
  * @property {'webgl2'|'webgpu'} kind
  * @property {'minus-one-to-one'|'zero-to-one'} depthRange for `clipMatrix`
@@ -45,6 +58,9 @@ export const FIELD = /* @__PURE__ */ Object.freeze({
  *   ImageBitmap or OffscreenCanvas (size: `videoWidth || naturalWidth || width`); again re-uploads it, in place
  *   when the size is unchanged. Straight alpha, no flip, linear filtering, clamp to edge.
  * @property {(id: number) => void} dropTexture
+ * @property {(id: number, geometry: {vertices: Float32Array, indices: Uint16Array|Uint32Array}) => void} mesh
+ *   upload geometry `id`: MESH_STRIDE floats per vertex, indexed triangles
+ * @property {(id: number) => void} dropMesh
  * @property {(frame: GpuFrame) => void} draw
  * @property {() => Promise<{width: number, height: number, data: Uint8Array}>} read the last frame's pixels,
  *   RGBA8 premultiplied, rows top to bottom; called in the same task as `draw`
@@ -52,11 +68,12 @@ export const FIELD = /* @__PURE__ */ Object.freeze({
  */
 
 /** Canvas to clip space: `camera.projected`, then the host box to [-1, 1] (y up), depth scaled into `depthRange`
- * (WebGPU's `zero-to-one`, else WebGL's `-1..1`) far enough out that a tilted board is never clipped. */
+ * (WebGPU's `zero-to-one`, else WebGL's `-1..1`) - nearer is smaller - far enough out that a tilted board is never
+ * clipped; what comes within a fifth of the perspective of the viewer is. */
 export function clipMatrix(camera, hostRect = {}, depthRange = 'minus-one-to-one') {
   const w = hostRect.width || 800;
   const h = hostRect.height || 600;
-  const depth = 1 / (4 * (camera.perspective ?? 2000));
+  const depth = -1 / (4 * (camera.perspective ?? 2000));
   const ndc = Float64Array.of(2 / w, 0, 0, 0, 0, -2 / h, 0, 0, 0, 0, depth, 0, -1, 1, 0, 1);
   if (depthRange === 'zero-to-one') {
     ndc[10] = depth / 2;
@@ -67,24 +84,100 @@ export function clipMatrix(camera, hostRect = {}, depthRange = 'minus-one-to-one
 
 const WHITE = /* @__PURE__ */ Object.freeze([1, 1, 1, 1]);
 const WHOLE = /* @__PURE__ */ Object.freeze([0, 0, 1, 1]);
+const IDENTITY = /* @__PURE__ */ Object.freeze([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+
+/** The inverse transpose of a mat4's upper 3x3, column-major: what turns a normal (shading needs only its
+ * direction). A singular transform gives zeros. */
+export function normalMatrix(t) {
+  const at = (row, col) => t[col * 4 + row];
+  const cofactor = (row, col) => {
+    const [r0, r1] = [0, 1, 2].filter((r) => r !== row);
+    const [c0, c1] = [0, 1, 2].filter((c) => c !== col);
+    const minor = at(r0, c0) * at(r1, c1) - at(r0, c1) * at(r1, c0);
+    return (row + col) % 2 === 0 ? minor : -minor;
+  };
+  const det = at(0, 0) * cofactor(0, 0) + at(0, 1) * cofactor(0, 1) + at(0, 2) * cofactor(0, 2);
+  const out = new Float32Array(9);
+  for (let col = 0; col < 3; col += 1) {
+    for (let row = 0; row < 3; row += 1) out[col * 3 + row] = det ? cofactor(row, col) / det : 0;
+  }
+  return out;
+}
 
 /**
- * Records keyed by any object (a blit's state), packed on demand. `set(key, record)` takes
+ * Sources counted by the records using them: a new one is queued to upload, one let go is dropped at `take()`
+ * only if nothing took it again meanwhile (a trait restart, a frame flip), and never dropped if never sent.
+ */
+class Pool {
+  #entries = new Map();
+  #uploads = new Map();
+  #idle = new Set();
+  #sent = new Set();
+  #next = 1;
+
+  get pending() { return this.#uploads.size > 0 || this.#idle.size > 0; }
+
+  retain(source) {
+    if (!source) return null;
+    let entry = this.#entries.get(source);
+    if (!entry) {
+      entry = { id: this.#next++, refs: 0 };
+      this.#entries.set(source, entry);
+      this.#uploads.set(entry.id, source);
+    }
+    entry.refs += 1;
+    this.#idle.delete(source);
+    return entry.id;
+  }
+
+  release(source) {
+    const entry = source && this.#entries.get(source);
+    if (entry && (entry.refs -= 1) === 0) this.#idle.add(source);
+  }
+
+  /** Send a source again (a new frame of a video, a redrawn canvas). */
+  refresh(source) {
+    const entry = this.#entries.get(source);
+    if (entry) this.#uploads.set(entry.id, source);
+  }
+
+  /** @returns {{uploads: Array<[number, object]>, drops: number[]}} */
+  take() {
+    const drops = [];
+    for (const source of this.#idle) {
+      const { id } = this.#entries.get(source);
+      this.#entries.delete(source);
+      this.#uploads.delete(id);
+      if (this.#sent.delete(id)) drops.push(id);
+    }
+    this.#idle.clear();
+    const uploads = Array.from(this.#uploads);
+    this.#uploads.clear();
+    for (const [id] of uploads) this.#sent.add(id);
+    return { uploads, drops };
+  }
+}
+
+/** The source a record draws from, and the pool it is counted in. */
+const sourceOf = (record) => (record.mesh ? record.mesh : (record.texture ?? null));
+
+/**
+ * Records keyed by any object (a blit's state), packed on demand. `set(key, record)` takes a quad -
  * `{x, y, w, h, z?, rotation?, color?: [r, g, b, a] (0..1), texture?: source|null, uv?: [u0, v0, u1, v1],
- * version?}`; a new `version` on the same texture source re-uploads it (a video frame, a redrawn canvas).
+ * version?}`, where a new `version` on the same texture re-uploads it (a video frame, a redrawn canvas) - or a
+ * mesh, `{mesh: {vertices, indices}, transform?: mat4, z?, color?, lit?: true}`.
  */
 export class Scene {
   #records = new Map();
-  #textures = new Map();
+  #textures = new Pool();
+  #geometries = new Pool();
   #order = [];
+  #quads = 0;
   #data = new Float32Array(STRIDE * 64);
   #batches = [];
   #changed = new Set();
-  #uploads = new Map();
-  #drops = [];
   #resort = false;
   #seq = 0;
-  #nextTexture = 1;
 
   get size() { return this.#records.size; }
 
@@ -94,25 +187,32 @@ export class Scene {
 
   /** Whether `pack()` has anything new to hand over. */
   get dirty() {
-    return this.#resort || this.#changed.size > 0 || this.#uploads.size > 0 || this.#drops.length > 0;
+    return this.#resort || this.#changed.size > 0 || this.#textures.pending || this.#geometries.pending;
+  }
+
+  #poolOf(record) {
+    return record.mesh ? this.#geometries : this.#textures;
   }
 
   set(key, record) {
     const entry = this.#records.get(key);
-    const texture = record.texture ?? null;
+    const source = sourceOf(record);
     if (!entry) {
-      this.#records.set(key, { record, seq: this.#seq++, slot: -1, texture: this.#retain(texture, record.version) });
+      this.#records.set(key, { record, seq: this.#seq++, slot: -1, id: this.#poolOf(record).retain(source), batch: null });
       this.#resort = true;
       return;
     }
     const was = entry.record;
-    if ((was.z ?? 0) !== (record.z ?? 0) || (was.texture ?? null) !== texture) this.#resort = true;
-    if ((was.texture ?? null) !== texture) {
-      this.#release(was.texture ?? null);
-      entry.texture = this.#retain(texture, record.version);
-    } else if (texture && record.version !== was.version) {
-      this.#uploads.set(entry.texture, texture);
+    if (source !== sourceOf(was) || Boolean(record.mesh) !== Boolean(was.mesh)) {
+      // Take the new source before letting the old go, so one both share is never dropped in between.
+      entry.id = this.#poolOf(record).retain(source);
+      this.#poolOf(was).release(sourceOf(was));
+      entry.batch = null;
+      this.#resort = true;
+    } else if (!record.mesh && source && record.version !== was.version) {
+      this.#textures.refresh(source);
     }
+    if ((was.z ?? 0) !== (record.z ?? 0)) this.#resort = true;
     entry.record = record;
     this.#changed.add(entry);
   }
@@ -121,53 +221,68 @@ export class Scene {
     const entry = this.#records.get(key);
     if (!entry) return false;
     this.#records.delete(key);
-    this.#release(entry.record.texture ?? null);
+    this.#poolOf(entry.record).release(sourceOf(entry.record));
     this.#changed.delete(entry);
     this.#resort = true;
     return true;
   }
 
   /**
-   * Hand over what changed: the instance array and its dirty range, the batches, and the texture uploads and
-   * drops a backend must apply first. @returns {{instances: Float32Array, count: number,
-   * dirty: [number, number]|null, batches: Array, uploads: Array<[number, object]>, drops: number[]}}
+   * Hand over what changed: the instance array and its dirty range, the batches, and the texture and geometry
+   * uploads and drops a backend must apply first. @returns {{instances: Float32Array, count: number,
+   * dirty: [number, number]|null, batches: Array, uploads: Array<[number, object]>, drops: number[],
+   * meshUploads: Array<[number, object]>, meshDrops: number[]}}
    */
   pack() {
     let dirty = null;
     if (this.#resort) {
       this.#sort();
-      dirty = [0, this.#order.length];
+      dirty = [0, this.#quads];
     } else if (this.#changed.size > 0) {
       let first = Infinity;
       let end = 0;
       for (const entry of this.#changed) {
+        if (entry.record.mesh) {
+          this.#writeMesh(entry);
+          continue;
+        }
         this.#write(entry);
         first = Math.min(first, entry.slot);
         end = Math.max(end, entry.slot + 1);
       }
-      dirty = [first, end];
+      if (end > 0) dirty = [first, end];
     }
     this.#changed.clear();
-    const uploads = Array.from(this.#uploads);
-    const drops = this.#drops.splice(0);
-    this.#uploads.clear();
-    return { instances: this.#data, count: this.#order.length, dirty, batches: this.#batches, uploads, drops };
+    const textures = this.#textures.take();
+    const geometries = this.#geometries.take();
+    return {
+      instances: this.#data, count: this.#quads, dirty, batches: this.#batches,
+      uploads: textures.uploads, drops: textures.drops, meshUploads: geometries.uploads, meshDrops: geometries.drops
+    };
   }
 
-  /** Re-sort by z then first seen, rewrite every slot and re-cut the batches. */
+  /** Re-sort by z then first seen, rewrite every quad slot and mesh batch, and re-cut the batches. */
   #sort() {
     this.#order = Array.from(this.#records.values()).sort((a, b) => ((a.record.z ?? 0) - (b.record.z ?? 0)) || a.seq - b.seq);
-    if (this.#data.length < this.#order.length * STRIDE) {
-      this.#data = new Float32Array(Math.max(this.#order.length, this.#data.length / STRIDE * 2) * STRIDE);
+    const quads = this.#order.filter((entry) => !entry.record.mesh).length;
+    if (this.#data.length < quads * STRIDE) {
+      this.#data = new Float32Array(Math.max(quads, this.#data.length / STRIDE * 2) * STRIDE);
     }
     const batches = [];
-    this.#order.forEach((entry, slot) => {
+    let slot = 0;
+    for (const entry of this.#order) {
+      if (entry.record.mesh) {
+        batches.push(this.#writeMesh(entry));
+        continue;
+      }
       entry.slot = slot;
       this.#write(entry);
       const last = batches[batches.length - 1];
-      if (last && last.texture === entry.texture) last.count += 1;
-      else batches.push({ texture: entry.texture, first: slot, count: 1 });
-    });
+      if (last && !('mesh' in last) && last.texture === entry.id) last.count += 1;
+      else batches.push({ texture: entry.id, first: slot, count: 1 });
+      slot += 1;
+    }
+    this.#quads = slot;
     this.#batches = batches;
     this.#resort = false;
   }
@@ -175,33 +290,18 @@ export class Scene {
   #write(entry) {
     const { record } = entry;
     const at = entry.slot * STRIDE;
-    const color = record.color ?? WHITE;
-    const uv = record.uv ?? WHOLE;
     this.#data.set([record.x, record.y, record.w, record.h, record.z ?? 0, record.rotation ?? 0, 0, 0], at);
-    this.#data.set(color, at + FIELD.r);
-    this.#data.set(uv, at + FIELD.u0);
+    this.#data.set(record.color ?? WHITE, at + FIELD.r);
+    this.#data.set(record.uv ?? WHOLE, at + FIELD.u0);
   }
 
-  /** The texture id for a source, counted; a new source is queued to upload. */
-  #retain(source, version) {
-    if (!source) return null;
-    let texture = this.#textures.get(source);
-    if (!texture) {
-      texture = { id: this.#nextTexture++, refs: 0, version };
-      this.#textures.set(source, texture);
-      this.#uploads.set(texture.id, source);
-    }
-    texture.refs += 1;
-    return texture.id;
-  }
-
-  #release(source) {
-    const texture = source && this.#textures.get(source);
-    if (!texture) return;
-    texture.refs -= 1;
-    if (texture.refs > 0) return;
-    this.#textures.delete(source);
-    this.#uploads.delete(texture.id);
-    this.#drops.push(texture.id);
+  /** A mesh's batch, updated in place so the batch list needs no re-cut. */
+  #writeMesh(entry) {
+    const { record } = entry;
+    const transform = Float32Array.from(record.transform ?? IDENTITY);
+    entry.batch ??= {};
+    return Object.assign(entry.batch, {
+      mesh: entry.id, transform, normal: normalMatrix(transform), color: record.color ?? WHITE, lit: record.lit !== false
+    });
   }
 }

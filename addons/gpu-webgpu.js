@@ -1,11 +1,13 @@
 /**
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
- * The WebGPU backend for the `gpu` add-on: one hand-written WGSL pipeline drawing the scene of `./gpu-scene.js`
- * as instanced unit quads, one texture per batch, blended premultiplied onto the canvas. `createBackend` resolves
- * to the `GpuBackend` that contract describes; `./gpu.js` loads it by `import()` only.
+ * The WebGPU backend for the `gpu` add-on: hand-written WGSL drawing the scene of `./gpu-scene.js` in one pass -
+ * instanced unit quads, one texture per run, and meshes (`./gpu-webgpu-mesh.js`) against a depth buffer - blended
+ * premultiplied onto the canvas. `createBackend` resolves to the `GpuBackend` that contract describes; `./gpu.js`
+ * loads it by `import()` only.
  */
 import { FIELD, STRIDE } from './gpu-scene.js';
+import { createMeshes } from './gpu-webgpu-mesh.js';
 import { createLogger } from '../log.js';
 
 const logger = /* @__PURE__ */ createLogger('gpu-webgpu');
@@ -46,6 +48,9 @@ fn fs(v: Varyings) -> @location(0) vec4f {
 /** Premultiplied source over: ONE, ONE_MINUS_SRC_ALPHA. */
 const BLEND = /* @__PURE__ */ Object.freeze({ srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' });
 
+/** The depth buffer both pipelines declare, as they share one pass: meshes test and write it, quads ignore it. */
+const DEPTH_FORMAT = 'depth24plus';
+
 /** The unit quad's corners as a triangle strip. */
 const CORNERS = /* @__PURE__ */ Float32Array.of(0, 0, 1, 0, 0, 1, 1, 1);
 
@@ -84,9 +89,9 @@ async function acquire(canvas, options) {
   return { device, context, format };
 }
 
-/** Compile the shader, reporting every compiler message through the logger. */
-async function compile(device) {
-  const module = device.createShaderModule({ label: 'gpu-webgpu', code: SHADER });
+/** Compile WGSL, reporting every compiler message through the logger. */
+async function compile(device, code, label) {
+  const module = device.createShaderModule({ label, code });
   const info = await module.getCompilationInfo();
   for (const message of info.messages) {
     const report = message.type === 'error' ? logger.error : logger.warn;
@@ -95,15 +100,16 @@ async function compile(device) {
   return module;
 }
 
-/** The one instanced-quad pipeline, blended premultiplied, no depth, no culling. */
+/** The instanced-quad pipeline, blended premultiplied, no culling; it neither tests nor writes depth. */
 async function createPipeline(device, format) {
-  const module = await compile(device);
+  const module = await compile(device, SHADER, 'gpu-webgpu');
   return device.createRenderPipelineAsync({
     label: 'gpu-webgpu',
     layout: 'auto',
     vertex: { module, entryPoint: 'vs', buffers: [CORNER_LAYOUT, INSTANCE_LAYOUT] },
     fragment: { module, entryPoint: 'fs', targets: [{ format, blend: { color: BLEND, alpha: BLEND } }] },
-    primitive: { topology: 'triangle-strip', cullMode: 'none' }
+    primitive: { topology: 'triangle-strip', cullMode: 'none' },
+    depthStencil: { format: DEPTH_FORMAT, depthCompare: 'always', depthWriteEnabled: false }
   });
 }
 
@@ -114,17 +120,22 @@ function bufferWith(device, data, usage) {
   return buffer;
 }
 
-/** The shared GPU objects: pipeline, corner and uniform buffers, sampler and the 1x1 white texture. */
+/** The shared GPU objects: both pipelines, corner and clip buffers, sampler and the 1x1 white texture. */
 async function createResources(device, format) {
-  const pipeline = await createPipeline(device, format);
+  const uniform = device.createBuffer({ size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  const shared = { format, depthFormat: DEPTH_FORMAT, blend: { color: BLEND, alpha: BLEND }, clip: uniform };
+  const [pipeline, meshes] = await Promise.all([
+    createPipeline(device, format), createMeshes(device, { ...shared, compile, bufferWith })
+  ]);
   const usage = GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST;
   const white = device.createTexture({ size: [1, 1], format: 'rgba8unorm', usage });
   device.queue.writeTexture({ texture: white }, Uint8Array.of(255, 255, 255, 255), { bytesPerRow: 4 }, [1, 1]);
   return {
     pipeline,
+    meshes,
     white,
+    uniform,
     corners: bufferWith(device, CORNERS, GPUBufferUsage.VERTEX),
-    uniform: device.createBuffer({ size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST }),
     sampler: device.createSampler({
       magFilter: 'linear', minFilter: 'linear', addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge'
     })
@@ -187,27 +198,55 @@ function uploadInstances(state, frame) {
   state.device.queue.writeBuffer(state.instances, at * 4, instances, at, (end - first) * STRIDE);
 }
 
-/** Clear the current canvas texture and draw each batch over the ones before. */
+/** The depth texture for `target`'s size, recreated when that changes. */
+function depthFor(state, target) {
+  const { depth } = state;
+  if (depth && depth.width === target.width && depth.height === target.height) return depth;
+  depth?.destroy();
+  const size = [target.width, target.height];
+  state.depth = state.device.createTexture({ size, format: DEPTH_FORMAT, usage: GPUTextureUsage.RENDER_ATTACHMENT });
+  return state.depth;
+}
+
+/** Each batch in list order: a quad run through the quad pipeline, a mesh through the mesh one. */
+function encodeBatches(state, pass, batches) {
+  const { resources } = state;
+  let meshIndex = 0;
+  let quadsBound = false;
+  for (const batch of batches) {
+    if ('mesh' in batch) {
+      resources.meshes.draw(pass, batch, meshIndex++);
+      quadsBound = false;
+      continue;
+    }
+    if (!quadsBound) {
+      pass.setPipeline(resources.pipeline);
+      pass.setVertexBuffer(0, resources.corners);
+      pass.setVertexBuffer(1, state.instances);
+      quadsBound = true;
+    }
+    pass.setBindGroup(0, groupFor(state, batch.texture));
+    pass.draw(4, batch.count, 0, batch.first);
+  }
+}
+
+/** Clear the current canvas texture and the depth buffer, then draw each batch over the ones before. */
 function drawFrame(state, frame) {
   if (state.lost) return;
   const { device, context, resources } = state;
   uploadInstances(state, frame);
   device.queue.writeBuffer(resources.uniform, 0, frame.clip);
+  resources.meshes.prepare(frame.batches);
   const target = context.getCurrentTexture();
   const [r, g, b, a] = frame.clear;
   const encoder = device.createCommandEncoder();
   const pass = encoder.beginRenderPass({
-    colorAttachments: [{ view: target.createView(), loadOp: 'clear', storeOp: 'store', clearValue: { r, g, b, a } }]
-  });
-  if (frame.count > 0) {
-    pass.setPipeline(resources.pipeline);
-    pass.setVertexBuffer(0, resources.corners);
-    pass.setVertexBuffer(1, state.instances);
-    for (const batch of frame.batches) {
-      pass.setBindGroup(0, groupFor(state, batch.texture));
-      pass.draw(4, batch.count, 0, batch.first);
+    colorAttachments: [{ view: target.createView(), loadOp: 'clear', storeOp: 'store', clearValue: { r, g, b, a } }],
+    depthStencilAttachment: {
+      view: depthFor(state, target).createView(), depthClearValue: 1, depthLoadOp: 'clear', depthStoreOp: 'discard'
     }
-  }
+  });
+  encodeBatches(state, pass, frame.batches);
   pass.end();
   device.queue.submit([encoder.finish()]);
   state.target = target;
@@ -245,12 +284,14 @@ async function readFrame(state) {
   }
 }
 
-/** Destroy every buffer and texture, then release the canvas. */
+/** Destroy every buffer and texture, meshes and depth included, then release the canvas. */
 function destroyAll(state) {
   const { resources } = state;
   state.lost = true;
   state.target = null;
   state.instances?.destroy();
+  state.depth?.destroy();
+  resources.meshes.destroy();
   for (const { texture } of state.textures.values()) texture.destroy();
   state.textures.clear();
   state.groups.clear();
@@ -274,7 +315,7 @@ export async function createBackend(canvas, options = {}) {
   });
   const state = {
     device, context, format, resources, textures: new Map(), groups: new Map(),
-    instances: null, target: null, lost: false
+    instances: null, depth: null, target: null, lost: false
   };
   device.lost.then((info) => {
     if (info.reason !== 'destroyed') logger.error(`device lost (${info.reason}): ${info.message}`);
@@ -290,6 +331,8 @@ export async function createBackend(canvas, options = {}) {
       state.textures.delete(id);
       state.groups.delete(id);
     },
+    mesh: (id, geometry) => resources.meshes.upload(id, geometry),
+    dropMesh: (id) => resources.meshes.drop(id),
     draw: (frame) => drawFrame(state, frame),
     read: () => readFrame(state),
     destroy: () => destroyAll(state)

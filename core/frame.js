@@ -6,8 +6,11 @@
  * camera in flight, a busy pass - and stops once settled. The host box is read first, then any structure pass,
  * every layout read, then every write. Every pass is registered, a root's own included (`./root.js`).
  */
+import { createLogger } from '../log.js';
 import { defaultPort } from './port.js';
 import { scopeContainerOf } from './state.js';
+
+const logger = /* @__PURE__ */ createLogger('frame');
 
 /** Duration of one reference frame at 60Hz, in milliseconds. */
 export const FRAME_MS = 16.67;
@@ -141,12 +144,21 @@ function measure(state) {
   }
 }
 
-/** Hand one blit to its port. A size the port wrote is re-read next frame, so declared and measured agree. */
+/**
+ * Hand one blit to its port. A size the port wrote is re-read next frame, so declared and measured agree. A port
+ * that throws is dropped for the default one (logged), so one bad port never stops the root's loop.
+ */
 export function paint(root, state) {
   const port = state.port || defaultPort;
   const resized = state.changed.has('w') || state.changed.has('h');
 
-  port(state.handle, { changed: state.changed, first: !state.painted, camera: root ? root.camera : null });
+  try {
+    port(state.handle, { changed: state.changed, first: !state.painted, camera: root ? root.camera : null });
+  } catch (error) {
+    logger.error('a port threw; the blit falls back to the default port', error);
+    state.port = null;
+    defaultPort(state.handle);
+  }
   state.painted = true;
   state.changed.clear();
 

@@ -7,8 +7,9 @@
  * and draws nothing on a frame where no drawn blit changed and the camera stood still. A gpu blit's element stays
  * where the default port puts it, transparent, as its hit proxy: pointer events, hit-testing, keyboard roving and
  * the accessibility tree work unchanged. What a blit draws is its `tint` (`#rgb`, `#rrggbb` or `#rrggbbaa`) or
- * the content an add-on gives it through `gpuContent(b, ...)`.
+ * the content an add-on gives it through `gpuContent(b, ...)`: a textured quad, a mesh, or several parts.
  */
+import { multiply } from '../core/camera.js';
 import { schedule } from '../core/frame.js';
 import { defaultPort } from '../core/port.js';
 import { BLIT_ATTR, boundsOf, isWithin, parentElementOf, rootOf, stateOf } from '../core/state.js';
@@ -24,8 +25,11 @@ export const GPU_ATTR = 'data-blit-gpu';
 /** @type {WeakMap<object, object>} root -> its gpu controller */
 const GPUS = /* @__PURE__ */ new WeakMap();
 
-/** @type {WeakMap<object, object>} blit state -> the content an add-on gave it */
+/** @type {WeakMap<object, object|object[]>} blit state -> the content an add-on gave it */
 const CONTENT = /* @__PURE__ */ new WeakMap();
+
+/** @type {WeakMap<object, object[]>} blit state -> the scene keys of its parts, one per content part */
+const PARTS = /* @__PURE__ */ new WeakMap();
 
 /** @type {WeakMap<Element, string>} proxy element -> the inline opacity it had before */
 const PROXIES = /* @__PURE__ */ new WeakMap();
@@ -63,9 +67,12 @@ export function gpuPort(b) {
 }
 
 /**
- * Give a blit what it draws: `{color: [r, g, b, a], texture, uv: [u0, v0, u1, v1], rotation, version}` (a new
- * `version` re-uploads the texture); null goes back to its `tint`. Content add-ons (sprites, text, media) build
- * on this. @returns {object} the blit
+ * Give a blit what it draws; null goes back to its `tint`, and a list draws each part in order. A part is a quad,
+ * `{color: [r, g, b, a], texture, uv: [u0, v0, u1, v1], rotation, version}` (a new `version` re-uploads the
+ * texture), or a mesh, `{mesh: {vertices, indices}, color, lit}` fitted to the blit one of two ways: a unit shape
+ * centred in the box, scaled to it and to `depth` (px; the smaller side by default) and turned by `rotate`
+ * (`[x, y, z]` degrees), or path units mapped from `viewBox: [x, y, w, h]` onto the box. A part with no `color`
+ * takes the tint. Content add-ons (sprites, text, media, mesh, svg-path) build on this. @returns {object} the blit
  */
 export function gpuContent(b, content) {
   const state = stateOf(b.el);
@@ -86,24 +93,69 @@ function controllerOf(state) {
   return (root && GPUS.get(root)) || null;
 }
 
-/** What the scene draws for a blit: its global box, depth and content. */
-function recordOf(state) {
-  const { x, y, w, h } = boundsOf(state);
-  const content = CONTENT.get(state);
+/** CSS `rotateX`, then `rotateY`, then `rotateZ` (degrees), column-major. */
+function rotationOf([rx = 0, ry = 0, rz = 0]) {
+  const [a, b, c] = [rx, ry, rz].map((deg) => deg * Math.PI / 180);
+  const x = [1, 0, 0, 0, 0, Math.cos(a), Math.sin(a), 0, 0, -Math.sin(a), Math.cos(a), 0, 0, 0, 0, 1];
+  const y = [Math.cos(b), 0, -Math.sin(b), 0, 0, 1, 0, 0, Math.sin(b), 0, Math.cos(b), 0, 0, 0, 0, 1];
+  const z = [Math.cos(c), Math.sin(c), 0, 0, -Math.sin(c), Math.cos(c), 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+  return multiply(multiply(x, y), z);
+}
+
+/** A mesh part's units to canvas px on the box `{x, y, w, h}` at depth `z`: a viewBox mapped, or a unit shape fitted. */
+export function meshTransform({ x, y, w, h }, z, part) {
+  if (part.viewBox) {
+    const [vx, vy, vw, vh] = part.viewBox;
+    const [sx, sy] = [w / vw, h / vh];
+    return Float64Array.of(sx, 0, 0, 0, 0, sy, 0, 0, 0, 0, 1, 0, x - vx * sx, y - vy * sy, z, 1);
+  }
+  const depth = part.depth ?? Math.min(w, h);
+  const place = Float64Array.of(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x + w / 2, y + h / 2, z, 1);
+  const scale = Float64Array.of(w, 0, 0, 0, 0, h, 0, 0, 0, 0, depth, 0, 0, 0, 0, 1);
+  return part.rotate ? multiply(multiply(place, rotationOf(part.rotate)), scale) : multiply(place, scale);
+}
+
+/** What the scene draws for one part of a blit on its global box. */
+function recordOf(state, box, part, tint) {
+  const color = part?.color ?? tint;
+  if (part?.mesh) {
+    return { mesh: part.mesh, transform: meshTransform(box, state.z, part), z: state.z, color, lit: part.lit !== false };
+  }
   return {
-    x, y, w, h, z: state.z,
-    rotation: content?.rotation ?? 0,
-    color: content?.color ?? parseTint(state.el.getAttribute('data-tint')),
-    texture: content?.texture ?? null,
-    uv: content?.uv,
-    version: content?.version
+    ...box, z: state.z, rotation: part?.rotation ?? 0, color,
+    texture: part?.texture ?? null, uv: part?.uv, version: part?.version
   };
+}
+
+/** Every part a blit draws, in order. */
+function recordsOf(state) {
+  const content = CONTENT.get(state);
+  const parts = Array.isArray(content) ? content : [content ?? null];
+  const box = boundsOf(state);
+  const tint = parseTint(state.el.getAttribute('data-tint'));
+  return parts.map((part) => recordOf(state, box, part, tint));
+}
+
+/** The scene keys for a blit's first `count` parts, made once and kept. */
+function partKeys(state, count) {
+  let keys = PARTS.get(state);
+  if (!keys) PARTS.set(state, (keys = []));
+  while (keys.length < count) keys.push({ state, part: keys.length });
+  return keys;
+}
+
+/** Whether two values draw the same: equal, or array-likes equal element by element. */
+function sameValue(a, b) {
+  if (a === b) return true;
+  if (!a || !b || typeof a.length !== 'number' || a.length !== b.length || typeof a === 'string') return false;
+  for (let i = 0; i < a.length; i += 1) if (a[i] !== b[i]) return false;
+  return true;
 }
 
 /** Whether two records draw the same (a texture's version included). */
 function sameRecord(a, b) {
-  return a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h && a.z === b.z && a.rotation === b.rotation
-    && a.texture === b.texture && a.version === b.version && a.uv === b.uv && String(a.color) === String(b.color);
+  for (const key of new Set([...Object.keys(a), ...Object.keys(b)])) if (!sameValue(a[key], b[key])) return false;
+  return true;
 }
 
 /**
@@ -242,29 +294,43 @@ function sweep(controller) {
     const element = state.el;
     if (state.port !== gpuPort || !isWithin(root.host, element)) forget(controller, state);
     else if (!visible(state)) {
-      scene.delete(state);
-      controller.records.delete(state);
-    } else if (!scene.has(state) || state.w === null || state.h === null || parentElementOf(element)) {
+      unrecord(controller, state);
+    } else if (!controller.records.has(PARTS.get(state)?.[0]) || state.w === null || state.h === null
+      || parentElementOf(element)) {
       controller.touched.add(state);
     }
   }
 }
 
-/** Put a visible member's record in the scene when it draws differently than before. */
+/** Put a visible member's parts in the scene, each only when it draws differently than before. */
 function record(controller, state) {
   if (!controller.members.has(state) || !visible(state)) return;
-  const next = recordOf(state);
-  const previous = controller.records.get(state);
-  if (previous && sameRecord(previous, next)) return;
-  controller.records.set(state, next);
-  controller.scene.set(state, next);
+  const next = recordsOf(state);
+  const keys = partKeys(state, next.length);
+  next.forEach((rec, i) => {
+    const previous = controller.records.get(keys[i]);
+    if (previous && sameRecord(previous, rec)) return;
+    controller.records.set(keys[i], rec);
+    controller.scene.set(keys[i], rec);
+  });
+  for (const key of keys.slice(next.length)) {
+    controller.records.delete(key);
+    controller.scene.delete(key);
+  }
+}
+
+/** Take every part of a blit out of the scene. */
+function unrecord(controller, state) {
+  for (const key of PARTS.get(state) ?? []) {
+    controller.records.delete(key);
+    controller.scene.delete(key);
+  }
 }
 
 /** Let a blit go: out of the scene, its element visible again. */
 function forget(controller, state) {
   controller.members.delete(state);
-  controller.scene.delete(state);
-  controller.records.delete(state);
+  unrecord(controller, state);
   const element = state.el;
   if (PROXIES.has(element)) {
     element.style.opacity = PROXIES.get(element);
@@ -287,11 +353,13 @@ function fitCanvas(canvas, hostRect) {
  * never the root's loop. */
 function draw(controller) {
   const { backend, scene, root } = controller;
-  const { instances, count, dirty, batches, uploads, drops } = scene.pack();
+  const { instances, count, dirty, batches, uploads, drops, meshUploads, meshDrops } = scene.pack();
   controller.redraw = false;
   try {
     for (const id of drops) backend.dropTexture(id);
     for (const [id, source] of uploads) backend.texture(id, source);
+    for (const id of meshDrops) backend.dropMesh(id);
+    for (const [id, geometry] of meshUploads) backend.mesh(id, geometry);
     const clip = clipMatrix(root.camera, root.hostRect, backend.depthRange);
     backend.draw({ clip, instances, count, dirty, batches, clear: [0, 0, 0, 0] });
   } catch (error) {
