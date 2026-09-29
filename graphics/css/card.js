@@ -28,6 +28,8 @@ export const CARD_CSS = `/* ------------------ DISPLAY WIDGETS -----------------
   max-width: none;
 }
 
+/* The card types are listed again so the border toggle outranks the surface rule above it. */
+:is([data-type="card"], [data-type="media"], [data-type="vector-pointer"])[data-blit][data-bordered="false"],
 [data-blit][data-bordered="false"],
 [data-blit][data-bordered="false"]:hover {
   border-color: transparent;

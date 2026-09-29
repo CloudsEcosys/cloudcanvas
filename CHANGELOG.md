@@ -4,636 +4,90 @@
 All notable changes to CloudCanvas. Versions follow semantic versioning; this file
 records the migration surface, not the commit history.
 
-> **Repository scope.** This is the changelog for the whole CloudCanvas system. This repository
-> ships the **core engine only**; entries below that describe the base widget kit / components
-> (`lib/`, `cloudcanvas/lib`, `cloudcanvas/components`, `cloudcanvas/sandbox`) or the sandbox /
-> site builder (`examples/`) refer to the sibling repositories
-> **[NeoTecDigital/cloudcanvas-lib](https://github.com/NeoTecDigital/cloudcanvas-lib)** and
-> **[NeoTecDigital/cloudcanvas-site](https://github.com/NeoTecDigital/cloudcanvas-site)**.
+## 0.5.0 (unreleased)
 
-## Unreleased
+The blit release. The Pin engine is gone; CloudCanvas is now a two-export core and a set of add-ons,
+each its own subpath, each costing nothing unless imported. `import 'cloudcanvas'` is 6.6 KB gzipped (0.4:
+about 60 KB). Projects that must stay on the Pin API can pin the `legacy/0.4` branch of
+`CloudsEcosys/cloudcanvas`.
+
+### Breaking
+
+- **`cloudcanvas` exports exactly `blit` and `type`.** Every other capability moved to an add-on
+  subpath (`cloudcanvas/drag`, `pan`, `select`, `resize`, `focus`, `keyboard`, `menu`, `announce`,
+  `cursors`, `motion`, `layout`, `style`, `edit`, `place`, `history`, `connect`, `physics`, `svg-state`,
+  `reactions`, `lazy`, `offload`, `observe`, `types`, `widget`); `cloudcanvas/defaults` names them all.
+- **The session, `Pin`, particles and the trait classes are removed**, with the renderer, the manager,
+  hydration of `data-cc-*`, reload strategies and utility Pins. Hierarchy is the DOM, state is keyed by
+  element, events are native `CustomEvent`s, and the frame is one read/write loop per root.
+- **Save format v2** writes blit trait names (`drag`, `select`, `resize`, `focus`) and drops `reload`;
+  both v1 documents and v2 documents written by pre-release builds load unchanged (legacy trait names are
+  aliased on load, `select` widgets load as `dropdown`).
+- **Widget factories take a parent blit**, not a session: `createButtonPin(session, o)` is
+  `createButton(parent, o)`, and so on through the kit; contents live under the widget's type key.
+- **The sandbox speaks boards**: `createBoard`, `serializeBoard`, `deserializeBoard`, `clearBoard`,
+  `autoSaveBoard`, `attachBoardPart`; the static export bundles `dist/cloudcanvas.board.iife.js`.
+- `cloudcanvas/styles` is `cloudcanvas/graphics`; the `cloudcanvas/styles.css` alias is removed.
+
+### Migration
+
+`node scripts/migrate-0.5.js <dir>` lists every 0.4 call in a codebase with its 0.5 form.
+
+| 0.4 | 0.5 |
+|---|---|
+| `createCanvasSession({container})` | `blit(host)`; or `createBoard(host)` (`cloudcanvas/sandbox`) for the standard add-ons |
+| `session.createPin({type, contents, parent, width, height, ...})` | `parent.blit({id, type, [type]: contents, w, h, drag, select, ...})` |
+| `session.getPin(id)` / `removePin(id)` | `app.find(id)` / `b.remove()` |
+| `pinManager.getRootPins()` / `getAllPins()` | `app.blits` / `allBlits(app)` |
+| `pin.setContent(k, v)` / `pin.contents.get(k)` | `setContent(b, k, v)` / `contentOf(b)[k]` (`cloudcanvas/widget`) |
+| `defineComponent({build, update})` | `widget({name, html, keys, bind, render})` |
+| `pin.addTrait(name, o)` / `removeTrait` / `replaceTrait` | `b.set({name: o})` / `b.set({name: false})` |
+| `DraggableTrait`, `SelectableTrait`, `ResizableTrait`, `FocussableTrait`, `ConnectableTrait` | the `drag`, `select`, `resize`, `focus`, `connect` add-ons, named with `blit.use` |
+| `pin.setPosition(x, y, z)` / `resizePin(p, w, h)` | `b.set({x, y, z})` / `b.set({w, h})` |
+| `reparentPin(p, parent)` / `reorderChild` | `move(b, parent)` (`place`) / `reorder(b, before)` (`layout`) |
+| `pin.getGlobalBounds()` | `b.bounds` |
+| `pin.transmit(new PinEvent(t, {payload}))` | `b.emit(t, payload)` |
+| `pinManager.onSignal(fn)` | `app.on(type, fn)` |
+| `session.focus(pin, {promote})` / `pushFocus` / `popFocus` | `go(app, b, {promote})` / `back(app)` (`history`) |
+| `viewport.zoomToFit(box)` | `app.view(b)`, or `cameraOf(app).fit(box, rect)` |
+| `pin.beginEdit()` / `endEdit()` | `begin(b, node)` / `end(b)` (`edit`) |
+| `setPinStyle` / `getPinStyle` | `setStyle` / `getStyle`, or `b.set({style})` (`style`) |
+| `pin.layout = 'row'`, `pin.layoutGap = 8` | `b.set({layout: 'row', gap: 8})` |
+| `pin.chrome = false`, `pin.bordered = false` | `b.set({chrome: false})`, `b.set({bordered: false})` |
+| `attachReactions(session)`, `reactionsFor(session)` | `app.set({reactions: true})`, `reactionsOf(app)` |
+| `serializeSession` / `deserializeSession` | `serializeBoard` / `deserializeBoard` |
+| `data-pin-id`, `.cloudcanvas-pin` | the element id, `[data-blit]` |
 
 ### Added
 
-- **`Pin.rebuildDisplay()` - force a display to lay out a new content *shape*.** The ordinary
-  render path rebuilds a Pin's subtree only on a display-type swap or the `html` override
-  toggling, because those are the only structure changes a built-in template has: a card is
-  always title-over-body, whatever the values. A `defineComponent` template whose `build`
-  reads the content *shape* - the slotted custom type lays out one region per slot - has a
-  fourth kind of change the display signature (its fixed trait name) cannot see, so after its
-  contents change shape a plain `setContents` writes into a subtree built for the old shape.
-  `rebuildDisplay()` discards the built subtree and asks for a content frame, so the next
-  render constructs the new shape. It is a no-op on a Pin with no display trait and safe to
-  call repeatedly. The trait-level primitive it drives, `DisplayTrait.discardBuild(pin)`, is
-  public too - `rebuildDisplay` is the Pin-level spelling.
-  *Migration*: none - additive; a Pin never rebuilt implicitly still renders identically.
-
-- **`pin.layout` and `pin.layoutGap` - a container that lays its children out.** A Pin
-  option and a live get/set pair: `'free'` (the default, and what every existing Pin is)
-  keeps today's absolute positioning, where each child is placed by its own transform;
-  `'row'`, `'column'` and `'grid'` lay the **scope well** out with real CSS flex or grid
-  and let the children flow. Structurally it is the twin of `chrome`, one level down -
-  one class, live-settable, mirrored from a flag the Pin holds so a headless Pin still
-  remembers what it was asked for - but written onto the scope well rather than the root,
-  because layout is about how a Pin arranges *its children*, not how the Pin itself sits.
-  `'free'` carries no class at all, so an untouched card's stylesheet output is byte for
-  byte what it was. `layoutGap` is the gap in canvas pixels, written as the
-  `--cc-layout-gap` custom property all three modes read; `null` (the default) leaves the
-  sheet's own `--cc-space-2` spacing in place. An unknown mode throws a `TypeError` rather
-  than silently leaving the container free.
-  Exported alongside them: `LAYOUT_MODES`, `LAYOUT_CLASS`, `FLOW_CHILD_CLASS` and
-  `LAYOUT_GAP_PROPERTY`, so a consumer styling or testing a flow container names the same
-  strings this does.
-  *Migration*: none - `layout` defaults to `'free'`, and reading it on any existing Pin
-  reports what that Pin already was.
-
-- **`is-flow-child`, and the transform the renderer stops writing.** A child of a
-  non-`free` container is positioned entirely by its parent's flex or grid flow, so it
-  wears one class - `position: relative`, `top/left: auto` - and `_applyPosition` declines
-  to write it a transform at all. `relative` rather than `static` deliberately: `z-index`
-  is inert on a static box and both `is-dragging` and `cc-elevated` raise a Pin through
-  it, so a reorder drag would stop elevating. The class is kept in step by `syncFlowChild`
-  from every path that can change a Pin's parent (`addChild`, `removeChild`, and so
-  `reparentPin` through them) and from `setLayout` for each existing child, so switching a
-  container to a flow mode re-flows the children it already has, not only future ones.
-  Crossing that boundary clears two things in both directions, and both are load-bearing:
-  the transform already on the element (a `position: relative` box still honours one, so a
-  leftover would visibly mis-place the child - `relative` does not neutralise it), and the
-  renderer's applied-position cache (`clearAppliedPosition`, new on `ConjugateRenderer`),
-  without which the transform a Pin needs on its way *back* to free layout would be
-  skipped as unchanged against a stale entry.
-  Two rules keep a flow container honest about *size*, which is the part that is easy to
-  get wrong. Each mode states its cross-axis alignment (`align-items: flex-start` on row
-  and column, `align-items`/`justify-items: start` on grid) rather than taking the
-  browser's `stretch`: a Pin's size is its own, and since the measurement pass writes
-  rendered boxes back into particles, a stretching flow would silently overwrite every
-  child's height in a row and its width in a column or grid. And `ScopeWellPass` writes
-  **no measured `min-height`** for a flow parent - that number is `max(child.particle.y +
-  height)`, which for a flow child is a position nothing renders at any more - leaving the
-  flow itself to size the well, with `--cc-scope-min-height` as the only floor.
-  *Migration*: none - a Pin whose parent is free is never a flow child, and a free well is
-  still sized exactly as before.
-
-- **`reorderChild(container, pin, beforeSibling)` and `insertionSiblingFor(container, pin,
-  event)` - in-place ordering inside a flow container.** Beside `reparentPin`, because a
-  reorder is the same drag gesture staying inside its own parent - and deliberately *not*
-  routed through `removeChild`/`addChild`: the Pin is already a child, so there is no
-  relinking, no renderer re-attach, no coordinate conversion and no well to settle. Only
-  order changes, and it changes in two places at once because two layers read it: the
-  browser paints the DOM, and `serializeSession` walks `Pin.children`. That `Set`'s
-  iteration order *is* insertion order and a `Set` has no insert-at-index, so the order is
-  rebuilt by clearing and re-adding in sequence; the element moves with a single native
-  `insertBefore`, which relocates rather than clones. `insertionSiblingFor` turns a drop
-  point into the reference sibling - horizontal for a row, vertical for a column or grid,
-  each sibling's midpoint read live off `getBoundingClientRect` because a flow child's
-  particle x/y no longer describes where it renders. `DraggableTrait` consults it ahead of
-  its own same-parent no-op guard, so a drop inside the flow container a Pin already
-  belongs to reorders it instead of doing nothing; a Pin in a free container never reaches
-  that branch, so ordinary dragging is untouched.
-  *Migration*: none - additive, and inert outside a flow container.
-
-- **`renderStaticHtml(snapshot, {page})` - export a page built to a device size.**
-  `lib/sandbox/export-static.js` takes an optional `page: {width, height}` in CSS pixels,
-  threaded unchanged through `buildStaticSite`, `exportStaticSite` and
-  `downloadStaticSite`. Without it the mounted root fills the window exactly as before
-  (`position: absolute; inset: 0; width: 100vw; height: 100vh`, the document
-  `overflow: hidden`); with it the root is a box of that size, centred and scrollable
-  (`position: relative`, the stated width and height, `max-width: 100vw; margin: 0 auto`),
-  which is the box the Sandbox's new windowed mode composed the canvas in. The exported
-  session still mounts with its camera at rest, so canvas (0, 0) is that page's top-left
-  corner. The viewport meta stays `width=device-width` either way - the right declaration
-  for a page *built* to a device size, and a fixed `width=` would only fight it. A `page`
-  that is given but is not two positive finite numbers throws a `TypeError`: a caller who
-  meant to size the page and mistyped it must not silently get a window-filling one.
-  *Migration*: none - the option is opt-in and its absence is the previous output, byte
-  for byte.
-
-- **Sandbox: windowed mode, and a Layout section in the editor.** The builder's toolbar
-  gains a *Windowed* toggle that draws a device-sized frame on the plane (Mobile, Tablet,
-  Laptop, Desktop, or Custom) and flies the camera to fit it; the frame is a composition
-  guide rather than a clip, its size is what the ZIP export is built to, and the mode is
-  deliberately not part of the saved profile - it is how the canvas is being looked at,
-  not what is on it. The editor gains a Layout section (`Children` and `Gap`), offered to
-  any Pin that can hold children and writing only through `pin.layout` / `pin.layoutGap`;
-  a child of a flow container has its X and Y hidden in the editor with the reason stated
-  and disabled in the quick-panel with the reason as its tooltip, which is the same
-  refusal the read-only offload rows already make. One consequence is stated because it is
-  a layout invariant, not a preference: in the full-screen shell the toolbar is now
-  `flex-wrap: nowrap` with a horizontal-scroll fallback. A session measures its host box
-  at mount and on a window resize only, so a bar that grew a second row as the view
-  controls appeared would move the host under a cached measurement and put the context
-  menu, the offload sweep and every drop point on a stale box.
-
-- **`pin.chrome` - the whole card, toggled live.** A Pin option (`chrome: false`) since
-  0.2.0, now also a real get/set pair, exactly as `bordered` became one in 0.4.0. Where
-  `bordered: false` withholds only the border, `chrome: false` takes the entire card
-  away - surface, padding, radius, shadow and border - which is what a component that
-  draws its own surface needs, and painting the default card first is both a wasted
-  frame and a fight that component has to win back in CSS.
-  Structurally it is the same shape as `bordered`: one class (`cloudcanvas-primitive-card`)
-  on the root element, mirrored from a flag the Pin holds, so a headless Pin still
-  remembers what it was asked for. **The two-child `.content + .scope` structure is
-  built once and identically either way**, so toggling chrome is a class-level change
-  with content preserved *by construction* - it is not a structural rebuild, and
-  `contentElement` and every node inside it survive by identity across any number of
-  toggles.
-  One deliberate difference from `bordered`, and it is the whole reason the setter is
-  not a copy of it: `bordered` is `border-color: transparent`, which moves no geometry,
-  while chrome is real padding, a real border *width* and a shadow - so dropping or
-  restoring it **changes the layout box**. The particle, any connector anchored to this
-  Pin's centre, and the scope well it sits in all read that box, so the setter ends in
-  `invalidate('content')` - the same debt `resizePin` pays for a resize - and `bordered`
-  correctly does not.
-  At setup the class list is the authority rather than the flag, because `rootClassName`
-  suppresses the card not only for `chrome: false` but for a caller's own `className`
-  and for an adopted element that never passed through the builder at all; the flag is
-  read back from the element there, and the live setter is the only thing that writes it.
-  *Migration*: none - `chrome` defaults to `true`, and reading it on any existing Pin
-  reports what that Pin already was.
-
-- **The chromeless grab handle - a drag surface for a Pin that is all control.**
-  `DraggableTrait` now builds a small grip at the Pin's top-left corner
-  (`GRAB_HANDLE_CLASS`, exported) whenever the Pin is chromeless *and* its own surface
-  is a real control. That combination is exactly the hole `chrome: false` opened: a
-  `lib/` Button's Pin **is** a `<button>`, and `DraggableTrait` stands down on a real
-  control on purpose (a button that moves the card it sits on is a button nobody can
-  press) - so before this there was nothing left to grab such a Pin by at all.
-  Wiring mirrors `ResizableTrait`'s handles exactly: a direct child of the Pin's
-  **root** (so it rides the transform and a content re-render never removes it),
-  visibility through the `hidden` property driven off the one `select` signal rather
-  than a poll, and full removal from the DOM - never merely hiding - when it is not
-  needed. It is deliberately **not** `data-cc-control`, which is the one difference from
-  a resize handle and the entire point: initiating a drag is its job.
-  The gate is chrome plus a control surface, read as the content node's first element
-  child. A chromed Pin is draggable by its padding and header already; a chromeless
-  *non*-control - a divider, a bare adopted section - is draggable by its whole face.
-  Neither builds a handle, so the ordinary canvas pays one flag test per render.
-  *Migration*: none - additive, and invisible to every Pin that is not chromeless.
-
-- **`reparentPin(pin, newParent, position)` - move a live Pin between scopes.** The
-  nest/detach primitive, a free function taking the Pin first beside `resizePin` and
-  `rotatePin`. `newParent` is the Pin to nest under, or `null` to promote back out to
-  the canvas root - one primitive, two directions, and the two are the same operation
-  with the source and target roles reversed. **Never a rebuild**: the Pin instance
-  survives untouched - its `traits` Map, its particle, its selection and drag state, its
-  element and every listener on it - and only two things change, which scope holds it
-  and where inside that scope it sits.
-  The membership half is reused rather than reimplemented (`addChild`/`removeChild`
-  already relink the graph, move the element between scope wells, re-attach the renderer
-  and wake the subtree). What they do not do is convert coordinates, and that conversion
-  is the whole of what this adds: `position` is a **canvas-space** top-left, and it is
-  turned into the new parent's local space through `scopeOriginOf` - the parent's global
-  corner plus its cached scope-container offset, which is the inverse of the
-  per-ancestor sum `getGlobalBounds` walks, stopped one level up. Omitting `position`
-  keeps the Pin exactly where it already is, which is what a drop wants.
-  Guards: a Pin is never its own parent, and **never a child of its own descendant** -
-  the cycle check walks `ancestors()` and rejects the move rather than corrupting the
-  tree. A no-op (already at root, asked for root) is rejected too.
-  The parent a Pin *leaves* is explicitly recomputed. A departed child leaves no dirt of
-  its own behind, so the vacated well would otherwise stay sized and outlined for a
-  child that is gone; `removeChild` does not touch it, so a live reparent invalidates it
-  through the renderer's own well pass when one is attached and synchronously otherwise.
-  The new parent needs no such nudge - the moved Pin is dirty this frame.
-  *Migration*: none - new API. Serialization is unchanged: a reparented Pin round-trips
-  with no serializer change, because parentage was always read from the graph.
-
-- **Drag-to-nest and drag-to-detach, on the drag gesture already there.** A finished
-  drag that comes to rest over a different scope is promoted from a plain move into a
-  reparent, in `DraggableTrait.onPointerUp`. The release point is resolved by
-  `droppablePinAt(session, event, {ignore})` (also exported) - a new core hit-test that
-  reads `document.elementsFromPoint` **deepest-first**, because a nested Pin's element
-  sits inside its parent's well and is therefore the topmost thing painted there, and
-  skips the dragged Pin's whole subtree, because a Pin can be dropped neither into
-  itself nor into one of its own descendants. In a layout-less DOM the event's own
-  `target` stands in, which is how a caller with no geometry names a drop.
-  `target === pin.parent` is the regression lock: a drag ending over open root canvas
-  (both `null`) or back inside its current parent does nothing at all, so it stays the
-  plain move the last `onPointerMove` already committed. A click that never crossed
-  `DRAG_THRESHOLD_PX` reparents nothing, and neither does a cancelled drag - which is
-  the same missing-event convention `cancelDrag` and `onDetach` already used.
-  The point handed to `reparentPin` is the Pin's own current canvas-space corner, so a
-  drop keeps it exactly where the user let go with no visible jump.
-  One ordering fix came with it: `onPointerUp` in the pointer router now clears
-  `DRAG_CHAIN_CLASS` **before** routing to traits. `setElevationChain` walks
-  `pin.parent`, so removing the class after a drop would strip the *new* chain and
-  strand the class on the old one. This is the order `cancelDrag` already used.
-  *Migration*: a drag that ends over another Pin now nests instead of overlapping. Pass
-  no `DraggableTrait`, or intercept `drag:end`, if a canvas wants the old behaviour.
-
-- **`offload` - opt-in DOM virtualization on the viewport axis.** A per-Pin option
-  (`offload: true`) whose element is detached from the document once its global box has
-  left the visible canvas by more than a margin, and reattached the moment the camera
-  brings it back. Model, particle, traits, contents and measured size are all retained:
-  this is virtualization, **not** destruction, and no lazy provider is re-armed (that is
-  `unload()`, a heavier and separate thing).
-  Orthogonal to `reload`, not a value of it: a Pin can be `reload: 'lazy'` *and*
-  `offload: true`, because one decides when a scope's children are first created and the
-  other decides whether an existing element is currently worth keeping in the document.
-  The margin is `offloadMargin` - per Pin (honoured even at `0`), falling back to a
-  session-level `offloadMargin` option, falling back to `DEFAULT_OFFLOAD_MARGIN` (400px,
-  exported).
-  The mechanism is deliberately not new: the pass raises `pin._offloadDormant`, which
-  makes `resolveRenderMode` resolve the Pin to `unmounted`, so detach and reattach travel
-  the exact same structure-flush path a sleeping scope already used. Two invariants shape
-  it - **root-only evaluation** (detaching a root takes its whole subtree with it, so
-  nested Pins ride their root rather than being tested one by one) and **camera-gated**
-  (the sweep runs only when the viewport version moved, or when a new offload Pin was
-  just adopted), which is what preserves the idle-canvas-zero-writes guarantee: a still
-  camera does no offload work at all. A reattached Pin re-queues content and measurement
-  like any freshly mounted Pin, so it renders current state rather than the state it left
-  with.
-  *Migration*: none - `offload` defaults to `false` and a canvas with no opted-in Pin
-  never enters the sweep.
-
-- **`lib/sandbox/custom-types.js` - user-defined Pin presets in `localStorage`.** The
-  fifth module in `lib/sandbox/`, and the first one that is not about a *session*:
-  `saveCustomType(definition)` / `getCustomType(name)` / `listCustomTypes()` /
-  `deleteCustomType(name)`, with `normalizeCustomType` and `customTypeContents` for
-  placing one, plus `CUSTOM_TYPE_KEY_PREFIX`, `CUSTOM_FIELD_KINDS` and
-  `CUSTOM_TYPE_TRAITS`. All re-exported from `lib/sandbox/index.js`.
-  A definition is a **recipe** - `{name, fields, traits, chrome, bordered, reload,
-  width, height}` - not a display trait. Placing one is `session.createPin(...)` with
-  those defaults spread in plus the named trait attachments: the same calls a
-  hand-built Pin makes. **Nothing is registered with the trait registry**, which is
-  the point: a page that never loads this module still renders a saved instance, as a
-  card, rather than dropping it.
-  It takes its **own key namespace** (`cloudcanvas-custom-type:`) rather than sharing
-  `persistence.js`'s. A type is global to the origin - made once, expected in every
-  profile - so it must not live inside a profile's snapshot; and `listSandboxKeys()`
-  defines "a saved sandbox" as *any* key under the sandbox prefix, so a type stored
-  there would show up in the Load menu as a profile that cannot be opened. One prefix
-  per concern keeps both enumerable sets honest.
-  Every read normalises on the way out, so a definition written by an older page still
-  loads: an unknown field kind falls back to `text`, an unknown reload strategy to
-  `active`, field keys de-duplicate first-wins, and traits are filtered to the
-  attachable set. `listCustomTypes` **skips** an entry that fails to parse rather than
-  throwing - one stale key must not take a whole menu down with it - and sorts by name.
-  The storage guard is `persistence.js`'s exactly: no `localStorage` returns rather
-  than throws.
-  *Migration*: none - a new, additive module. Nothing in `src/` imports it and
-  importing it registers nothing.
-
-- **`parent` - nested submenus in the canvas context menu.** `registerMenuItem` takes a
-  fifth field, `{id, label, when, action, group, parent}`, naming another command this
-  one nests under; `''` (the default) is the top level. `MenuRegistry` grows
-  `hasChildren(id)` and `childrenOf(id)` beside `has` / `get` / `list`, and two new
-  exported class names come with it: `MENU_FLYOUT_CLASS`
-  (`cloudcanvas-context-menu-flyout`) for a submenu panel and `MENU_ITEM_SUBMENU_CLASS`
-  (`cloudcanvas-context-menu-item--submenu`) for the trigger that opens one. Both are
-  re-exported from `src/index.js` beside the four class names that were already there.
-  **Trigger status is derived, never declared.** A command that at least one other
-  command names as its `parent` *becomes* a submenu trigger: it renders with a caret and
-  opens a flyout instead of running. There is no `submenu: true` flag to keep in step
-  with the children, and because a child of a flyout may itself be some third command's
-  parent, the same mechanism composes to **any depth** with no per-level code.
-  Two authoring mistakes are refused at registration rather than papered over, which is
-  the same contract the duplicate-id throw already set:
-  a `parent` that **is not yet registered** throws, so the graph stays an acyclic forest
-  and its render order stays top-down; and naming a parent that **already carries an
-  `action`** throws, because a command cannot be both a trigger and a command.
-  `action` therefore became optional - but only for a trigger, since a leaf with no
-  action is invisible.
-  **An empty category never renders.** Visibility recurses: a trigger shows when its own
-  `when()` passes *and* at least one descendant would itself show, so a category whose
-  every child is gated out by `when` does not appear as a caret that opens onto nothing.
-  The recursion is what makes that judgement reach arbitrarily deep for free.
-  The root panel is still the one persistent element built at `mount()`; **flyouts are
-  transient** - created on open, removed on close - because there may be zero or many
-  and their contents are per-opening. Only one branch is open per level, so opening a
-  trigger closes any sibling's flyout while leaving every ancestor exactly where it is.
-  Both the root and every flyout are positioned through **one** shared helper, so the
-  edge clamp that keeps the menu inside the host box is identical for all of them.
-  Keyboard, on top of the buttons' native Enter / Space / Tab: **Escape now steps back
-  one level** while a flyout is open and only closes the whole menu at the top - the
-  app-menu convention - Up/Down rove within the focused panel and wrap, Right opens the
-  focused trigger's flyout and steps into it, Left closes the flyout focus is in and
-  returns to its trigger. `aria-haspopup` / `aria-expanded` are maintained on every
-  trigger.
-  *Known limitation*: a flyout with no room to its right is **clamped** back inside the
-  host rather than flipped to the trigger's left, native-menu style. Every item in the
-  innermost panel stays on screen and clickable, but within roughly two panel widths of
-  the host's right edge the panels stack on top of one another and the trigger that
-  opened one is covered by it. See *Notes*.
-  *Migration*: none - `parent` is optional and every existing flat registration is
-  unchanged. One behaviour note for anyone driving the menu by keyboard: Escape inside
-  an open submenu now closes that submenu instead of the whole menu.
-
-- **Shift+A quick-search in the Sandbox: the insert catalogue as a typed-at list.**
-  A second door onto the same catalogue the right-click tree offers
-  (`examples/website-sandbox-quicksearch.js`). The chord opens a centred native
-  `<dialog>` shown modally - the rest of the page inert, focus trapped, Escape the
-  platform's own cancel - listing every insertable item, built-in and custom, filtered
-  live against **label *and* category** as the visitor types. Up and Down move the
-  highlight and wrap; Enter places the highlighted item at the middle of the host box;
-  Escape places nothing. A click on a row places that row.
-  The list is read from `insertableItems()` **fresh on every opening** and placement goes
-  through the builder's one `insert(item, point)` command - the same call the menu's
-  leaves make - so the two doors cannot drift and a type saved a moment ago is
-  immediately placeable from both.
-  The chord is taken on the document and refused in three cases: the builder is not on
-  screen (`enable` / `disable` follow the tab's `show` / `hide`, so Home, How It Works
-  and Examples never see it), the press came from an input, textarea, select or anything
-  `contenteditable` - Shift+A there is a capital A, not a command - or a dialog is
-  already open, which covers the editor, the creator and this overlay itself.
-  *Migration*: none - example-application behaviour, and `Shift+A` collides with nothing
-  the library binds (`src/engine/keyboard.js` binds no letter key; Shift there only
-  multiplies the arrow pan).
-
-- **`cloudcanvas/sandbox` - the sandbox utilities as their own entry point.**
-  `lib/sandbox/` (serialize, persistence, zip, export-static, custom-types) has been
-  importable by relative path since it shipped; `package.json`'s `exports` map never
-  named it, so an installed package could not deep-import it at all. Added alongside
-  `./lib` and `./components`, same shape.
-  *Migration*: none - additive.
-
-- **A real usage guide.** `GUIDE.md`, a task-oriented walkthrough - your first Pin, the
-  trait system, `chrome`/`bordered`/theming, composing a real layout with `pin.layout`
-  and `reparentPin`, when to reach for `lib/` versus core, the Sandbox as a worked
-  example - linking into `ARCHITECTURE.md` for the technical detail rather than
-  restating it. Every example in it runs against the current source; linked from the
-  site's How It Works tab.
-
-### Changed
-
-- **Sandbox save format v2.** (Breaking for `cloudcanvas/sandbox`.) `serializeSession` writes
-  `version: 2`: nested blit specs (`blits`, `w`/`h`, `fill`, traits as `name: true`, every
-  default left out) plus `reactions` (`source`, `action.target`), `pages` (`id`) and `theme`;
-  the schema heads `.addons/sandbox/format.js`. v1 saves, v1 exports and bare v1 arrays keep
-  loading through the pure `migrateV1`; an unknown version is logged and throws
-  `SandboxFormatError` (`loadSandbox` returns `null`). The loader now also drops reserved
-  slot-field keys and URL values `safeUrl` refuses. `serialize.js` is split into format,
-  migrate-v1, write, restore-tree and session-parts. Custom types, the slotted type and the
-  page store moved to the site; the reserved-key rule is exported from
-  `cloudcanvas/sandbox` (`reserved-keys.js`). A v2 export now promotes its Home page on
-  boot (the v1 boot script read `pages[].id`, which v1 never wrote).
-  *Migration*: read `blits`/`fill`/`reactions` where you read `pins`/`contents`/`bindings`;
-  import custom-type helpers from the site, the reserved keys from `cloudcanvas/sandbox`.
-
-- **`.addons` consolidated into groups.** (Breaking for `cloudcanvas/archetypes` and
-  `cloudcanvas/components`.) The kit splits into `cloudcanvas/forms` and `cloudcanvas/display`
-  (`cloudcanvas/lib` is both); `badge`, `avatar`, `progress`, `spinner` and `alert` are core
-  types too (`displayTypes()`, then `root.blit({type: 'progress', progress: {value}})`), and
-  their Pins render the same DOM through the same template. The archetypes are rebuilt as
-  core types registered by `registerArchetypes()` - `section` and `table`; `MediaPin`,
-  `ReactableCardPin`, `DocumentPin`, `SectionPin` and `TablePin` are gone, and importing the
-  subpath no longer registers anything. Deleted: `createChatChannelPin`,
-  `createCalendarBoardPin`, the telemetry simulation (`startTelemetrySimulation`,
-  `stopTelemetrySimulation`, `createTelemetryPin`'s `simulate` option, the `HOST_CLASS` export of `.addons/components/registrar.js`; the gallery keeps its
-  own) and the group re-export from `cloudcanvas/sandbox`. Every `--cc-*` token read is now
-  catalogued: `LIB_TOKENS`, `COMPONENT_TOKENS` and three new `TOKENS` entries, each default
-  its sheet's fallback. `readDocument` refuses a document whose shape its version does not
-  describe (a `pins` tree labelled version 2, or the reverse) instead of restoring it empty.
-  *Migration*: build a section or table with the core types; call `startTelemetrySimulation`
-  from your own code; import `saveGroup` and its kin from `cloudcanvas`; fix the version label
-  of a mislabelled save.
-
-- **The session and the Pin manager are facades over the core root.** (Breaking.) Pins are registered in the root's id index. `manager.pins` / `session.pins` are now a read-only view: it keeps Map reads (`get`, `has`, `size`, iteration), but it is no longer `instanceof Map`, and writes throw. `PinManager.tickAll()` and `renderAll()` are removed; the frame's registered passes do that work. `pin.destroy()` now also deregisters the Pin, so `getPin` stops finding it. An unknown session option now logs a warning on the `session` logger instead of throwing. Container aliases (`element`, `host`, `hostElement`, `target`) still throw.
-
-- **Every Pin has an element; headless (no-document) construction is gone.** (Breaking.)
-  A Pin's placement (`x y z` and its size) now lives on its element's core record
-  (`.plugin/core/state.js`), and `pin.particle` is a view over that record - one home for
-  the geometry, no copies. Constructing a Pin without a `document` throws. A utility Pin
-  (the cursor Pin) gets a detached, hidden element nothing mounts, queries or renders; it
-  stays excluded from every manager query, the renderer and the default traits as before.
-- **`pin.size` and `pin.bounds`.** `size` is `{w, h}` by the core's rule (the measured box,
-  or the declared one until a measurement); `bounds` is the global `{x, y, w, h}`. Read
-  these, or `pin.x`/`pin.y`, rather than `pin.particle.width` and friends; the particle
-  keeps its physics (velocity, mass, friction, `pinned`, vectors).
+- **The core**: `blit()` handles over any element, HTML or SVG; potential, indexed and root blits; `set` /
+  `spec` round-trips through `data-*`; `id` as the root's index key; `type()` over `<template>` with text
+  slots; named and anonymous traits; custom ports; one frame loop per root that stops when idle.
+- **Add-ons** carried over from the engine and new: `reactions` (with the action registry and toasts),
+  `lazy` (children on demand), `offload` (off-screen parking), `widget`, `history`, `place`, `style`,
+  `layout`, `edit`; `drag` gains a grip for chromeless controls and stands down in selectable text; `focus`
+  takes `frame: false`; `keyboard` takes `tabStop: false`; `pan` takes `press: false`.
+- **Connectors route edge to edge**: a curve leaves the face nearest its target (from the
+  `cloudcanvas-mcp` branch).
+- **The board** (`cloudcanvas/sandbox`): `createBoard`, board parts, and the board runtime bundle for
+  exported sites.
+- **The site builder** runs on one board: one inspector in three configurations, one structure panel,
+  sample layouts as data, reactions, themes, undo, device frames and a vector pencil.
 
 ### Fixed
 
-- **`ParticleEngine.queryRadius`/`queryBox` test global bounds.** They compared a nested
-  Pin's parent-local box against a canvas-space query, so a child Pin was found where it
-  would sit if it were a root. Both now use the particle's global bounds.
+- **Stored XSS from custom-type fields.** A custom type's `html` field reached a card's markup path; the
+  loader and the builder's gate now refuse the reserved `html` key on custom-type instances, and slot
+  fields under reserved keys (`html`, prototype keys, `cc:`) are dropped with a warning (2026-09-17).
+- **Markup only through declared sinks.** Type slots are text unless the template marks one
+  `data-slot-html`; widget contents are written as text; see SECURITY.md for the complete list.
+- **SVG state and the vectorizer** (added 2026-09-24 without review) were reviewed, tested and folded into
+  `cloudcanvas/svg-state`; the pencil's vector blit validates path data and view boxes before they reach
+  an attribute.
+- A removed view root no longer leaves the board showing nothing.
+- A refused widget content key no longer leaves the blit unable to start its traits.
 
-- **A missing `container` throws instead of mounting nothing.**
-  `createCanvasSession({ container: null })` (or `undefined`, `''`, a non-element)
-  used to succeed silently and render nothing - the session existed, `hostElement` was
-  never set, and there was no error to chase. `container` is now validated wherever a
-  session reads it (construction, and `mount()` directly): a `TypeError` names the
-  option and states what was received, and says outright that omitting the key
-  entirely is how you mount later with `session.mount()` - which is unaffected, since
-  that path is "no `container` given," not "a bad one."
-  *Migration*: a call that relied on the old silent no-op (there is nothing to rely on
-  in "renders nothing," so this should only ever surface a real bug) now throws instead.
-
-- **`autoSaveSession(key, session, options)` - argument order matches its siblings.**
-  Every other `lib/sandbox/persistence.js` export takes `(key, session)`;
-  `autoSaveSession` shipped as `(session, key, options)` last sprint. Reordered for
-  consistency before anything outside this repo could depend on the old order.
-  *Migration*: breaking, pre-1.0. Swap the first two arguments at every call site.
-
-- **Badge and Alert render correctly in light mode.** `toneSurface()` composited a tone
-  hue over `BADGE_SURFACE`, a hard-coded dark hex - so every tone was a dark chip
-  regardless of theme, and light mode got a dark blob with barely-readable text. The
-  fill is now the tone hue itself at a translucent alpha, composited live over
-  whatever surface it sits on rather than baked against one; the foreground reuses the
-  existing `--cc-badge-text-override` token (already correct in `LIGHT_THEME`) instead
-  of a second new one. No observer was added - the adaptation is the browser
-  recompositing a translucent fill under a changed token, which happens for free on a
-  theme toggle. Every tone in both widgets now clears ≥4.5:1 in both themes (measured
-  low: 7.85, dark theme, warning).
-  *Migration*: none - visual only, and strictly a correction.
-
-- **Z-order survives save, reload and export - at every level, not only within a
-  container.** `bringToFront`/`sendToBack` already moved the real DOM element;
-  `serializeSession` read `Pin.children`'s Set order for nested children (fixed once)
-  and `getRootPins()`'s registration order for roots (the gap that fix missed, found in
-  this sprint's own QA gate) - so a root-level reorder, the common case in the
-  Sandbox, still came back exactly as it was created after every reload. Both levels
-  now read the actual paint order - the plane's real children for roots, a scope
-  well's for nested ones - consistent with this project's own stance that the DOM is
-  the model, rather than adding a second order field that could drift from what is
-  actually on screen.
-  *Migration*: none - a saved snapshot with no meaningful prior order restores exactly
-  as before; only an actual reorder is now remembered.
-
-- **A flow child's reported position is its rendered one, not its stale particle.**
-  `pin.layout`'s flow children are placed by CSS, not a transform, so `globalBoundsOf`
-  summing particle x/y for one no longer described anything real - a connector, the
-  cursor, or a reparent drop point could read the wrong place. Fixed inside the
-  existing read phase, not by breaking it: a `position: relative` scope well with no
-  border or padding is a flow child's `offsetParent`, and its content origin
-  coincides exactly with the origin a free child's transform is measured from - so
-  `element.offsetLeft/offsetTop`, captured once per frame alongside the size
-  measurement already taken there, is directly interchangeable with the free-child
-  math. Re-measurement is triggered only when a flow container or one of its children
-  actually changes size or content this frame - a settled row/column/grid costs zero
-  extra work, the same dirty-driven guarantee the rest of the renderer holds.
-  *Migration*: none - every consumer of a Pin's global bounds gets the corrected value
-  automatically; nothing called this out by name before.
-
-- **`lib/components/` is remediated to the base kit's bar.** The nine pin-board widgets
-  are `defineComponent` templates now, not `PinTrait` subclasses: build once, mutate
-  after, keyed lists reconciled (`reconcileKeyedList` for a task's checklist and a
-  message's reactions), a no-op re-render writing nothing, `allowedKeys` closed. Every
-  control is native - checklist rows are `<input type="checkbox">` + `<label for>`,
-  reactions and colour swatches are `aria-pressed` `<button>`s, the sticky note's editor
-  is a `<textarea>` built once and opened under `pin.beginEdit`, both progress bars are
-  `<progress>`, the composer is a `<form>` - and every one honours `--cc-control-min`.
-  The sheet (`styles.js`, split into `styles-cards-css.js` + `styles-board-css.js` +
-  `styles-comms-css.js`) reads
-  only `var(--cc-*, <dark default>)`, carries no `:root` block, and passes
-  `checkStyleDiscipline` whole (254 literal colours and 23 unprefixed classes before).
-  Variants ride `data-theme` / `data-priority` / `data-status` / `data-severity` and
-  `is-done` / `is-pulsing`, not bare modifier classes. Eleven new theme-dependent tokens
-  (`--cc-priority-{urgent,high,normal,low}`, `--cc-status-{nominal,warning,critical}`,
-  `--cc-severity-{critical,high,normal,info}`) have light values in
-  `COMPONENTS_LIGHT_THEME`; every text-on-surface pair in the library measures 4.5:1 or
-  better in both themes (`tests/unit/lib-components-styles.test.js`). Every widget that
-  draws its own surface is `chrome: false` (the double card is gone); `workspace-group`
-  alone keeps the core card, because its children sit in the core's scope well.
-  *Migration*: the `*Trait` classes (`StickyNoteTrait`, `TaskCardTrait`, ...) are gone;
-  a Pin is created by the same `create*Pin` factory, or by name after
-  `registerComponentTraits()`, and each widget's behaviour is a function taking the Pin
-  - `trait.startSimulation(pin)` → `startTelemetrySimulation(pin)`, `trait.setReading`
-  → `setTelemetryReading`, `trait.transmitPulse` → `transmitFlowPulse`,
-  `trait.acknowledge` / `resolve` → `acknowledgeCalendarEvent` / `resolveCalendarEvent`,
-  `trait.navigateBack` → `navigateBreadcrumbBack`. Telemetry thresholds (`warn`, `crit`)
-  and the breadcrumb's `rootName` are contents now, so they survive a snapshot. Selectors:
-  `.severity-critical` → `[data-severity="critical"]`, `.btn-ack` / `.btn-resolve` →
-  `.cloudcanvas-event-ack` / `.cloudcanvas-event-resolve`, `.pulse-glow` → `.is-pulsing`,
-  `.theme-pink` → `[data-theme="pink"]`, `.cloudcanvas-color-dot` →
-  `.cloudcanvas-sticky-swatch`, `.current` → `.cloudcanvas-breadcrumb-current`.
-  `SnapToGridTrait` rides the `drag:end` signal instead of `onPointerUp`, which never
-  saw a real drag (the default drag trait had already cleared its flag). `EditableTrait`
-  inserts its input *beside* the title under the edit lock rather than replacing the
-  title's children, which left every later title update writing into a detached node.
-
-- **`autoSaveSession(session, key, options)` is now `autoSaveSession(key, session, options)`.**
-  A breaking signature change, pre-1.0. Its four `persistence.js` siblings all lead with the
-  sandbox key - `saveSandbox(key, session)`, `loadSandbox(key, session)`,
-  `listSandboxKeys()`, `deleteSandbox(key)` - and the auto-saver was the one that led with the
-  session, so a caller reaching for the family got one of them backwards. It now matches.
-  *Migration*: swap the first two arguments -
-  `autoSaveSession(session, 'current', opts)` becomes `autoSaveSession('current', session, opts)`.
-
-- **The Sandbox tab's widget palette is gone, replaced by the canvas's own right-click
-  menu.** This is a **behaviour change to the example application**, not to the library:
-  the sidebar of draggable widget tiles introduced in 0.4.0 no longer exists, and
-  widgets are inserted by right-clicking empty canvas and choosing one. It is recorded
-  here because anyone who used that tab, or copied its palette code, will find it
-  moved.
-  The builder now registers one `insert-<widget>` command per catalogue entry through
-  the existing `registerMenuItem` registry, `when: (s, {pin}) => !pin` so they appear on
-  empty canvas only, placing at `session.viewport.screenToCanvas(context.x, context.y,
-  rect)` - under the pointer at every zoom and pan. **No `src/` change was needed to
-  allow this**; the menu registry shipped in 0.4.0 was already the intended extension
-  point, and this is the first consumer to use it as a primary interface rather than a
-  garnish. The palette had to be dragged *from* and its drop converted; the menu is
-  already at the destination, and the canvas gets its full width back.
-  A second group of Pin-scoped commands joins them: *Edit...*, *Hide chrome* / *Show
-  chrome* (two items whose `when` are complements, because a label is fixed at
-  registration), *Detach from container* (only with a `pin.parent`) and *Delete*. Each
-  runs the same function the editor's own buttons run, so a command cannot drift
-  between the two surfaces.
-  *Migration*: for consumers of the library, none. For anyone driving the Sandbox tab:
-  the `[data-widget]` palette tiles no longer exist; use a right-click.
-
-- **The Sandbox Inspector is now a quick-panel plus a full editor modal.** The old
-  single property sheet is split in two, deliberately unequal. The quick-panel keeps
-  what changes under the pointer - X / Y / Width / Height, *Edit...* and *Delete* - and
-  nothing else, because it floats over the canvas and one that held everything would be
-  a sidebar again. The editor modal is the complete surface for one Pin: position and
-  size, chrome and border, the trait picker with live resize options, reload strategy,
-  contents, and a danger zone carrying Detach and Delete.
-  Every control writes through the Pin's **public** surface - `setPosition`,
-  `resizePin`, `pin.chrome`, `pin.bordered`, `addTrait` / `removeTrait` /
-  `replaceTrait('resizable', options)`, `pin.reload`, `setContent` - never the particle
-  or the element. Content fields are typed by a per-widget schema (text, number,
-  checkbox, enum `<select>`, and a real list editor with add and remove) with a generic
-  key-value fallback typed off the value, which is what makes *every* Pin editable,
-  including a Container or a custom type this code has never heard of.
-  `offload` and `offloadMargin` are shown **disabled, with the reason beside them**:
-  the renderer reads `pin.offload` once, when it adopts the Pin, and the snapshot does
-  not carry it, so a live control there would be a switch that does nothing.
-  Two behaviours worth knowing: neither panel rebuilds a field the pointer is inside
-  (both geometry refreshes skip `document.activeElement`), and an editor write refreshes
-  the quick-panel, because they show the same box.
-  *Known tradeoff*: unchecking `selectable` closes the **click** route to that Pin -
-  the builder's selection follows the `select` signal, which only a `SelectableTrait`
-  emits - so it leaves the selection set and the quick-panel with it. The **right-click**
-  route stays whole: the menu resolves the Pin from the click's own element chain and
-  asks no trait anything, so Edit, the chrome toggle, Detach and Delete all still reach
-  it. Locked by a browser test.
-
-- **"+ New Type" in the Sandbox insert menu: a creator for custom Pin types.** Name,
-  default width and height, chrome / border / reload defaults, a list of default content
-  fields (text, number or checkbox), and the traits an instance is born with. Saved
-  types appear in the insert menu below the built-in widgets, survive a reload, and
-  carry a Delete in the creator - since nothing else on the page can take one back out.
-  Backed by `lib/sandbox/custom-types.js` above.
-  *Known limitation*: an instance's **type identity is not serialized.** `serializeSession`
-  captures trait names, and a custom-type instance's traits are the ordinary
-  `card` / `draggable` / `selectable` set, so a snapshot restores it as a generic card.
-  Verified end to end: the restored Pin keeps its position, size, chrome, border and
-  **all of its contents**, is selectable and draggable, and edits through the generic
-  content fallback - what it loses is only the label saying which recipe made it.
-  Carrying the identity means a `customType` key in the snapshot format and a resolution
-  step on restore; that is a format change and is deliberately not made here.
-
-- **The Sandbox insert menu is a `+ New ▸ Category ▸ Item` tree, and every widget now
-  carries a category.** The flat list of `insert-<widget>` commands added above is
-  restructured onto the `parent` field: one root trigger, `+ New`; one trigger per
-  category actually in use; one leaf per item under its category. `+ New Type...` stays
-  at the top level, after the tree. This is a **behaviour change to the example
-  application** - the library change it rests on is the `parent` field above.
-  The taxonomy is three built-in categories - **Basic** (the eight form controls),
-  **Display** (text, badge, avatar, divider, progress, spinner, alert, list) and
-  **Layout** (the Container) - plus whatever the visitor's custom types file under.
-  A custom type's `category` is a **new field on the definition**
-  (`lib/sandbox/custom-types.js`): free text, so a type may join a built-in category or
-  coin its own, defaulting to `Custom` and exported as `DEFAULT_CUSTOM_CATEGORY`. The
-  creator gained a category `<select>` over every category in use whose last option,
-  *+ New category...*, reveals a text field for a name nobody has used yet.
-  `insertableItems()` (`examples/website-sandbox-widgets.js`) is the one flat list both
-  the tree and quick-search read - built-ins and custom types together, each entry
-  carrying the single `place` call that puts it on the canvas - so neither surface owns a
-  copy of the catalogue. `insertCategories()` derives the second level from that same
-  list, in first-appearance order, which is why a category cannot exist in the menu
-  without an item in it.
-  The creator's `onSaved` / `onDeleted` hook is renamed `syncCustomTypes()` ->
-  `syncCatalog()` and now tears the whole tree out and rebuilds it, because a save may
-  coin a category and a delete may empty one - so a new type is placeable the moment it
-  is saved, with **no reload**, and an emptied category's trigger disappears with its
-  last item rather than lingering as a caret onto nothing. `+ New Type...` is
-  re-registered after the rebuild to stay last, since registration order is render order.
-  *Migration*: none for library consumers. For anyone driving the Sandbox tab: an insert
-  is now three clicks (`+ New`, a category, the item) rather than two, so a script that
-  clicked `[data-menu-item="insert-button"]` straight off the root menu must open
-  `insert-new` and `insert-cat-basic` first - or use Shift+A. An older custom type saved
-  without a `category` reads back as `Custom`; nothing needs rewriting.
-
-### Notes
-
-- **The dirty-cache was audited, not rebuilt.** Offload depends on the existing
-  invalidation machinery being correct, so that machinery was re-verified rather than
-  extended: an idle canvas records nothing in `_frameDirty` and writes nothing into any
-  content node; `invalidate('content')` reaches `_frameDirty`, which is what gates a
-  connector redraw through `isGlobalDirty`; and a Pin invalidated twice in one frame
-  renders once, because the dirty collections are Sets. Each claim is now a concrete
-  assertion in `tests/unit/offload.test.js` rather than a prose belief. **Finding: already
-  correct and load-bearing. No new dirty-cache machinery was added, and none was needed.**
-
-- **Submenu placement clamps; it does not flip. Known, measured, and deferred.** A flyout
-  is placed at its trigger's right edge and then pulled back inside the host box by the
-  same clamp the root menu uses. Near the host's right edge that pull-back is the whole
-  panel width, so the flyout lands **exactly on top of the panel that opened it**: the
-  trigger is not merely covered but unhittable, and the one category label still visible
-  behind an item panel is the *first* category rather than the open one, which reads as
-  the wrong breadcrumb. Measured on a 1146px-wide host with 168px panels: a two-level
-  chain overlaps from a click at ~x=987 rightward, a three-level chain from ~x=825 -
-  roughly the right 29% of the canvas.
-  The native-menu answer is to **flip**: place the flyout at `anchor.left - panelWidth`
-  when `anchor.right + panelWidth` would overflow, and clamp only if neither side fits.
-  That is a change to `placeInHost`'s contract - the root menu anchors at a point and
-  should keep clamping, a flyout anchors to a box and should flip - so it is a real
-  design decision rather than a tweak, and it is recorded here rather than made
-  silently. The existing browser coverage asserts that every item in the *innermost*
-  panel stays clickable, which holds; it does not assert that an ancestor trigger stays
-  reachable, which is the part that does not.
-
-## 0.4.0 (2026-09-03)
+## 0.4.0 (2026-09-04)
 
 ### Added
 
@@ -825,7 +279,7 @@ records the migration surface, not the commit history.
   the next read phase *and* puts the Pin in the frame's dirty set, so connectors
   anchored to its centre and the scope well it sits in both follow it.
 
-## 0.3.0 (2026-09-04)
+## 0.3.0 (2026-09-03)
 
 The syntax-refinement release: a correctness fix for DOM adoption, the adoption/
 hydration API that fix unlocked, a concision pass across `Pin`'s public surface, two

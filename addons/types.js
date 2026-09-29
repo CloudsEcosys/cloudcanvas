@@ -14,8 +14,7 @@
  * Every type but `raw` holds its children in a `[data-scope]` well after its
  * content, sized to them by the layout add-on (`layout: 'free'` is a type
  * default). Registration is a call, never an import side effect. `mountType`
- * and `DISPLAY_TYPES` are how the legacy `DisplayTrait` renders the same
- * structure until it goes.
+ * clones any type's structure into an element (a consumer's own renderer).
  */
 import { SLOT_ATTR } from '../core/state.js';
 import { findType, isTemplate } from '../core/type.js';
@@ -49,45 +48,6 @@ export const CLS = /* @__PURE__ */ Object.freeze({
   HTML: 'cloudcanvas-pin-html',
   SCOPE: 'cloudcanvas-pin-scope'
 });
-
-/** One element as markup; `slot` names a text slot. Constants only: nothing here is data. */
-function tag(name, className, slot = '', inner = '', extra = '') {
-  const slotAttr = slot ? ` ${SLOT_ATTR}="${slot}"` : '';
-  return `<${name} class="${className}"${slotAttr}${extra}>${inner}</${name}>`;
-}
-
-/**
- * Name -> template markup. Every type but `raw` opens with the header, a title and a badge; the badge, needle and
- * meter are graphic slots the legacy renderer draws. Built by a call so the table is one pure expression.
- */
-function displayTypeMarkup() {
-  const header = tag('div', CLS.HEADER, '', tag('div', CLS.TITLE, 'title') + tag('span', CLS.BADGE_SLOT, 'badge'));
-  return Object.freeze({
-    card: header + tag('div', CLS.BODY, 'body') + tag('div', CLS.FOOTER, '',
-      tag('span', CLS.AUTHOR, 'author') + tag('button', CLS.ACTION_BTN, 'action', '', ' type="button"')),
-    media: header + tag('div', CLS.BODY, '', `<img class="${CLS.MEDIA}">` + tag('p', CLS.CAPTION, 'caption')),
-    'vector-pointer': header + tag('div', `${CLS.BODY} ${CLS.GAUGE_ROW}`, '', tag('div', CLS.NEEDLE_SLOT, 'needle')
-      + tag('div', CLS.GAUGE, '', tag('div', CLS.LABEL, 'label') + tag('div', CLS.METER_SLOT, 'meter'))),
-    raw: `<div ${SLOT_ATTR}="html" data-slot-html></div>`
-  });
-}
-
-/** Name -> the legacy template markup, frozen: what `DisplayTrait` mounts until it goes. */
-export const DISPLAY_TYPES = /* @__PURE__ */ displayTypeMarkup();
-
-/** @type {Map<string, HTMLTemplateElement>} name -> the legacy template, parsed once */
-const LEGACY = /* @__PURE__ */ new Map();
-
-/** The legacy template for a display type name, private to `DisplayTrait`: never in the type registry. */
-export function legacyTemplate(name) {
-  let template = LEGACY.get(name);
-  if (!template && Object.hasOwn(DISPLAY_TYPES, name)) {
-    template = document.createElement('template');
-    template.innerHTML = DISPLAY_TYPES[name];
-    LEGACY.set(name, template);
-  }
-  return template ?? null;
-}
 
 /**
  * Clone a type's content into `into`, replacing its children: the build half of

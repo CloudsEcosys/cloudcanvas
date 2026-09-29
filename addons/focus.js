@@ -25,7 +25,6 @@ function init(options) {
     padding: options.padding !== undefined ? Number(options.padding) : 50,
     maxZoom: options.maxZoom !== undefined ? Number(options.maxZoom) : 3.0,
     focusOnClick: Boolean(options.focusOnClick),
-    promote: options.promote !== false,
     frame: options.frame !== false,
     _downX: null,
     _downY: null

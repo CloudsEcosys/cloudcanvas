@@ -75,6 +75,7 @@ export function createCursorLayer(overlay) {
   const layer = document.createElementNS(SVG_NS, 'svg');
   layer.setAttribute('class', CURSOR_LAYER_CLASS);
   layer.setAttribute('style', LAYER_STYLE);
+  layer.setAttribute('aria-hidden', 'true');
   overlay.appendChild(layer);
   return layer;
 }
@@ -100,13 +101,26 @@ export function screenBoundsOf(target, context = {}) {
   return { minX: topLeft.x - left, minY: topLeft.y - top, maxX: bottomRight.x - left, maxY: bottomRight.y - top };
 }
 
-/** Whether a target is drawable: awake, in the document (headless counts), and participating. */
+/** Whether a target is drawable: in the document, not inside a hidden branch (a promotion hides one), participating. */
 export function isTargetVisible(target, context = {}) {
   if (!target || target.active === false) return false;
   const element = target.element ?? target.el ?? null;
-  if (element && element.isConnected === false) return false;
+  if (element && (element.isConnected === false || element.closest?.('[hidden]'))) return false;
   const participates = context.participates;
   return !(typeof participates === 'function' && !participates(target));
+}
+
+/** An element's own name: `aria-label`, else a `title` in a widget's contents or its `data-title`, else ''. */
+function titleOf(element) {
+  const label = element.getAttribute('aria-label');
+  if (label) return label;
+  const type = element.getAttribute('data-type');
+  const raw = type ? element.getAttribute(`data-${type}`) : null;
+  try {
+    const title = raw && raw.startsWith('{') ? JSON.parse(raw).title : null;
+    if (typeof title === 'string') return title;
+  } catch { /* contents that do not parse carry no title */ }
+  return element.getAttribute('data-title') ?? '';
 }
 
 /* ------------------ THE RECORD ------------------ */
@@ -207,14 +221,12 @@ export const CURSOR_METHODS = {
     return true;
   },
 
-  /** The caption: the label, else the target's `title` content, else nothing. */
+  /** The caption: the label, else the target's name - its `aria-label`, or a `title` in its contents - else nothing. */
   resolveLabel() {
     if (this.label === null) return '';
     if (this.label) return this.label;
-    const contents = this.target ? this.target.contents : null;
-    if (!contents || typeof contents.get !== 'function') return '';
-    const title = contents.get('title');
-    return typeof title === 'string' ? title : '';
+    const element = this.target?.el ?? this.target?.element ?? null;
+    return element ? titleOf(element) : '';
   },
 
   /** Forget the drawing: the group, the shape and the gate. */

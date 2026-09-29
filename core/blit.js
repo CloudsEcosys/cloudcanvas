@@ -16,7 +16,7 @@ import { PHASES, paint, schedule } from './frame.js';
 import {
   allows, attachBlit, demoteOthers, findBlit, heldRootOf, indexBlit, mountRoot, releaseBlits, setViewRoot
 } from './root.js';
-import { defineType, findType, instantiate, isTemplate } from './type.js';
+import { TYPE_ATTR, defineType, findType, instantiate, isTemplate } from './type.js';
 import { runTraits, specTraits, use, writeTraitKey } from './use.js';
 
 const PLACEMENT = /* @__PURE__ */ new Set(PLACEMENT_KEYS);
@@ -212,6 +212,7 @@ export function blit(target) {
   const potential = isTemplate(element) || !element.isConnected;
   const hostElement = element.parentElement?.closest(`[${ROOT_ATTR}]`);
   if (potential || (hostElement && stateOf(hostElement))) {
+    adoptType(state);
     adoptPlacement(state);
     if (!potential) attachBlit(state);
     return handle;
@@ -287,6 +288,17 @@ function requireRoot(state, method) {
   const root = rootOf(state);
   if (!root) throw new TypeError(`blit.${method}: a potential blit has no root`);
   return root;
+}
+
+/** Markup naming a type: its structure cloned in when the element is empty, its defaults under what it declares. */
+function adoptType(state) {
+  const template = isTemplate(state.el) ? null : findType(state.el.getAttribute(TYPE_ATTR) ?? '');
+  if (!template) return;
+  if (state.el.children.length === 0) state.el.appendChild(template.content.cloneNode(true));
+  const declared = readSpec(state.el);
+  for (const [key, value] of Object.entries(blit(template).spec)) {
+    if (!(key in declared) && !PLACEMENT.has(key) && key !== 'fill') writeAttribute(state.el, key, value === true ? '' : value);
+  }
 }
 
 /** Move placement declared in `data-x` etc. into the state and off the element, where it would go stale. */

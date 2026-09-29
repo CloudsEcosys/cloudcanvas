@@ -1,275 +1,101 @@
+<!-- Written by Richard Christopher, Copyright 2026 NeoTec, LLC -->
+
 # CloudCanvas
 
-> Minimalist client-side GUI framework treating HTML elements as interactive canvas **Pins**.
-> Written by Richard Christopher &bull; Copyright &copy; 2026 NeoTec, LLC &bull; MIT License
+A client-side GUI framework in two exports. A **blit** is a thin handle over any DOM element, HTML or SVG,
+placed on an infinite canvas; the DOM tree is the hierarchy, events are native, and state lives in a
+`WeakMap` keyed by the element, so the browser owns every lifetime. Everything else - dragging, panning, a
+menu, layout, saving - is an add-on you import only when a page uses it.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Module: ESM](https://img.shields.io/badge/module-ESM-yellow.svg)](package.json)
-
----
-
-> **This repository is the core engine only.** It is the importable, buildable client-side
-> framework: session, `Pin`, particles, traits, renderer and theming. The pre-built widgets and
-> component library live at **[NeoTecDigital/cloudcanvas-lib](https://github.com/NeoTecDigital/cloudcanvas-lib)**,
-> and the interactive sandbox / site builder at
-> **[NeoTecDigital/cloudcanvas-site](https://github.com/NeoTecDigital/cloudcanvas-site)**.
-
----
-
-## Overview
-
-CloudCanvas is an embeddable, client-side GUI engine where interactive HTML `<div>` elements exist on an infinite virtual plane. Rather than tightly coupling behaviors to monolithic classes, CloudCanvas strips the Pin down to its pure mathematical and structural foundation:
-
-- **Traits**: Composable, programmable capabilities (`DisplayTrait`, `DraggableTrait`, `SelectableTrait`, `PhysicsTrait`, `FocussableTrait`, `ScopeTrait`, `ConnectableTrait`, `TransmitterTrait`).
-- **Contents**: A `Map<string, any>` key-value store for application state and template payloads.
-- **Vectors**: An array of `float` values (`PinParticle`) storing spatial coordinates $(x, y, z)$, velocities $(vx, vy)$, and directional quantities (magnitudes, angles, gradients).
-- **Element**: An HTML `<div>` with a fixed two-child architecture (`.cloudcanvas-pin-content` + `.cloudcanvas-pin-scope`).
-
-The framework is native browser ESM with **no runtime dependencies**.
-
----
-
-## Core Pillars
-
-### 1. The Conjugate Renderer (Zero Layout Thrashing)
-A three-phase per-frame render pipeline that separates layout reads from DOM writes:
-1. **Structure Flush**: Resolves reload states (`active` / `persistent` / `lazy`), mounting or unmounting pins shallowest-first.
-2. **Read Phase**: Batches layout measurements (`offsetWidth`, `offsetHeight`, scope offsets). Dormant pins skip measurement.
-3. **Write Phase**: Writes content updates to dirty pins, executes a three-float position diff, updates camera transforms, and writes per-trait SVG groups.
-
-*Result*: Zero layout thrashing, idle frames perform zero DOM writes, and stationary pins have compositor hints swept after 30 frames.
-
-### 2. Hierarchical Pin Scoping & Zoom-to-Parent Focus
-- **Nested Scopes**: Pins host child pins inside `.cloudcanvas-pin-scope`. Scope containers are granted size dynamically (`ScopeWellPass`) and clip their children cleanly.
-- **Zoom-to-Parent Focus**: Zoom into any pin with `session.focus(pin)`, which promotes it to the new parent view by default. An animated frustum projection connects the parent scope corners directly to the focused child pin. `session.focus(pin, { promote: false })` is the plain camera move.
-- **Root Promotion & Breadcrumbs**: Promotion isolates the active subtree while keeping the ancestor chain mounted for breadcrumb navigation (`session.breadcrumb()`). `session.popFocus()` steps back out and `session.goForward()` steps back in, browser-style.
-
-### 3. Null-Pin Overlay Cursors
-Cursors are not bolted-on DOM mutations. A dedicated null utility Pin (`__cursor__`, `utility: true`) carries independent screen-space cursor traits in the overlay:
-- `cursor-focus`: Reticle framing the focused pin with parent-scope frustum projection and WCAG-compliant text contrast.
-- `cursor-selected`: Persistent selection ring tracking selected pins.
-- `cursor-activated`: Corner brackets indicating active status.
-- Reskinning a cursor is as simple as re-registering its definition in `traitRegistry`.
-
-### 4. Input & Accessibility Agnosticism
-- **Keyboard Navigation**: Single tab-stop (`tabindex="0"`) on the canvas host with roving reading-order focus between pins (`Arrow` keys, `Enter` to descend, `Space` to act, `Escape` to back out, `+`/`-` to zoom).
-- **Pointer & Touch**: Multi-touch pinch-to-zoom centered at pointer midpoints, trackpad two-axis pan & ctrl-pinch zoom, 3px click jitter threshold, and native text selection support (`selectableText: true`).
-- **Screen Reader Support**: Host declared as `role="application"` with a polite live region (`role="status" aria-atomic="true"`) announcing camera movements, focus transitions, and child load events.
-- **Theming**: 100% token-based CSS variables (`--cc-*`) with dark defaults as fallback. Instant zero-CSS styling and light theme support via `applyTheme(host, LIGHT_THEME)`.
-
----
-
-## Installation
-
-The engine ships a committed single-file build in [`dist/`](dist/), so every method below works with
-**zero build step**. Pick whichever fits your setup.
-
-### 1. npm (install straight from GitHub)
-
-```bash
-npm install git+https://github.com/NeoTecDigital/cloudcanvas.git
+```
+npm install cloudcanvas
 ```
 
-```javascript
-import { createCanvasSession } from 'cloudcanvas';
-const session = createCanvasSession({ container: '#canvas-container' });
+Native ES modules, no runtime dependencies. Node.js 20+ for the tooling only.
+
+## Quick start
+
+<!-- quickstart -->
+```js
+import { blit, type } from 'cloudcanvas';
+import { drag } from 'cloudcanvas/drag';
+import { pan } from 'cloudcanvas/pan';
+
+blit.use({ drag, pan });
+type('note', { html: '<h3 data-slot="title"></h3><p data-slot="body"></p>' });
+
+const app = blit('#app');     // a root: plane, overlay, camera, one frame loop
+app.set({ pan: true });       // drag empty canvas to pan, the wheel to zoom
+
+const note = app.blit({ type: 'note', x: 40, y: 40, fill: { title: 'Hello', body: 'Drag me.' }, drag: true });
+note.on('drag:end', (event) => console.log('came to rest at', event.detail.payload));
 ```
+<!-- /quickstart -->
 
-> Not yet published to the npm registry — install via the `git+` URL above, not a bare
-> `npm install cloudcanvas`.
+`#app` is any element with a size. That is the whole application: 6.4 KB gzipped for the core, plus
+2.7 KB for drag and 2.6 KB for pan. 
 
-### 2. git clone (use the prebuilt bundle directly)
+## The model
 
-```bash
-git clone https://github.com/NeoTecDigital/cloudcanvas.git
-```
+| Concept | What it is |
+|---|---|
+| **blit** | `blit(el \| selector)` returns the element's handle, the same one every time. Detached or a `<template>`, a blit is *potential* (writes apply at once); inside a root it is *indexed* (placement waits for the frame's write phase); `blit('#app')` on a bare host makes a *root*. |
+| **set** | `b.set({...})` routes each key: `x y z w h` to the port, `id` to the element (the root's index), `fill` into `[data-slot]`s as text, a named trait or `port` to its function, everything else to `data-*`. `b.spec` reads it all back, so `parent.blit(b.spec)` reproduces `b`. |
+| **tree** | `b.blit(spec)` adds a child (into the blit's `[data-scope]` if its type has one), `b.blits`, `b.parent`, `b.bounds` (global box), `b.remove()`. On a root: `find(id)`, `view(b)` (frame it), `root = b` (promote a branch, hide the rest), `tick(fn, 'read' \| 'write')`. |
+| **type** | `type(name, {html, defaults, with})`: a potential blit over a `<template data-type>`, cloned into every instance. Text fills slots; markup only reaches a slot the template marks `data-slot-html`. |
+| **trait** | `(b, options, root) => cleanup`. Named with `blit.use({drag})`, switched on by a key (`{drag: true}`, `{resize: {minWidth: 40}}`, `false` stops it) or by markup (`data-drag`); anonymous ones ride `with: [fn]`. |
+| **port** | `(b, ctx) => void`: what paints a blit. The default writes a `translate3d` and the declared size, each only when it changed; `b.set({port: fn})` swaps it (a canvas, a GPU pass, anything). |
+| **events** | `b.emit(type, payload)` is a bubbling, cancelable `CustomEvent` (`detail = {payload, source}`); add-ons announce the same way (`drag:start`, `select`, `resize:end`, `view:change`, `remove`...), so `app.on(...)` hears the whole board. |
 
-Then reference the committed bundle — no build required:
+Markup works too: with the add-ons named, `<div data-blit data-x="40" data-drag>Hi</div>` inside a root's
+host is a live, draggable blit the moment the root mounts (`cloudcanvas/observe` picks up markup written later).
 
-```html
-<script src="cloudcanvas/dist/cloudcanvas.iife.js"></script>
-<script>
-  const session = CloudCanvas.createCanvasSession({ container: '#canvas-container' });
-</script>
-```
+## Add-ons
 
-### 3. Single-file `<script>` include (CDN / raw URL)
+One subpath each; an add-on imported but unused bundles to nothing (`sideEffects` allowlist). Sizes are
+gzipped and include the core they reach.
 
-```html
-<!-- jsDelivr GitHub mirror (CDN, cached, recommended) -->
-<script src="https://cdn.jsdelivr.net/gh/NeoTecDigital/cloudcanvas@main/dist/cloudcanvas.iife.js"></script>
+| Subpath | What it adds | gz |
+|---|---|---|
+| `cloudcanvas` / `cloudcanvas/core` | `blit`, `type` | 6.6 KB |
+| `cloudcanvas/drag` | press past 3px moves the blit; a grip for chromeless controls | 2.7 KB |
+| `cloudcanvas/select` | `is-selected`, the `select` event, `setSelected` | 1.0 KB |
+| `cloudcanvas/resize` | edge and corner handles, min/max, `resize:*` events | 3.4 KB |
+| `cloudcanvas/focus` | a zoom target: framing on click, `focus:change` | 1.2 KB |
+| `cloudcanvas/pan` | root camera gestures: drag, wheel, trackpad, pinch | 2.6 KB |
+| `cloudcanvas/keyboard` | the root as one tab stop; arrows pan, rove, Enter/Space act | 2.4 KB |
+| `cloudcanvas/menu` | the root's right-click menu: items by value or a registry, flyouts | 4.6 KB |
+| `cloudcanvas/announce` | a polite live region for focus, edits and root changes | 1.3 KB |
+| `cloudcanvas/cursors` | focus reticle, selection ring and brackets in the overlay | 4.1 KB |
+| `cloudcanvas/motion` | an easing camera: `view()` flies, reduced motion respected | 2.2 KB |
+| `cloudcanvas/layout` | `layout: row \| column \| grid \| free`, `gap`, scope wells sized to children | 4.0 KB |
+| `cloudcanvas/style` | whitelisted per-blit appearance overrides | 1.6 KB |
+| `cloudcanvas/edit` | the edit lock: renders defer while a field has the caret | 0.5 KB |
+| `cloudcanvas/place` | free-spot search, `move` (reparent in place), `hit` | 7.6 KB |
+| `cloudcanvas/history` | `go` / `back` / `forward` / `reset` over promoted views, `breadcrumb` | 7.1 KB |
+| `cloudcanvas/connect` | edge-routed SVG connectors between blits | 3.4 KB |
+| `cloudcanvas/physics` | velocity and damping, stepped in the frame | 1.0 KB |
+| `cloudcanvas/svg-state` | named SVG states with animated transitions, 3D tilt | 4.8 KB |
+| `cloudcanvas/reactions` | "when A emits X, run action Y on B", saved with the board | 10.9 KB |
+| `cloudcanvas/lazy` | children loaded on demand from a provider | 0.7 KB |
+| `cloudcanvas/offload` | off-screen blits parked out of the DOM, state kept | 1.2 KB |
+| `cloudcanvas/observe` | markup added later becomes blits | 6.8 KB |
+| `cloudcanvas/types` | display widgets: `card`, `media`, `vector-pointer`, `raw` | 10.8 KB |
+| `cloudcanvas/widget` | `widget({name, html, keys, bind, render})`: a type that renders its contents | 7.5 KB |
+| `cloudcanvas/defaults` | every add-on named at once, for markup-first pages | 33.1 KB |
 
-<!-- or the raw GitHub file directly -->
-<script src="https://raw.githubusercontent.com/NeoTecDigital/cloudcanvas/main/dist/cloudcanvas.iife.js"></script>
+`cloudcanvas/graphics` (the full stylesheet), `cloudcanvas/theme` (`applyTheme`, `LIGHT_THEME`, the
+`--cc-*` tokens), `cloudcanvas/primitives` (SVG and URL/colour guards) and `cloudcanvas/log` (a pluggable,
+non-blocking logger) round out the engine.
 
-<script>
-  const session = CloudCanvas.createCanvasSession({ container: '#canvas-container' });
-</script>
-```
+## More
 
-### 4. Download the file with curl
+This repository is the engine. The widget kit, the board (save, load, static export) and the site builder
+are separate packages; the changelog below records the engine's releases. Projects on the 0.4 Pin API can
+stay on the `legacy/0.4` branch.
 
-```bash
-curl -o cloudcanvas.iife.js https://raw.githubusercontent.com/NeoTecDigital/cloudcanvas/main/dist/cloudcanvas.iife.js
-```
-
-Append `.min` to any bundle filename for the minified build (`dist/cloudcanvas.iife.min.js`).
-
-### Entry Points
-
-| Specifier | Contents |
-| :--- | :--- |
-| `cloudcanvas` | Core engine: session, Pin, particles, traits, theming. |
-| `cloudcanvas/styles` | Stylesheet API: `injectCanvasStyles`, `applyTheme`, `LIGHT_THEME`, `CANVAS_DEFAULT_CSS`. |
-| `cloudcanvas/styles.css` | Deprecated alias for the raw `CANVAS_DEFAULT_CSS` string module; import `cloudcanvas/styles` instead. Kept for one release. |
-
-> The prebuilt widgets (`cloudcanvas/lib`, `cloudcanvas/components`) and the sandbox
-> (`cloudcanvas/sandbox`) are packaged separately in
-> **[NeoTecDigital/cloudcanvas-lib](https://github.com/NeoTecDigital/cloudcanvas-lib)**.
-
----
-
-## Distribution Bundles
-
-`npm run build` (needs the one `esbuild` devDependency) bundles the whole engine into `dist/` as
-two single files, each with a minified sibling. Both are self-contained: no import map, no
-directory of module requests, no runtime dependencies. The build is committed, so running it is a
-release step, never required to consume the engine.
-
-| Artifact | Format | Load it with |
-| :--- | :--- | :--- |
-| `dist/cloudcanvas.esm.js` | ESM, named exports | `<script type="module">` over `http(s)` |
-| `dist/cloudcanvas.iife.js` | IIFE, `window.CloudCanvas` | plain `<script src>`, works from `file://` |
-
-**ESM — modern apps served over http(s).** Its named exports are exactly the ones
-`import 'cloudcanvas'` gives you, and a downstream bundler can still tree-shake it.
-
-```html
-<script type="module">
-  import { createCanvasSession } from './dist/cloudcanvas.esm.js';
-  const session = createCanvasSession({ container: '#canvas-container' });
-</script>
-```
-
-**IIFE — the strict zero-server case.** Use this when the page is opened straight off disk. A
-module script *cannot* be used from a `file://` URL: Chromium fetches module scripts in CORS mode
-and a `file://` origin is always denied. Bundling to a single module does not help — the failure is
-the fetch mode, not the request count. A classic script tag carries no such restriction.
-
-```html
-<script src="./dist/cloudcanvas.iife.js"></script>
-<script>
-  const session = CloudCanvas.createCanvasSession({ container: '#canvas-container' });
-</script>
-```
-
----
-
-## API Surface at a Glance
-
-`index.js` is grouped in three tiers under the same banner comments, so the file reads
-in the order you need it:
-
-| Tier | Names | When |
-| :--- | :--- | :--- |
-| **Start here** | `createCanvasSession`, `CloudCanvasSession`, `Pin`, `PinEvent` | Every application. A canvas, a Pin, and the event they speak. |
-| **Everyday** | traits (`DisplayTrait`, `DraggableTrait`, `ScopeTrait`, `FocussableTrait`, ...), `resizePin` / `rotatePin` / `reparentPin`, reload strategies + `DEFAULT_OFFLOAD_MARGIN`, `defineComponent` + the template kit, theming (`applyTheme`, `injectCanvasStyles`, `LIGHT_THEME`), cursors, `place` / `droppablePinAt`, the canvas menu (`registerMenuItem` / `unregisterMenuItem`, nested through `parent`) | Once you have a session and are building with it. |
-| **Advanced** | `Viewport`, `ConjugateRenderer`, `PinManager`, `ParticleEngine`, `bindKeyboard` / `unbindKeyboard`, `mountAnnouncer` / `unmountAnnouncer`, `applyHostAria`, `ensureVisible`, `readingOrder`, `setElevationChain` | Rarely needed: `CloudCanvasSession` constructs, wires and tears down all of it. Reach in only to build your own host or drive one piece standalone. |
-
----
-
-## Basic Usage
-
-```javascript
-import { createCanvasSession, PinEvent } from 'cloudcanvas';
-
-// 1. Initialize Canvas Session
-const session = createCanvasSession({
-  container: '#canvas-container',
-  viewport: { x: 0, y: 0, scale: 1 }
-});
-
-// 2. Create a Root Card Pin
-const welcomePin = session.createPin({
-  id: 'pin_welcome',
-  type: 'card',
-  x: 100,
-  y: 100,
-  contents: new Map([
-    ['title', 'Welcome to CloudCanvas'],
-    ['body', 'Minimalist GUI engine treating HTML elements as canvas Pins.'],
-    ['badge', { text: 'Active', color: '#10b981' }]
-  ])
-});
-
-// 3. Create a Parent Scope Pin with a Nested Child
-const parentPin = session.createPin({
-  id: 'pin_parent',
-  type: 'scope',
-  x: 400,
-  y: 100,
-  width: 480,
-  contents: new Map([
-    ['title', 'Parent Scope Frame'],
-    ['body', 'Hosts child pins in its coordinate scope.']
-  ])
-});
-
-const childPin = session.createPin({
-  id: 'pin_child',
-  parent: parentPin,
-  x: 20,
-  y: 80,
-  width: 200,
-  contents: new Map([
-    ['title', 'Child Pin'],
-    ['body', 'Zoom into this pin as the new parent view.']
-  ])
-});
-
-// 4. Zoom into the Child Pin (promotes it to the new parent view)
-session.focus(childPin);
-```
-
----
-
-## Trait Composition
-
-Traits can be attached, queried, or replaced dynamically:
-
-```javascript
-import { Pin, FocussableTrait, TransmitterTrait, PinEvent } from 'cloudcanvas';
-
-const pin = new Pin({ x: 50, y: 50 });
-
-// Attach interactive & event traits
-pin.addTrait(new FocussableTrait({ padding: 60, maxZoom: 3.0 }));
-const transmitter = pin.addTrait(new TransmitterTrait());
-
-// Listen for custom events
-transmitter.on('telemetry', (event, targetPin) => {
-  console.log('Received telemetry:', event.payload);
-});
-
-// Transmit custom event (bubbles to parent scopes)
-pin.transmit(new PinEvent('telemetry', { payload: { status: 'OK', ping: 12 } }));
-```
-
----
-
-## Architecture & Verification
-
-- Comprehensive Specification: [`ARCHITECTURE.md`](ARCHITECTURE.md)
-- Release & Migration Notes: [`CHANGELOG.md`](CHANGELOG.md)
-
-The development server, the examples playground and the full unit / integration / browser test
-suites are maintained in the umbrella workspace alongside the
-[`cloudcanvas-lib`](https://github.com/NeoTecDigital/cloudcanvas-lib) and
-[`cloudcanvas-site`](https://github.com/NeoTecDigital/cloudcanvas-site) repositories, which import
-this engine directly from source.
-
----
+- [CHANGELOG.md](CHANGELOG.md)
 
 ## License
 
-MIT &copy; 2026 NeoTec, LLC, Richard Christopher. See [`LICENSE`](LICENSE).
+MIT. Written by Richard Christopher, NeoTec, LLC.

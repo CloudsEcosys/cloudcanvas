@@ -1,9 +1,11 @@
 /**
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
- * connect: connectors from the blit's centre to the centres of the blits whose
- * ids it lists, drawn in an `<svg>` on the root's plane so they ride the camera
- * with the blits, in canvas coordinates.
+ * connect: connectors from the blit to the blits whose ids it lists, edge to
+ * edge, drawn in an `<svg>` on the root's plane so they ride the camera.
+ *
+ * Each curve leaves the face of the blit's box nearest its target and meets the
+ * target's facing edge, on the axis with the larger gap (`edgeConnectorPathData`).
  *
  *   blit.use({ connect });
  *   app.blit({ id: 'a', connect: { connections: ['b'] } });
@@ -123,18 +125,23 @@ function boxOf(b) {
   return { minX: x, minY: y, maxX: x + w, maxY: y + height, centerX: x + w / 2, centerY: y + height / 2 };
 }
 
-/** The connected blit an id names in the root's document, or null. */
+/** Whether a blit's element is on the board: in the document, and not inside a branch a promotion hid. */
+function shown(element) {
+  return element.isConnected && !element.closest('[hidden]');
+}
+
+/** The connected blit an id names in the root's document, or null when it is not shown. */
 function targetOf(root, id) {
   const element = root.host.ownerDocument.getElementById(String(id));
-  const state = element && element.isConnected ? stateOf(element) : null;
+  const state = element && shown(element) ? stateOf(element) : null;
   return state && state.handle ? state.handle : null;
 }
 
-/** The write pass: every source's connectors whose target is in the document. */
+/** The write pass: every shown source's connectors to a shown target. */
 function drawGroup(root, group) {
   const items = [];
   for (const [b, s] of group.sources) {
-    if (!b.el.isConnected) continue;
+    if (!shown(b.el)) continue;
     for (const id of s.connections) {
       const target = targetOf(root, id);
       if (target && target !== b) items.push(connectorItem(`${b.el.id}->${id}`, boxOf(b), boxOf(target), s));

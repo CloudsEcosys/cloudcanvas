@@ -284,7 +284,9 @@ export function layout(b, options, root = rootOf(stateOf(b.el))) {
   writeLayoutClass(container, mode);
   for (const child of childStates(b.el)) syncChild(child, isFlowLayout(mode), root);
   refresh(b);
-  return () => stopLayout(b, root, record, container);
+  // A child leaving paints nothing, so the well it sat in is recomputed from the event.
+  const offRemove = b.on('remove', (event) => { if (event.detail?.source !== b) refresh(b); });
+  return () => { offRemove(); stopLayout(b, root, record, container); };
 }
 
 /** Undo one container: children freed, class and well off, the ticks gone with the last container. */
