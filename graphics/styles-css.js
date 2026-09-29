@@ -14,6 +14,7 @@
 import { LIVE_REGION_CSS } from './css/announce.js';
 import { CANVAS_CSS } from './css/canvas.js';
 import { BORDER_CSS, GRAB_HANDLE_CSS, REDUCED_MOTION_CSS } from './css/chrome.js';
+import { CARD_CSS } from './css/card.js';
 import { CONTENT_CSS } from './css/content.js';
 import { MENU_CSS } from './css/menu.js';
 import { RESIZE_CSS } from './css/resize.js';
@@ -36,6 +37,7 @@ import { SVG_STATE_CSS } from './css/svg-state.js';
 export const CANVAS_DEFAULT_CSS = /* @__PURE__ */ [
   CANVAS_CSS,
   CONTENT_CSS,
+  CARD_CSS,
   MENU_CSS,
   BORDER_CSS,
   RESIZE_CSS,

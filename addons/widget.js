@@ -1,0 +1,153 @@
+/**
+ * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
+ *
+ * widget: a type that renders its contents. The type's `<template>` is the
+ * structure; a trait of the same name (camel-cased: `task-card` is `taskCard`)
+ * holds the contents as its options and renders them into the instance, so
+ * writing the key re-renders:
+ *
+ *   widget({ name: 'progress', html, keys: ['value', 'label'], bind, render });
+ *   const bar = app.blit({ type: 'progress', progress: { value: 40 } });
+ *   bar.set({ progress: { value: 80 } });     // or setContent(bar, 'value', 80)
+ *
+ *   bind(el, on, dismiss)             the instance's nodes; idempotent (it runs on every write)
+ *   render(bindings, contents, cache) `contents` (a Map) into them, diff-first through `cache`,
+ *                                     which lives as long as the element
+ *
+ * A key the widget does not declare is refused. An open edit (`./edit.js`)
+ * defers the render and replays the last one. `dismiss()` is the widget asking
+ * to go: a cancelable `dismiss` event whose default action removes the blit.
+ * The DOM writes every render shares - `setText`, `setVisible`, `setAttr`,
+ * `setSlot` - are exported for a consumer's own widgets.
+ */
+import { blit, type } from '../core/blit.js';
+import { camelCase } from '../core/spec.js';
+import { deferRender } from './edit.js';
+
+/** @type {Map<string, object>} name -> the spec it was defined with */
+const DEFINED = /* @__PURE__ */ new Map();
+
+/** @type {WeakMap<Element, object>} element -> its render cache */
+const CACHES = /* @__PURE__ */ new WeakMap();
+
+/** Write a Text node only when the text moved. */
+export function setText(node, value) {
+  const text = value === undefined || value === null ? '' : String(value);
+  if (node.data !== text) node.data = text;
+}
+
+/** Show or hide an element through `hidden`, so no inline style is needed. */
+export function setVisible(element, visible) {
+  if (element.hidden !== !visible) element.hidden = !visible;
+}
+
+/** Write an attribute only when its value moved (`img.src` re-fetches). */
+export function setAttr(element, name, value, cache, key) {
+  if (cache[key] === value) return;
+  cache[key] = value;
+  element.setAttribute(name, value);
+}
+
+/** Re-render an SVG string slot only when its inputs changed. */
+export function setSlot(slot, markup, cache, key, signature) {
+  if (cache[key] === signature) return;
+  cache[key] = signature;
+  slot.innerHTML = markup;
+}
+
+/** The Text node leading `element`, made on first ask: the write target `setText` updates. */
+export function leadingText(element) {
+  const first = element.firstChild;
+  if (first && first.nodeType === 3) return first;
+  return element.insertBefore(document.createTextNode(''), first);
+}
+
+/** A trait's options as contents: none is empty; an undeclared key is refused. */
+function contentsOf(name, keys, options) {
+  if (options === true || options === undefined || options === null || options === '') return new Map();
+  if (typeof options !== 'object' || Array.isArray(options)) throw new TypeError(`${name}: expected {key: value} contents`);
+  for (const key of Object.keys(options)) {
+    if (!keys.has(key)) throw new TypeError(`${name}: key "${key}" not permitted`);
+  }
+  return new Map(Object.entries(options));
+}
+
+/** Emit a cancelable `dismiss`, then remove the blit unless a listener prevented it. */
+function dismiss(b) {
+  if (b.emit('dismiss').defaultPrevented) return false;
+  b.remove();
+  return true;
+}
+
+/** The widget's trait: bind the instance, render its options (deferred while edited), stop listening on cleanup. */
+function traitOf({ name, bind, render }, keys) {
+  return (b, options) => {
+    const contents = contentsOf(name, keys, options);
+    const offs = [];
+    const on = (target, eventType, listener) => {
+      target.addEventListener(eventType, listener);
+      offs.push(() => target.removeEventListener(eventType, listener));
+    };
+    const bindings = bind(b.el, on, () => dismiss(b));
+    if (!CACHES.has(b.el)) CACHES.set(b.el, {});
+    const paint = () => render(bindings, contents, CACHES.get(b.el));
+    if (!deferRender(b, paint)) paint();
+    return () => { for (const off of offs) off(); };
+  };
+}
+
+/**
+ * Define a widget: its type and its same-named trait, once. The same spec again is a no-op; another spec
+ * under a taken name throws. @param {{name: string, html: string, keys: string[], bind: Function,
+ * render: Function}} spec `html` is constant markup, never data
+ * @returns {object} the type's potential blit
+ */
+export function widget(spec) {
+  const { name, html, keys } = spec;
+  const known = DEFINED.get(name);
+  if (known && known !== spec) throw new TypeError(`widget: "${name}" is already defined`);
+  if (!known) {
+    const key = camelCase(name);
+    blit.use({ [key]: traitOf(spec, new Set(keys)) });
+    type(name, { html, defaults: { [key]: true } });
+    DEFINED.set(name, spec);
+  }
+  return type(name);
+}
+
+/** Whether `name` is a defined widget. */
+export function isWidget(name) {
+  return DEFINED.has(name);
+}
+
+/** The keys a widget declares, or none. */
+export function widgetKeys(name) {
+  return DEFINED.get(name)?.keys ?? [];
+}
+
+/** The spec key a widget blit keeps its contents under, or null when `b` is no widget. */
+export function contentKeyOf(b) {
+  const name = b.el.getAttribute('data-type');
+  return name && DEFINED.has(name) ? camelCase(name) : null;
+}
+
+/** A widget blit's contents as a plain object (its type's trait options); {} for anything else. */
+export function contentOf(b) {
+  const key = contentKeyOf(b);
+  const options = key ? b.spec[key] : null;
+  return options && typeof options === 'object' ? { ...options } : {};
+}
+
+/** Write contents over a widget blit's own; a key set to undefined is removed. @returns {object} the blit */
+export function setContents(b, patch) {
+  const key = contentKeyOf(b);
+  if (!key) throw new TypeError(`setContents: "${b.el.getAttribute('data-type')}" is not a widget`);
+  const next = { ...contentOf(b), ...patch };
+  for (const each of Object.keys(next)) if (next[each] === undefined) delete next[each];
+  return b.set({ [key]: Object.keys(next).length > 0 ? next : true });
+}
+
+/** Write one content key. */
+export function setContent(b, key, value) {
+  return setContents(b, { [key]: value });
+}

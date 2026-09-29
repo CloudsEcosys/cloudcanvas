@@ -37,7 +37,7 @@ import {
   safeColor,
   safeUrl
 } from '../../graphics/primitives/primitives.js';
-import { CLS, mountType, registerDisplayTypes } from '../../addons/types.js';
+import { CLS, legacyTemplate, mountType } from '../../addons/types.js';
 /**
  * The DOM writes live in `./template-kit.js`, which is the public half of this
  * module: the built-in templates and a consumer's own template mutate the DOM
@@ -102,8 +102,7 @@ function updateBadgeSlot(slot, text, color, cache) {
  * the header's title text node and badge slot bound. @returns the slots too
  */
 function mountDisplay(name, contentEl) {
-  registerDisplayTypes();
-  const slots = mountType(name, contentEl);
+  const slots = mountType(legacyTemplate(name), contentEl);
   return { slots, titleText: makeTextNode(slots.title), badgeSlot: slots.badge };
 }
 
