@@ -21,6 +21,7 @@
  */
 import { createLiveRegion, say } from '../../addons/announce.js';
 import { reconcileKeyedList } from '../../addons/keyed-list.js';
+import { CONTROL_ATTR } from '../../addons/trait.js';
 import { button, clamp, createLife, documentOf, el, uniqueId } from '../dom.js';
 import { injectUiStyles } from '../styles.js';
 import { NODE_HEIGHT, NODE_WIDTH, boundsOf, edgeEnd, layoutGraph, normalizeGraph } from './layout.js';
@@ -152,7 +153,8 @@ export function createGraph(host, callbacks = {}) {
   const root = el(doc, 'div', { className: GRAPH, attrs: { role: 'region' } });
   const g = { doc, life, root, callbacks, labels: { ...GRAPH_LABELS, ...callbacks.labels }, markerId: uniqueId(`${GRAPH}-arrow`),
     view: { x: 0, y: 0, k: 1 }, fitted: false, positions: null, state: { nodes: [], edges: [], selectedId: null, focusId: null, pending: null } };
-  g.viewport = el(doc, 'div', { className: `${GRAPH}-viewport` });
+  // The viewport pans and zooms by itself, so inside a canvas it says it is a control: its gestures are not the canvas's.
+  g.viewport = el(doc, 'div', { className: `${GRAPH}-viewport`, attrs: { [CONTROL_ATTR]: true } });
   g.world = el(doc, 'div', { className: `${GRAPH}-world` });
   g.svg = svg(doc, 'svg', { class: `${GRAPH}-edges`, 'aria-hidden': 'true', width: 1, height: 1 });
   g.nodeLayer = el(doc, 'div', { className: `${GRAPH}-nodes` });

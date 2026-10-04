@@ -1,10 +1,13 @@
 /**
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
- * The UI kit's view rules: kanban, calendar, timeline and graph. Geometry that
- * changes per element arrives as inline custom properties written through the
- * CSSOM (`--calendar-top`, `--timeline-x`, `--graph-x`, ...); every size a
- * theme may want is a `--cc-ui-*` token with its default in the fallback.
+ * The UI kit's view rules: kanban, calendar, timeline and graph, and the tones
+ * they share with the chips and the tree: a tone colours the leading edge, the
+ * meaning tones (success, warning, danger) and the eight category tones alike.
+ * Geometry that changes per element arrives as inline custom properties
+ * written through the CSSOM (`--calendar-top`, `--timeline-x`, `--graph-x`,
+ * ...); every size a theme may want is a `--cc-ui-*` token with its default in
+ * the fallback.
  */
 
 const FONT = 'var(--cc-font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif)';
@@ -19,6 +22,15 @@ export const UI_VIEWS_CSS = `/* ------------------ UI KIT: VIEWS ---------------
 :is(.cloudcanvas-ui-kanban-card, .cloudcanvas-ui-calendar-event, .cloudcanvas-ui-timeline-bar, .cloudcanvas-ui-graph-node)[data-tone="success"] { border-left-color: var(--cc-tone-success, #22c55e); }
 :is(.cloudcanvas-ui-kanban-card, .cloudcanvas-ui-calendar-event, .cloudcanvas-ui-timeline-bar, .cloudcanvas-ui-graph-node)[data-tone="warning"] { border-left-color: var(--cc-tone-warning, #eab308); }
 :is(.cloudcanvas-ui-kanban-card, .cloudcanvas-ui-calendar-event, .cloudcanvas-ui-timeline-bar, .cloudcanvas-ui-graph-node)[data-tone="danger"] { border-left-color: var(--cc-tone-danger, #f87171); }
+/* Category tones one to eight: the host's own palette, on the same edge. */
+:is(.cloudcanvas-ui-kanban-card, .cloudcanvas-ui-calendar-event, .cloudcanvas-ui-timeline-bar, .cloudcanvas-ui-chips-chip, .cloudcanvas-ui-tree-row)[data-tone="1"] { border-left-color: var(--cc-ui-tone-1, #60a5fa); }
+:is(.cloudcanvas-ui-kanban-card, .cloudcanvas-ui-calendar-event, .cloudcanvas-ui-timeline-bar, .cloudcanvas-ui-chips-chip, .cloudcanvas-ui-tree-row)[data-tone="2"] { border-left-color: var(--cc-ui-tone-2, #a78bfa); }
+:is(.cloudcanvas-ui-kanban-card, .cloudcanvas-ui-calendar-event, .cloudcanvas-ui-timeline-bar, .cloudcanvas-ui-chips-chip, .cloudcanvas-ui-tree-row)[data-tone="3"] { border-left-color: var(--cc-ui-tone-3, #f472b6); }
+:is(.cloudcanvas-ui-kanban-card, .cloudcanvas-ui-calendar-event, .cloudcanvas-ui-timeline-bar, .cloudcanvas-ui-chips-chip, .cloudcanvas-ui-tree-row)[data-tone="4"] { border-left-color: var(--cc-ui-tone-4, #fb923c); }
+:is(.cloudcanvas-ui-kanban-card, .cloudcanvas-ui-calendar-event, .cloudcanvas-ui-timeline-bar, .cloudcanvas-ui-chips-chip, .cloudcanvas-ui-tree-row)[data-tone="5"] { border-left-color: var(--cc-ui-tone-5, #facc15); }
+:is(.cloudcanvas-ui-kanban-card, .cloudcanvas-ui-calendar-event, .cloudcanvas-ui-timeline-bar, .cloudcanvas-ui-chips-chip, .cloudcanvas-ui-tree-row)[data-tone="6"] { border-left-color: var(--cc-ui-tone-6, #4ade80); }
+:is(.cloudcanvas-ui-kanban-card, .cloudcanvas-ui-calendar-event, .cloudcanvas-ui-timeline-bar, .cloudcanvas-ui-chips-chip, .cloudcanvas-ui-tree-row)[data-tone="7"] { border-left-color: var(--cc-ui-tone-7, #2dd4bf); }
+:is(.cloudcanvas-ui-kanban-card, .cloudcanvas-ui-calendar-event, .cloudcanvas-ui-timeline-bar, .cloudcanvas-ui-chips-chip, .cloudcanvas-ui-tree-row)[data-tone="8"] { border-left-color: var(--cc-ui-tone-8, #94a3b8); }
 :is(.cloudcanvas-ui-kanban-item, .cloudcanvas-ui-calendar-event, .cloudcanvas-ui-timeline-bar, .cloudcanvas-ui-graph-node).is-grabbed,
 .cloudcanvas-ui-kanban-item.is-grabbed .cloudcanvas-ui-kanban-card {
   outline: 2px dashed var(--cc-ui-drop, var(--cc-accent, #38bdf8));

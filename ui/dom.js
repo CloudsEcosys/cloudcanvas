@@ -83,6 +83,13 @@ export function button(doc, { label, className = '', ariaLabel, title, disabled 
 export const FIELD_CLASS = 'cloudcanvas-ui-field';
 
 /**
+ * The class that hides text from the eye and keeps it for assistive technology:
+ * what a badge's capped figure or a breadcrumb's ellipsis stands for is said in
+ * full beside it.
+ */
+export const SR_ONLY_CLASS = 'cloudcanvas-ui-sr-only';
+
+/**
  * An `<input>` (or `<textarea>` with `type: 'textarea'`) that always has an
  * accessible name: `label` becomes `aria-label` unless the caller labels it.
  */

@@ -17,11 +17,13 @@ import { createLife, documentOf, el, textNode, uniqueId, uniqueItems, writeText 
 import { nextIndex, setTabStop } from './roving.js';
 import { injectUiStyles } from './styles.js';
 import { reconcileKeyedList } from '../addons/keyed-list.js';
+import { CONTROL_ATTR } from '../addons/trait.js';
 
 const CLASS = 'cloudcanvas-ui-results';
 
 function optionNode(doc, listId) {
-  const node = el(doc, 'div', { className: `${CLASS}-option`, attrs: { role: 'option' } });
+  // An option is a `<div>`, so inside a canvas it says it is a control: a press picks it and starts no canvas gesture.
+  const node = el(doc, 'div', { className: `${CLASS}-option`, attrs: { role: 'option', [CONTROL_ATTR]: true } });
   const label = el(doc, 'span', { className: `${CLASS}-label` });
   const detail = el(doc, 'span', { className: `${CLASS}-detail` });
   node.append(label, detail);

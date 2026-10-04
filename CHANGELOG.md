@@ -30,6 +30,22 @@ records the migration surface, not the commit history.
   `tests/fixtures/public-api-ui.json`.
   *Migration*: none - additive.
 
+- **`cloudcanvas/ui` - breadcrumbs, a count badge, in-place render helpers, and the kit as one file.**
+  `createBreadcrumbs` is a `<nav>` over an ordered trail: ancestors are buttons that report
+  `onOpen(id, item)`, the last entry carries `aria-current`, a trail cut short opens with a spoken
+  ellipsis, and one that could not be read shows its message instead of a partial path.
+  `createBadge` shows a capped figure ("99+") and speaks the whole count (`formatCount`,
+  `countLabel`); it hides at zero and announces only when `live`. `setValue`, `keepFocus`,
+  `placeChildren` and `rowCache` are for a view redrawn from its model: a field the user is in
+  is never overwritten, and a row keeps its node, and the focus inside it, across reorders and
+  across containers. `SR_ONLY_CLASS` keeps text for assistive technology only.
+  `createStatus(host, { labels, retryLabel })` takes the host's words once, for every update;
+  the two on a model still win for that update. The splitter bar carries `data-cc-control`, so
+  inside a canvas a press on it is the splitter's and never a canvas gesture.
+  `npm run build` adds `dist/cloudcanvas-ui.esm.js`: the kit as one unminified, import-free
+  module for a no-build host that vendors it behind an import map.
+  *Migration*: none - additive. Nine names join `tests/fixtures/public-api-ui.json`; none leaves.
+
 - **`Pin.rebuildDisplay()` - force a display to lay out a new content *shape*.** The ordinary
   render path rebuilds a Pin's subtree only on a display-type swap or the `html` override
   toggling, because those are the only structure changes a built-in template has: a card is

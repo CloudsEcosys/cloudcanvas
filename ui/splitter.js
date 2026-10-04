@@ -11,9 +11,14 @@
  * resizes left and right panes. Arrows step by `step` (1), Page keys by 10,
  * Home and End jump to the limits. The pointer is captured for the whole drag,
  * and a host with no measurable size reports nothing rather than a guess.
+ *
+ * INSIDE A CANVAS the bar is a `<div>`, not a platform control, so it carries
+ * the control attribute (`data-cc-control`): a press on it is the splitter's
+ * drag and never the start of a pan or a blit drag.
  */
 import { clamp, createLife, documentOf, el } from './dom.js';
 import { injectUiStyles } from './styles.js';
+import { CONTROL_ATTR } from '../addons/trait.js';
 
 const CLASS = 'cloudcanvas-ui-splitter';
 
@@ -84,7 +89,7 @@ export function createSplitter(host, { onChange } = {}) {
   const doc = documentOf(host);
   injectUiStyles(doc);
   const life = createLife();
-  const root = el(doc, 'div', { className: CLASS, attrs: { role: 'separator', tabindex: '0' } });
+  const root = el(doc, 'div', { className: CLASS, attrs: { role: 'separator', tabindex: '0', [CONTROL_ATTR]: true } });
   host.append(root);
   const state = { model: { value: 50 }, drag: null };
   bindSplitter(life, root, host, state, onChange);

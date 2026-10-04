@@ -13,6 +13,9 @@
  *     clears on success, and keeps the draft on `false` or a rejection (which
  *     goes to `onError`, or the platform's `reportError`).
  *   - Cancel clears the draft (and any voice in progress), then calls `onCancel`.
+ *     While a send is pending - the model's `pending`, or a promise `onSubmit`
+ *     returned - Cancel is disabled and clears nothing: text in flight is not
+ *     Cancel's to take, so a send that fails still has its draft.
  *   - `update({ text })` writes the draft only when the model's text changes, so a
  *     re-render never overwrites typing; a new `contextKey` resets the draft to
  *     `text` (or empty) so one conversation's draft never shows in another.
@@ -42,7 +45,7 @@ function paint(nodes, state) {
   nodes.field.disabled = state.disabled;
   nodes.field.readOnly = state.pending || state.inFlight;
   nodes.submit.disabled = blocked || nodes.field.value.trim() === '';
-  nodes.cancel.disabled = state.disabled || state.inFlight;
+  nodes.cancel.disabled = blocked;
   nodes.root.classList.toggle('is-pending', state.pending || state.inFlight);
   state.voice?.update({ contextKey: state.contextKey, disabled: blocked });
 }
@@ -85,7 +88,7 @@ function bindComposer(life, nodes, state, api) {
   });
   life.on(nodes.submit, 'click', () => submit(nodes, state, api));
   life.on(nodes.cancel, 'click', () => {
-    if (state.disabled || state.inFlight) return;
+    if (state.disabled || state.pending || state.inFlight) return;
     api.clear();
     state.onCancel?.();
   });

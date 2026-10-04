@@ -11,7 +11,11 @@
  * Nothing runs at import: an unused import of this entry bundles to nothing.
  */
 
-export { BUTTON_CLASS, FIELD_CLASS, documentOf, el, button, input, textNode, writeText, clamp, uniqueItems, focusablesIn, uniqueId, createLife } from './dom.js';
+export {
+  BUTTON_CLASS, FIELD_CLASS, SR_ONLY_CLASS, documentOf, el, button, input, textNode, writeText, clamp, uniqueItems, focusablesIn, uniqueId,
+  createLife
+} from './dom.js';
+export { setValue, setLabel, show, keepFocus, placeChildren, rowCache } from './render.js';
 export { nextIndex, setTabStop, isTypingTarget } from './roving.js';
 export { UI_CSS, UI_STYLE_ID, injectUiStyles } from './styles.js';
 export { UI_TOKENS } from './tokens.js';
@@ -22,6 +26,14 @@ export { createTabs } from './tabs.js';
 export { createSplitter, splitterLimits, splitterKeyValue } from './splitter.js';
 export { createResults } from './results.js';
 export { createStatus, STATUS_LABELS } from './status.js';
+export { createBadge, formatCount, countLabel } from './badge.js';
+export { createBreadcrumbs } from './breadcrumbs.js';
+export { createTree } from './tree.js';
+export { createProgress } from './progress.js';
+export { createChips } from './chips.js';
+export { createNavBar } from './navbar.js';
+export { createEmptyState } from './empty.js';
+export { createCombobox } from './combobox.js';
 export { createToaster } from './toast.js';
 export { createComposer } from './composer.js';
 export { createVoiceDraft, VOICE_MAX_LENGTH, VOICE_MESSAGES } from './voice-draft.js';
