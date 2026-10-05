@@ -20,12 +20,16 @@ function itemById(tl, id) {
   return tl.state.items.find((item) => item.id === id) ?? null;
 }
 
+/**
+ * One tab stop, and the focus the draw owes (`tl.focusAfter`): `true` is the timeline's own (a pick-up, a step, a
+ * drop), a plain focus() the view follows; `'keep'` returns a focus the draw found on a bar, and scrolls nothing.
+ */
 function writeTabStops(tl) {
   const nodes = bars(tl);
   const current = nodes.find((node) => node.getAttribute('data-ui-id') === tl.state.focusId) ?? nodes[0] ?? null;
   tl.state.focusId = current?.getAttribute('data-ui-id') ?? null;
   setTabStop(nodes, current);
-  if (tl.focusAfter && current) current.focus();
+  if (tl.focusAfter && current) current.focus(tl.focusAfter === 'keep' ? { preventScroll: true } : undefined);
   tl.focusAfter = false;
 }
 

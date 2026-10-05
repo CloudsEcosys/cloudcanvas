@@ -53,24 +53,29 @@ export function createStatus(host, options) {
   const state = { retry: null };
   const nodes = statusNodes(doc, life, state);
   host.append(nodes.root);
+  const write = (model) => {
+    const status = model.status ?? 'idle';
+    if (!Object.hasOwn(STATUS_LABELS, status)) throw new TypeError(`Unknown status: ${String(status)}`);
+    const word = String(model.labels?.[status] ?? labels?.[status] ?? STATUS_LABELS[status]);
+    const message = String(model.message ?? '');
+    nodes.root.setAttribute('data-status', status);
+    nodes.root.setAttribute('aria-live', status === 'error' ? 'assertive' : 'polite');
+    nodes.root.classList.toggle('is-quiet', word === '' && message === '');
+    writeText(nodes.labelText, word);
+    nodes.label.hidden = word === '';
+    writeText(nodes.messageText, message);
+    nodes.message.hidden = message === '';
+    const canRetry = (status === 'error' || status === 'unavailable') && typeof model.retry === 'function';
+    state.retry = canRetry ? model.retry : null;
+    nodes.retry.hidden = !canRetry;
+    writeText(nodes.retry.firstChild, model.retryLabel ?? retryLabel ?? 'Retry');
+  };
+  // Idle from creation: a host that only ever reports errors shows no Retry before there is one to run.
+  write({});
   return {
     update(model = {}) {
       if (life.dead) return;
-      const status = model.status ?? 'idle';
-      if (!Object.hasOwn(STATUS_LABELS, status)) throw new TypeError(`Unknown status: ${String(status)}`);
-      const word = String(model.labels?.[status] ?? labels?.[status] ?? STATUS_LABELS[status]);
-      const message = String(model.message ?? '');
-      nodes.root.setAttribute('data-status', status);
-      nodes.root.setAttribute('aria-live', status === 'error' ? 'assertive' : 'polite');
-      nodes.root.classList.toggle('is-quiet', word === '' && message === '');
-      writeText(nodes.labelText, word);
-      nodes.label.hidden = word === '';
-      writeText(nodes.messageText, message);
-      nodes.message.hidden = message === '';
-      const canRetry = (status === 'error' || status === 'unavailable') && typeof model.retry === 'function';
-      state.retry = canRetry ? model.retry : null;
-      nodes.retry.hidden = !canRetry;
-      writeText(nodes.retry.firstChild, model.retryLabel ?? retryLabel ?? 'Retry');
+      write(model);
     },
     destroy() {
       if (!life.destroy()) return;

@@ -104,7 +104,8 @@ export function renderTimeGrid(cal, days, events) {
   const wrap = el(cal.doc, 'div', { className: `${CAL}-time`, attrs: { role: 'group', 'aria-label': cal.title } });
   wrap.style.setProperty('--calendar-days', String(days.length));
   const byDay = eventsByDay(events, days);
-  const scroller = el(cal.doc, 'div', { className: `${CAL}-scroller` });
+  // A tab stop of its own: on a day with no event nothing inside it takes focus, and the hours must still scroll by keyboard.
+  const scroller = el(cal.doc, 'div', { className: `${CAL}-scroller`, attrs: { tabindex: '0', role: 'group', 'aria-label': cal.labels.hours } });
   const grid = el(cal.doc, 'div', { className: `${CAL}-time-grid` });
   grid.style.setProperty('--calendar-hours', String(cal.state.hours.end - cal.state.hours.start));
   grid.append(hourLabels(cal), ...days.map((day) => dayColumn(cal, day, byDay.get(dayKey(day)))));

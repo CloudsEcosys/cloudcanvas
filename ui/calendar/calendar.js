@@ -20,7 +20,9 @@
  * the month), Page keys a period, Home/End the week's ends, Enter picks the day.
  * Tab reaches the focused day's events; Enter opens one, Space picks it up,
  * arrows move it (by day, or by `snapMinutes` in the hour grid), Space or Enter
- * drops it and Escape puts it back.
+ * drops it and Escape puts it back. The hour grid is a tab stop of its own, so
+ * its hours scroll by keyboard. A redraw keeps focus on what held it and scrolls
+ * nothing; only the calendar's own keyboard moves bring the view along.
  */
 import { button, clamp, createLife, documentOf, el, textNode, writeText } from '../dom.js';
 import { injectUiStyles } from '../styles.js';
@@ -34,7 +36,7 @@ import { bindCalendar } from './interact.js';
 /** The calendar's default words. */
 export const CALENDAR_LABELS = /* @__PURE__ */ Object.freeze({
   previous: 'Previous', next: 'Next', today: 'Today', allDay: 'All day', views: 'View',
-  month: 'Month', week: 'Week', day: 'Day'
+  month: 'Month', week: 'Week', day: 'Day', hours: 'Hours'
 });
 
 function toolbar(cal) {
@@ -52,12 +54,27 @@ function toolbar(cal) {
   return bar;
 }
 
+/**
+ * The view buttons stand while the set of views does, and only their words and pressed state are rewritten, so the one
+ * just activated keeps focus. A new set is drawn afresh; the button of the view that held focus gets it back, unscrolled.
+ */
 function writeViews(cal) {
-  cal.viewGroup.replaceChildren(...cal.state.views.map((view) => button(cal.doc, {
-    className: `${CAL}-view`, label: cal.labels[view] ?? view, signal: cal.life.signal,
-    attrs: { 'aria-pressed': String(view === cal.state.view), 'data-view': view },
-    onClick: () => cal.navigate(view, cal.state.focusDate, { focus: false })
-  })));
+  const { views } = cal.state;
+  const group = cal.viewGroup;
+  const stands = Array.from(group.children, (node) => node.getAttribute('data-view')).join() === views.join();
+  const held = !stands && group.contains(cal.doc.activeElement) ? cal.doc.activeElement.getAttribute('data-view') : null;
+  if (!stands) {
+    group.replaceChildren(...views.map((view) => button(cal.doc, {
+      className: `${CAL}-view`, label: '', signal: cal.life.signal, attrs: { 'data-view': view },
+      onClick: () => cal.navigate(view, cal.state.focusDate, { focus: false })
+    })));
+  }
+  for (const node of group.children) {
+    const view = node.getAttribute('data-view');
+    writeText(node.firstChild, cal.labels[view] ?? view);
+    node.setAttribute('aria-pressed', String(view === cal.state.view));
+    if (view === held) node.focus({ preventScroll: true });
+  }
 }
 
 /** One tab stop on the focused day; that day's events and "+N" are reachable by Tab. */
@@ -72,18 +89,35 @@ function writeTabStops(cal) {
   }
 }
 
+/**
+ * What holds focus in the body, as `restoreFocus` reads it, marked `keep`: nobody asked for it to move, so returning it
+ * must scroll nothing. Null for anything else, and for focus outside.
+ */
+function heldFocus(cal) {
+  const held = cal.doc.activeElement;
+  if (!held || !cal.body.contains(held)) return null;
+  if (held.matches(`.${CAL}-event`)) return { eventId: held.getAttribute('data-ui-id'), keep: true };
+  if (held.matches(`.${CAL}-day, .${CAL}-day-head`)) return { day: true, keep: true };
+  return held.matches(`.${CAL}-scroller`) ? { scroller: true, keep: true } : null;
+}
+
 function restoreFocus(cal) {
   const want = cal.focusAfter;
   cal.focusAfter = null;
   if (!want) return;
+  // A kept focus returns without scrolling. The calendar's own (a pick-up, a move, a day) is a plain focus(): the view follows it.
+  const options = want.keep ? { preventScroll: true } : undefined;
+  if (want.scroller) { cal.body.querySelector(`.${CAL}-scroller`)?.focus(options); return; }
   const selector = want.eventId ? `.${CAL}-event` : `.${CAL}-day, .${CAL}-day-head`;
   const match = Array.from(cal.body.querySelectorAll(selector)).find((node) => (want.eventId
     ? node.getAttribute('data-ui-id') === want.eventId : node.getAttribute('data-date') === dayKey(cal.state.focusDate)));
-  if (match) { match.setAttribute('tabindex', '0'); match.focus(); }
+  if (match) { match.setAttribute('tabindex', '0'); match.focus(options); }
 }
 
 function render(cal) {
   const { state } = cal;
+  // Every node is redrawn: a draw that names no focus of its own (a host update, a pointer drag) keeps it on what held it.
+  if (cal.focusAfter === null) cal.focusAfter = heldFocus(cal);
   const days = viewDays(state.view, state.anchor, state.weekStartsOn);
   if (!days.some((day) => sameDay(day, state.focusDate))) state.focusDate = startOfDay(state.view === 'month' ? state.anchor : days[0]);
   cal.title = titleFor(state.view, days, cal.format);

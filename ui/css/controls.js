@@ -39,12 +39,14 @@ export const UI_CONTROLS_CSS = `${LIVE_REGION_CSS}/* ------------------ UI KIT: 
 }
 :is(.cloudcanvas-ui-button, .cloudcanvas-ui-field, .cloudcanvas-ui-tabs-tab, .cloudcanvas-ui-splitter, .cloudcanvas-ui-results-option,
   .cloudcanvas-ui-dialog-panel, .cloudcanvas-ui-kanban-card, .cloudcanvas-ui-calendar-day, .cloudcanvas-ui-calendar-day-head,
-  .cloudcanvas-ui-calendar-event, .cloudcanvas-ui-calendar-more, .cloudcanvas-ui-timeline-bar, .cloudcanvas-ui-graph-node,
+  .cloudcanvas-ui-calendar-event, .cloudcanvas-ui-calendar-more, .cloudcanvas-ui-calendar-scroller, .cloudcanvas-ui-timeline-bar, .cloudcanvas-ui-graph-node,
   .cloudcanvas-ui-breadcrumbs-open, .cloudcanvas-ui-tree-row, .cloudcanvas-ui-chips-toggle, .cloudcanvas-ui-chips-remove,
   .cloudcanvas-ui-navbar-link):focus-visible {
   outline: var(--cc-focus-ring-width, 2px) solid var(--cc-focus-ring, var(--cc-accent, #38bdf8));
   outline-offset: var(--cc-focus-ring-offset, 2px);
 }
+/* Its parent clips what is drawn outside it, so the hour grid wears the ring inside. */
+.cloudcanvas-ui-calendar-scroller:focus-visible { outline-offset: calc(-1 * var(--cc-focus-ring-width, 2px)); }
 .cloudcanvas-ui-dialog, .cloudcanvas-ui-tabs, .cloudcanvas-ui-results, .cloudcanvas-ui-status, .cloudcanvas-ui-toasts,
 .cloudcanvas-ui-composer, .cloudcanvas-ui-voice, .cloudcanvas-ui-markdown, .cloudcanvas-ui-breadcrumbs, .cloudcanvas-ui-tree,
 .cloudcanvas-ui-progress, .cloudcanvas-ui-chips, .cloudcanvas-ui-navbar, .cloudcanvas-ui-empty {

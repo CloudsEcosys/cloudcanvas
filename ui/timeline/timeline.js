@@ -15,7 +15,8 @@
  * `onChange`, never applied. Keyboard: Up/Down between bars, Enter opens,
  * Space picks up, Left/Right move a day (Shift resizes), Space or Enter drops,
  * Escape puts it back. The scale (day | week | month) is kept between updates;
- * a model `scale` that changes wins.
+ * a model `scale` that changes wins. A redraw keeps focus on the bar that held
+ * it and scrolls nothing; only the timeline's own keyboard moves bring the view along.
  */
 import { createLiveRegion, say } from '../../addons/announce.js';
 import { button, createLife, documentOf, el, textNode, writeText } from '../dom.js';
@@ -101,6 +102,23 @@ function rowsNode(tl, items) {
   return rows;
 }
 
+/**
+ * The scale buttons are built once (the set of scales never changes) and only their words and pressed state are
+ * rewritten, so the one just activated keeps focus.
+ */
+function writeScales(tl) {
+  if (!tl.scaleGroup.firstChild) {
+    tl.scaleGroup.append(...Object.keys(TIMELINE_SCALES).map((scale) => button(tl.doc, {
+      className: `${TL}-scale`, label: '', signal: tl.life.signal, attrs: { 'data-scale': scale }, onClick: () => tl.setScale(scale)
+    })));
+  }
+  for (const node of tl.scaleGroup.children) {
+    const scale = node.getAttribute('data-scale');
+    writeText(node.firstChild, tl.labels[scale]);
+    node.setAttribute('aria-pressed', String(scale === tl.state.scale));
+  }
+}
+
 function render(tl) {
   const { state } = tl;
   const items = state.pending ? state.items.map((item) => (item.id === state.pending.id ? { ...item, ...state.pending.times } : item)) : state.items;
@@ -110,11 +128,12 @@ function render(tl) {
   const now = el(tl.doc, 'div', { className: `${TL}-now`, attrs: { 'aria-hidden': 'true' } });
   now.style.setProperty('--timeline-x', `${xOf(state.now, tl.domain, state.scale)}px`);
   grid.append(axisNode(tl), rowsNode(tl, items), now);
+  // Every bar is redrawn: a draw that names no focus of its own (a host update, a pointer drag) keeps it on the bar that
+  // held it. 'keep', not true: `writeTabStops` returns such a focus without scrolling.
+  const held = tl.doc.activeElement?.closest(`.${TL}-bar`);
+  if (!tl.focusAfter && held && tl.sheet.contains(held)) tl.focusAfter = 'keep';
   tl.sheet.replaceChildren(grid);
-  tl.scaleGroup.replaceChildren(...Object.keys(TIMELINE_SCALES).map((scale) => button(tl.doc, {
-    className: `${TL}-scale`, label: tl.labels[scale], signal: tl.life.signal,
-    attrs: { 'aria-pressed': String(scale === state.scale), 'data-scale': scale }, onClick: () => tl.setScale(scale)
-  })));
+  writeScales(tl);
   writeText(tl.rangeText, `${tl.format.format(tl.domain.start)} – ${tl.format.format(tl.domain.end)}`);
   tl.writeTabStops();
 }
