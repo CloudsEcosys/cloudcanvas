@@ -10,9 +10,11 @@
  * that receives focus is selected, with 'manual' Enter or Space selects it.
  * Delete closes a closable tab. Close buttons sit beside their tab (a button
  * inside a tab is invalid ARIA) and are skipped by Tab: Delete is their keyboard
- * path. `panelId` on an item becomes the tab's `aria-controls`.
+ * path. The labelled tablist owns its ordered tabs through `aria-owns`, outside
+ * the visual rows so close buttons are not tablist children. `panelId` on an
+ * item becomes the tab's `aria-controls`.
  */
-import { createLife, documentOf, el, textNode, uniqueItems, writeText } from './dom.js';
+import { createLife, documentOf, el, SR_ONLY_CLASS, textNode, uniqueId, uniqueItems, writeText } from './dom.js';
 import { nextIndex, setTabStop } from './roving.js';
 import { injectUiStyles } from './styles.js';
 
@@ -20,7 +22,7 @@ const CLASS = 'cloudcanvas-ui-tabs';
 
 function tabView(doc) {
   const row = el(doc, 'div', { className: `${CLASS}-item`, attrs: { role: 'presentation' } });
-  const tab = el(doc, 'button', { className: `${CLASS}-tab`, attrs: { role: 'tab', type: 'button' } });
+  const tab = el(doc, 'button', { className: `${CLASS}-tab`, attrs: { id: uniqueId('ui-tab'), role: 'tab', type: 'button' } });
   const label = textNode(doc, tab);
   const close = el(doc, 'button', { className: `${CLASS}-close`, text: '×', attrs: { type: 'button', tabindex: '-1' } });
   row.append(tab, close);
@@ -54,6 +56,15 @@ function render(root, doc, views, state) {
 
 function selectable(state) {
   return state.items.filter((item) => item.disabled !== true);
+}
+
+function ownTabs(list, views, state, label) {
+  const ids = state.items.map((item) => views.get(item.id).tab.id);
+  list.setAttribute('aria-label', label);
+  list.setAttribute('aria-orientation', 'horizontal');
+  list.hidden = ids.length === 0;
+  if (ids.length) list.setAttribute('aria-owns', ids.join(' '));
+  else list.removeAttribute('aria-owns');
 }
 
 function onKey(event, views, state, callbacks) {
@@ -102,8 +113,10 @@ export function createTabs(host, callbacks = {}) {
   const doc = documentOf(host);
   injectUiStyles(doc);
   const life = createLife();
-  const root = el(doc, 'div', { className: CLASS, attrs: { role: 'tablist' } });
-  host.append(root);
+  const root = el(doc, 'div', { className: CLASS });
+  // Ordered tab ownership separates semantics from the adjacent close layout.
+  const list = el(doc, 'div', { className: SR_ONLY_CLASS, attrs: { role: 'tablist', hidden: true } });
+  host.append(list, root);
   const views = new Map();
   const state = { items: [], activeId: null, focusId: null, activation: 'auto', closeLabel: 'Close' };
   bindTabs(life, root, views, state, callbacks);
@@ -115,14 +128,14 @@ export function createTabs(host, callbacks = {}) {
       state.activeId = model.activeId ?? null;
       state.activation = model.activation === 'manual' ? 'manual' : 'auto';
       state.closeLabel = String(model.closeLabel ?? 'Close');
-      root.setAttribute('aria-label', String(model.label ?? 'Tabs'));
-      root.setAttribute('aria-orientation', 'horizontal');
       render(root, doc, views, state);
+      ownTabs(list, views, state, String(model.label ?? 'Tabs'));
     },
     destroy() {
       if (!life.destroy()) return;
       views.clear();
       root.remove();
+      list.remove();
     }
   };
 }

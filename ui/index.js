@@ -22,6 +22,8 @@ export { UI_TOKENS } from './tokens.js';
 export { trackDrag, DRAG_START_PX, TOUCH_DRAG_DELAY_MS } from './drag.js';
 
 export { createDialog } from './dialog.js';
+export { createContextActions } from './context-actions.js';
+export { createContextWindow } from './context-window.js';
 export { createTabs } from './tabs.js';
 export { createSplitter, splitterLimits, splitterKeyValue } from './splitter.js';
 export { createResults } from './results.js';
