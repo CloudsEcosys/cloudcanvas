@@ -2,7 +2,8 @@
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
  * The UI kit's DOM helpers: one element builder, its SVG twin, one button, one
- * field, and the lifecycle every control is torn down through.
+ * field, the box of the page that can be seen, and the lifecycle every control
+ * is torn down through.
  *
  * NOTHING TOUCHES A DOCUMENT AT IMPORT. Each helper takes the document it
  * builds in - a control mounts into a host and uses `host.ownerDocument` - so
@@ -122,6 +123,23 @@ export function input(doc, options = {}) {
 /** `value` held to `[min, max]`. */
 export function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
+}
+
+/**
+ * The box that can be seen, in client coordinates: the visual viewport - which
+ * a pinch or an on-screen keyboard makes smaller than the layout viewport, and
+ * moves inside it - or, where the platform has none, the window.
+ * @param {Window} view
+ * @returns {{left: number, top: number, width: number, height: number}}
+ */
+export function visualBox(view) {
+  const viewport = view.visualViewport;
+  return {
+    left: viewport?.offsetLeft ?? 0,
+    top: viewport?.offsetTop ?? 0,
+    width: viewport?.width ?? view.innerWidth,
+    height: viewport?.height ?? view.innerHeight
+  };
 }
 
 /** A list of items whose `id`s are non-empty and unique, or a TypeError naming `kind`. */

@@ -26,6 +26,7 @@ export { createContextActions } from './context-actions.js';
 export { createContextWindow } from './context-window.js';
 export { createDrawer } from './drawer.js';
 export { createTabs } from './tabs.js';
+export { createMenu } from './menu.js';
 export { createSplitter, splitterLimits, splitterKeyValue } from './splitter.js';
 export { createResults } from './results.js';
 export { createStatus, STATUS_LABELS } from './status.js';

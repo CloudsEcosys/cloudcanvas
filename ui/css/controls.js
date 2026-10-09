@@ -1,8 +1,8 @@
 /**
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
- * The UI kit's control rules: buttons and fields, dialog, drawer, tabs,
- * splitter, results, status, toasts, composer, voice, markdown, breadcrumbs,
+ * The UI kit's control rules: buttons and fields, dialog, drawer, tabs and
+ * their folder layers, splitter, results, status, toasts, composer, voice, markdown, breadcrumbs,
  * badge, tree, progress, chips, nav bar, empty state and combobox. Data, not code; joined
  * with `./views.js` by `../styles.js`. The live-region rule is the engine's own
  * (`LIVE_REGION_CSS`), so a region is hidden even where the canvas sheet is not
@@ -49,7 +49,7 @@ export const UI_CONTROLS_CSS = `${LIVE_REGION_CSS}/* ------------------ UI KIT: 
 .cloudcanvas-ui-calendar-scroller:focus-visible { outline-offset: calc(-1 * var(--cc-focus-ring-width, 2px)); }
 .cloudcanvas-ui-dialog, .cloudcanvas-ui-tabs, .cloudcanvas-ui-results, .cloudcanvas-ui-status, .cloudcanvas-ui-toasts,
 .cloudcanvas-ui-composer, .cloudcanvas-ui-voice, .cloudcanvas-ui-markdown, .cloudcanvas-ui-breadcrumbs, .cloudcanvas-ui-tree,
-.cloudcanvas-ui-progress, .cloudcanvas-ui-chips, .cloudcanvas-ui-navbar, .cloudcanvas-ui-empty {
+.cloudcanvas-ui-progress, .cloudcanvas-ui-chips, .cloudcanvas-ui-navbar, .cloudcanvas-ui-empty, .cloudcanvas-ui-menu-panel {
   font-family: var(--cc-font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif);
   color: var(--cc-text, #e2e8f0);
 }
@@ -131,6 +131,53 @@ export const UI_CONTROLS_CSS = `${LIVE_REGION_CSS}/* ------------------ UI KIT: 
   padding-top: 0;
   padding-bottom: 0;
 }
+/* A pinned tab stays put and cannot be closed: a small mark before its label says so, in the label's own colour. */
+.cloudcanvas-ui-tabs-tab[data-pinned="true"]::before {
+  content: "";
+  display: inline-block;
+  flex: none;
+  width: 0.375em;
+  height: 0.375em;
+  margin-right: var(--cc-space-1, 4px);
+  vertical-align: middle;
+  background: currentColor;
+  border-radius: var(--cc-radius-pill, 9999px);
+}
+/* A tab's parent scopes are folder tabs standing behind it: each a step lower, open on the side that runs under what is in
+   front of it, and cut short so that only its label peeks out. */
+.cloudcanvas-ui-tabs-layers { display: inline-flex; align-self: flex-end; }
+.cloudcanvas-ui-tabs-layer {
+  box-sizing: border-box;
+  min-width: var(--cc-control-min, 28px);
+  max-width: var(--cc-ui-tab-layer-width, 6rem);
+  min-height: calc(var(--cc-control-min, 28px) - var(--cc-space-1, 4px));
+  padding: 0 var(--cc-space-2, 8px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: inherit;
+  font-size: var(--cc-type-sm, 12px);
+  color: var(--cc-text, #e2e8f0);
+  background: var(--cc-ui-tab-layer, var(--cc-scope-bg, rgba(0, 0, 0, 0.2)));
+  border: 1px solid var(--cc-card-border, rgba(255, 255, 255, 0.1));
+  border-width: 1px 0 0 1px;
+  border-radius: var(--cc-radius-sm, 6px) 0 0 0;
+  cursor: pointer;
+}
+.cloudcanvas-ui-tabs-layer:hover:not(:disabled) { background: var(--cc-btn-bg-hover, rgba(56, 189, 248, 0.22)); }
+.cloudcanvas-ui-tabs-layer:disabled { opacity: 0.5; cursor: not-allowed; }
+/* The strip clips what is drawn outside it, so a layer wears the ring inside. */
+.cloudcanvas-ui-tabs-layer:focus-visible {
+  outline: var(--cc-focus-ring-width, 2px) solid var(--cc-focus-ring, var(--cc-accent, #38bdf8));
+  outline-offset: calc(-1 * var(--cc-focus-ring-width, 2px));
+}
+/* The tab in front closes the stack with an edge and a corner of its own. */
+.cloudcanvas-ui-tabs-layers + .cloudcanvas-ui-tabs-tab {
+  border-left: 1px solid var(--cc-card-border, rgba(255, 255, 255, 0.1));
+  border-top-left-radius: var(--cc-radius-sm, 6px);
+}
+/* The fold's menu is mounted beside the strip and takes no room there. */
+.cloudcanvas-ui-tabs-menu { display: contents; }
 
 .cloudcanvas-ui-splitter { flex: none; position: relative; min-width: 8px; min-height: 8px; touch-action: none; cursor: col-resize; }
 .cloudcanvas-ui-splitter[aria-orientation="horizontal"] { cursor: row-resize; }
@@ -412,8 +459,10 @@ export const UI_CONTROLS_CSS = `${LIVE_REGION_CSS}/* ------------------ UI KIT: 
 }
 
 @media (pointer: coarse) {
-  :is(.cloudcanvas-ui-button, .cloudcanvas-ui-field, .cloudcanvas-ui-tabs-tab, .cloudcanvas-ui-tabs-close, .cloudcanvas-ui-breadcrumbs-open,
-    .cloudcanvas-ui-tree-row, .cloudcanvas-ui-chips-toggle, .cloudcanvas-ui-chips-remove, .cloudcanvas-ui-navbar-link) { min-height: var(--cc-control-min-coarse, 44px); }
+  :is(.cloudcanvas-ui-button, .cloudcanvas-ui-field, .cloudcanvas-ui-tabs-tab, .cloudcanvas-ui-tabs-close, .cloudcanvas-ui-tabs-layer,
+    .cloudcanvas-ui-breadcrumbs-open, .cloudcanvas-ui-tree-row, .cloudcanvas-ui-chips-toggle, .cloudcanvas-ui-chips-remove,
+    .cloudcanvas-ui-navbar-link) { min-height: var(--cc-control-min-coarse, 44px); }
+  .cloudcanvas-ui-tabs-layer { min-width: var(--cc-control-min-coarse, 44px); }
   .cloudcanvas-ui-splitter { min-width: 20px; min-height: 20px; }
 }
 @media (max-width: 40rem) {

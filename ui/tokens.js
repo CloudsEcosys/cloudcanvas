@@ -32,6 +32,7 @@ export const UI_TOKENS = /* @__PURE__ */ Object.freeze({
   '--cc-ui-flag-light': { category: C.COLOR, purpose: 'Light on a flag badge: its sheen, its top edge and the lit side of its staff' },
   '--cc-ui-flag-shade': { category: C.COLOR, purpose: 'Shade on a flag badge: under its sheen, at its staff and in its folded tail' },
   '--cc-ui-flag-shadow': { category: C.COLOR, purpose: 'Shadow a flag badge casts on what it is planted on' },
+  '--cc-ui-tab-layer': { category: C.COLOR, purpose: 'Fill of a folder layer behind a tab: one of the parent scopes it stands in front of' },
   '--cc-ui-tone-1': { category: C.COLOR, purpose: 'Category tone 1 of 8: the edge of a card, event, bar, chip or tree item marked tone 1' },
   '--cc-ui-tone-2': { category: C.COLOR, purpose: 'Category tone 2 of 8: the edge of a card, event, bar, chip or tree item marked tone 2' },
   '--cc-ui-tone-3': { category: C.COLOR, purpose: 'Category tone 3 of 8: the edge of a card, event, bar, chip or tree item marked tone 3' },
@@ -44,6 +45,7 @@ export const UI_TOKENS = /* @__PURE__ */ Object.freeze({
   /* ---- geometry and stacking ---- */
   '--cc-ui-dialog-width': { category: C.SIZE, purpose: 'Maximum width of a dialog panel' },
   '--cc-ui-flag-rise': { category: C.SIZE, purpose: 'How far a flag badge stands out of the top of what holds it; tabs and the nav bar keep that room' },
+  '--cc-ui-tab-layer-width': { category: C.SIZE, purpose: 'Most room a folder layer gives its label before cutting it short' },
   '--cc-ui-toast-offset': { category: C.SIZE, purpose: 'Gap between the toast stack and the bottom of the viewport' },
   '--cc-ui-hour-height': { category: C.SIZE, purpose: 'Height of one hour in the week and day grids' },
   '--cc-ui-time-height': { category: C.SIZE, purpose: 'Visible height of the scrolling hour grid' },
@@ -52,6 +54,7 @@ export const UI_TOKENS = /* @__PURE__ */ Object.freeze({
   '--cc-ui-graph-height': { category: C.SIZE, purpose: 'Height of the relationship-graph viewport' },
   '--cc-z-ui-toast': { category: C.Z_INDEX, purpose: 'Toast stack stacking order' },
   '--cc-z-ui-context': { category: C.Z_INDEX, purpose: 'Nonmodal floating context windows, below modal dialogs and toasts' },
+  '--cc-z-ui-menu': { category: C.Z_INDEX, purpose: 'Menus: above the floating context windows one may be opened from, below toasts' },
   '--cc-z-ui-raised': { category: C.Z_INDEX, purpose: 'Parts raised inside a UI view: sticky labels, a card being dragged' },
   '--cc-z-ui-sticky': { category: C.Z_INDEX, purpose: 'Sticky headers inside a UI view, above raised parts (the timeline axis)' }
 });

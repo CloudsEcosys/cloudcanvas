@@ -4,13 +4,10 @@
  * Presentation geometry only. These private properties mirror the visible
  * viewport, including keyboard resize and pinch/pan offsets, without polling.
  */
+import { visualBox } from '../dom.js';
 
 function writeViewport(root, view) {
-  const viewport = view.visualViewport;
-  const width = viewport?.width ?? view.innerWidth;
-  const height = viewport?.height ?? view.innerHeight;
-  const top = viewport?.offsetTop ?? 0;
-  const left = viewport?.offsetLeft ?? 0;
+  const { left, top, width, height } = visualBox(view);
   if (!(width > 0 && height > 0)) return;
   root.style.setProperty('--context-viewport-width', `${width}px`);
   root.style.setProperty('--context-viewport-height', `${height}px`);
