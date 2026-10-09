@@ -1,10 +1,12 @@
 /**
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
- * Tabs: an ARIA tablist with one tab stop, optional close buttons, and - for a
- * strip of folders - a pinned tab and the parent scopes behind each tab.
+ * Tabs: an ARIA tablist with one tab stop, drawn as a row of folder tabs, with
+ * optional close buttons, a pinned tab, the parent scopes behind each tab, and
+ * tabs the user can move.
  *
- *   const tabs = createTabs(host, { onSelect: (id) => show(id), onClose: (id) => drop(id), onLayer: (id, layer) => up(id, layer) });
+ *   const tabs = createTabs(host, { onSelect: (id) => show(id), onClose: (id) => drop(id), onLayer: (id, layer) => up(id, layer),
+ *     onReorder: (id, beforeId) => move(id, beforeId) });
  *   tabs.update({ label: 'Views', activeId: 'today', items: [{ id: 'home', label: 'Home', pinned: true },
  *     { id: 'today', label: 'Today', closable: true, layers: [{ id: 'work', label: 'Work' }] }] });
  *
@@ -16,13 +18,21 @@
  * the visual rows so close buttons are not tablist children. `panelId` on an
  * item becomes the tab's `aria-controls`.
  *
+ * EVERY TAB IS A FOLDER TAB (`./css/tabs.js`), with layers or with none, and
+ * the active one stands in front: its row carries `is-active`, and every other
+ * is drawn a step back. A label is the tab's own text, whole; the sheet cuts a
+ * long one with an ellipsis, so the tab says it whole in `title` too.
+ *
  * `badge` on an item is the kit badge (`./badge.js`) inside its tab: the model
  * the nav bar takes, or a bare number for the count. What it says is part of
  * the tab's name. An item that names none has none, and its tab is untouched.
+ * A badged tab is not cut short - the sheet cannot cut a label and keep the
+ * badge beside it - and carries no `title`.
  *
  * `activeId: null` selects nothing: every tab is `aria-selected="false"`, and
  * the tab stop rests on the first tab that can take focus, so the list is
- * still one Tab away.
+ * still one Tab away. When the active tab changes, or its layers do, the strip
+ * scrolls it into view (`./tabs-reveal.js`).
  *
  * `pinned: true` on an item marks its tab `data-pinned="true"`, which the sheet
  * draws quietly, and takes its close control off the page, `closable` or not:
@@ -33,20 +43,27 @@
  * outermost first: buttons beside the tab (`./tabs-layers.js`), at most three,
  * the rest folded into a menu, drawn as folder tabs stacked behind it. A press
  * on one reports `onLayer(tabId, layerId)` and selects nothing: going up is
- * the host's to answer. A strip with any stack carries `data-layered`, and
- * there every tab is drawn as a folder tab; a strip with none is unchanged.
+ * the host's to answer. A strip with any stack carries `data-layered`.
+ *
+ * `onReorder(id, beforeId | null)` makes the tabs movable (`./tabs-reorder.js`):
+ * a drag shows where a tab would land and a drop reports it, and so do
+ * Alt+ArrowLeft and Alt+ArrowRight. A pinned tab does not move and nothing
+ * lands before one. The strip moves nothing itself: the caller answers with
+ * the model in its new order.
  *
  * A REDRAW KEEPS FOCUS. A tab or a layer the model still names stays where it
  * is, so focus on it is never lost, and a reorder hands focus back to what had
  * it. Focus on something that went - a layer, a fold, a close control - moves
  * to the tab it stood beside, and with that tab gone too, to the tab stop.
  */
-import { badgeModel, createBadge } from './badge.js';
+import { syncBadge } from './badge.js';
 import { createLife, documentOf, el, SR_ONLY_CLASS, textNode, uniqueId, uniqueItems, writeText } from './dom.js';
 import { keepFocus, placeChildren } from './render.js';
 import { nextIndex, setTabStop } from './roving.js';
 import { injectUiStyles } from './styles.js';
 import { createFold, layersOf, writeLayers } from './tabs-layers.js';
+import { createReorder } from './tabs-reorder.js';
+import { createReveal } from './tabs-reveal.js';
 
 const CLASS = 'cloudcanvas-ui-tabs';
 
@@ -78,31 +95,33 @@ function writeClose(view, item, closeLabel) {
   else if (view.close.parentNode !== view.row) view.row.append(view.close);
 }
 
-/** The tab's badge: mounted in the tab when its item first names one, redrawn after that, destroyed when the item names none. */
+/** The tab's badge, kept across redraws (`syncBadge`); the tab says whether it holds one, so the sheet can lay the two side by side. */
 function writeBadge(view, badge) {
-  const badged = badge !== undefined && badge !== null;
-  view.tab.classList.toggle('is-badged', badged);
-  if (!badged) {
-    view.badge?.destroy();
-    view.badge = null;
-    return;
-  }
-  view.badge ??= createBadge(view.tab);
-  view.badge.update(badgeModel(badge));
+  view.badge = syncBadge(view.badge, view.tab, badge);
+  view.tab.classList.toggle('is-badged', view.badge !== null);
+}
+
+/** The tab's label: its own text, whole, and - on a tab the sheet may cut short, which is one with no badge - in its title too. */
+function writeLabel(view, item) {
+  writeText(view.label, item.label);
+  if (view.badge === null) view.tab.title = String(item.label ?? '');
+  else view.tab.removeAttribute('title');
 }
 
 function writeTab(doc, view, item, state) {
+  const active = item.id === state.activeId;
   view.tab.setAttribute('data-ui-id', item.id);
-  view.tab.setAttribute('aria-selected', String(item.id === state.activeId));
+  view.tab.setAttribute('aria-selected', String(active));
+  view.row.classList.toggle('is-active', active);
   if (item.panelId) view.tab.setAttribute('aria-controls', String(item.panelId));
   else view.tab.removeAttribute('aria-controls');
   if (item.pinned === true) view.tab.setAttribute('data-pinned', 'true');
   else view.tab.removeAttribute('data-pinned');
   view.tab.disabled = item.disabled === true;
-  writeText(view.label, item.label);
   writeBadge(view, item.badge);
+  writeLabel(view, item);
   writeClose(view, item, state.closeLabel);
-  writeLayers(doc, view, item, item.id === state.activeId);
+  writeLayers(doc, view, item, active);
 }
 
 /** Take a tab out: its badge ends with it. */
@@ -126,7 +145,7 @@ function restingId(state) {
 function render(root, doc, views, state) {
   const keep = new Set(state.items.map((item) => item.id));
   for (const id of [...views.keys()]) if (!keep.has(id)) dropTab(views, id);
-  // One stack makes the strip a row of folders, which the sheet draws as such; without one it is the strip it always was.
+  // A strip says whether any of its tabs has a stack. The sheet draws the same folders either way.
   if (state.items.some((item) => (item.layers ?? []).length > 0)) root.setAttribute('data-layered', 'true');
   else root.removeAttribute('data-layered');
   placeChildren(root, state.items.map((item) => {
@@ -184,10 +203,14 @@ function ownTabs(list, views, state, label) {
   else list.removeAttribute('aria-owns');
 }
 
-function onKey(event, views, state, callbacks) {
+function onKey(event, views, state, reorder, callbacks) {
   const tab = event.target.closest?.('[role="tab"]');
   if (!tab) return;
   const id = tab.getAttribute('data-ui-id');
+  if (reorder.key(event, id)) {
+    event.preventDefault();
+    return;
+  }
   const items = selectable(state);
   const item = state.items.find((entry) => entry.id === id);
   if (event.key === 'Delete' && closes(item)) {
@@ -225,8 +248,9 @@ function onPress(event, state, fold, callbacks) {
 }
 
 function bindTabs(life, root, views, state, fold, callbacks) {
+  const reorder = createReorder(life, root, state, callbacks);
   life.on(root, 'click', (event) => onPress(event, state, fold, callbacks));
-  life.on(root, 'keydown', (event) => onKey(event, views, state, callbacks));
+  life.on(root, 'keydown', (event) => onKey(event, views, state, reorder, callbacks));
 }
 
 /** The model's items, checked before anything is drawn: tab ids unique, and each tab's layer ids unique within it. */
@@ -238,7 +262,8 @@ function tabItems(items) {
 /**
  * @param {HTMLElement} host
  * @param {{onSelect?: (id: string) => void, onClose?: (id: string) => void,
- *   onLayer?: (tabId: string, layerId: string) => void}} [callbacks]
+ *   onLayer?: (tabId: string, layerId: string) => void,
+ *   onReorder?: (id: string, beforeId: string|null) => void}} [callbacks]
  * @returns {{update(model: {label?: string, activeId?: string|null, activation?: 'auto'|'manual', closeLabel?: string,
  *   items?: Array<{id: string, label?: string, panelId?: string, badge?: number|object, closable?: boolean,
  *   pinned?: boolean, layers?: Array<{id: string, label?: string}>, disabled?: boolean}>}): void, destroy(): void}}
@@ -254,6 +279,7 @@ export function createTabs(host, callbacks = {}) {
   const views = new Map();
   const state = { items: [], activeId: null, focusId: null, activation: 'auto', closeLabel: 'Close' };
   const fold = createFold(host, views, callbacks);
+  const reveal = createReveal(root, views);
   bindTabs(life, root, views, state, fold, callbacks);
   return {
     update(model = {}) {
@@ -268,6 +294,7 @@ export function createTabs(host, callbacks = {}) {
       fold.sync(state.items);
       restoreFocus(root, views, state, fold, held);
       ownTabs(list, views, state, String(model.label ?? 'Tabs'));
+      reveal.sync(state);
     },
     destroy() {
       if (!life.destroy()) return;

@@ -13,41 +13,16 @@
  * Nothing is given a stacking level at rest - later in the page is nearer the
  * front - so the order rises to the tab without the sheet counting it.
  *
- * A FOLDER TAB IS NOT SEEN THROUGH. The kit's surface is translucent, and a
- * translucent tab would tint what it overlaps instead of hiding it. So a face
- * is that surface laid on the page's own colour (`--cc-bg`): the same colour
- * the surface shows over the page, and nothing behind it shows.
+ * A FACE IS NOT SEEN THROUGH, as a tab's is not (`./tabs.js`, which names the
+ * two washes every face is made of): the surface laid on the page's own
+ * colour, under one wash of shade for each step back.
+ *
+ * BEHIND A TAB THAT IS ITSELF A STEP BACK - every tab but the active one - a
+ * layer is one step further back again: its row starts a step lower, and its
+ * face takes one wash more than the same layer behind the tab in front.
  */
 export const UI_TAB_LAYERS_CSS = `
 /* ------------------ UI KIT: TAB LAYERS ------------------ */
-
-/* A strip that has a stack is a row of folders. Every tab in it is a folder tab, the front of its own stack: rounded top
-   corners, a flat foot on the strip's baseline, a hairline edge, and a soft shadow on what is behind it. A close control
-   is the far end of the same tab. A stack keeps to its own row, so a layer that opens out never widens the strip. */
-.cloudcanvas-ui-tabs[data-layered] {
-  --tab-face: linear-gradient(var(--cc-ui-surface, var(--cc-card-bg, rgba(30, 41, 59, 0.85))), var(--cc-ui-surface, var(--cc-card-bg, rgba(30, 41, 59, 0.85))));
-  --layer-shade: linear-gradient(var(--cc-ui-tab-layer, var(--cc-scope-bg, rgba(0, 0, 0, 0.2))), var(--cc-ui-tab-layer, var(--cc-scope-bg, rgba(0, 0, 0, 0.2))));
-}
-.cloudcanvas-ui-tabs[data-layered] .cloudcanvas-ui-tabs-item { overflow-x: clip; }
-.cloudcanvas-ui-tabs[data-layered] :is(.cloudcanvas-ui-tabs-tab, .cloudcanvas-ui-tabs-close) {
-  position: relative;
-  align-self: stretch;
-  background-color: var(--cc-bg, #0f1117);
-  background-image: var(--tab-face);
-  border-top: 1px solid var(--cc-card-border, rgba(255, 255, 255, 0.1));
-}
-.cloudcanvas-ui-tabs[data-layered] .cloudcanvas-ui-tabs-tab {
-  border-left: 1px solid var(--cc-card-border, rgba(255, 255, 255, 0.1));
-  border-right: 1px solid var(--cc-card-border, rgba(255, 255, 255, 0.1));
-  border-radius: var(--cc-radius-sm, 6px) var(--cc-radius-sm, 6px) 0 0;
-  box-shadow: var(--cc-ui-tab-layer-shadow, var(--cc-shadow-1, 0 4px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06)));
-}
-.cloudcanvas-ui-tabs[data-layered] .is-closable > .cloudcanvas-ui-tabs-tab { border-right-width: 0; border-top-right-radius: 0; }
-.cloudcanvas-ui-tabs[data-layered] .cloudcanvas-ui-tabs-close {
-  border-right: 1px solid var(--cc-card-border, rgba(255, 255, 255, 0.1));
-  border-top-right-radius: var(--cc-radius-sm, 6px);
-}
-.cloudcanvas-ui-tabs[data-layered] [aria-selected="true"] + .cloudcanvas-ui-tabs-close { border-bottom-color: var(--cc-accent, #38bdf8); }
 
 .cloudcanvas-ui-tabs-layers { display: inline-flex; align-self: stretch; }
 .cloudcanvas-ui-tabs-layer {
@@ -96,6 +71,12 @@ export const UI_TAB_LAYERS_CSS = `
 .cloudcanvas-ui-tabs-layer[data-depth="3"] > .cloudcanvas-ui-tabs-layer-face {
   top: calc(3 * var(--cc-ui-tab-layer-step, 3px));
   background-image: var(--layer-shade), var(--layer-shade), var(--layer-shade), var(--tab-face);
+}
+/* Behind a tab a step back: one wash more. No heavier than the rules above, so a layer brought forward is still lit. */
+:where(.cloudcanvas-ui-tabs-item:not(.is-active)) .cloudcanvas-ui-tabs-layer[data-depth="1"] > .cloudcanvas-ui-tabs-layer-face { background-image: var(--layer-shade), var(--layer-shade), var(--tab-face); }
+:where(.cloudcanvas-ui-tabs-item:not(.is-active)) .cloudcanvas-ui-tabs-layer[data-depth="2"] > .cloudcanvas-ui-tabs-layer-face { background-image: var(--layer-shade), var(--layer-shade), var(--layer-shade), var(--tab-face); }
+:where(.cloudcanvas-ui-tabs-item:not(.is-active)) .cloudcanvas-ui-tabs-layer[data-depth="3"] > .cloudcanvas-ui-tabs-layer-face {
+  background-image: var(--layer-shade), var(--layer-shade), var(--layer-shade), var(--layer-shade), var(--tab-face);
 }
 /* Under the pointer or the keys a layer comes to the front and opens out to its label, over what stood in front of it:
    whole now, and lit as a control is under the pointer rather than shaded as something behind. */

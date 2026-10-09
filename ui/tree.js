@@ -22,7 +22,14 @@
  * whose parent is not in the list shows at the root, and a loop of parents is
  * cut at its first item. Only a repeated id is refused. `count` is shown beside
  * the label (zero is a count); `tone` is written as `data-tone` for the sheet.
+ *
+ * `badge` on an item is the kit badge (`./badge.js`) inside its row, between
+ * the label and the count: the model the tabs and the nav bar take - a flag
+ * too - or a bare number for the count. What it says is part of the row's
+ * name, said once: its figure is the eye's alone. An item that names none has
+ * none.
  */
+import { syncBadge } from './badge.js';
 import { createLife, documentOf, el, textNode, uniqueItems, writeText } from './dom.js';
 import { nextIndex, setTabStop } from './roving.js';
 import { injectUiStyles } from './styles.js';
@@ -107,7 +114,15 @@ function rowNode(doc) {
   node.append(el(doc, 'span', { className: `${CLASS}-indent`, attrs: { 'aria-hidden': 'true' } }),
     el(doc, 'span', { className: `${CLASS}-twisty`, attrs: { 'aria-hidden': 'true' } }), label, count);
   node._uiText = { label: textNode(doc, label), count: textNode(doc, count) };
+  node._uiBadge = null;
   return node;
+}
+
+/** The row's badge, kept across redraws (`syncBadge`): a new one is put before the count, which stays at the end of the row. */
+function writeBadge(node, badge) {
+  const had = node._uiBadge;
+  node._uiBadge = syncBadge(had, node, badge);
+  if (node._uiBadge && !had) node.insertBefore(node.lastChild, node._uiText.count.parentNode);
 }
 
 function writeRow(node, row, state) {
@@ -127,6 +142,16 @@ function writeRow(node, row, state) {
   writeText(node._uiText.label, item.label ?? row.id);
   writeText(node._uiText.count, counted ? item.count : '');
   node._uiText.count.parentNode.hidden = !counted;
+  writeBadge(node, item.badge);
+}
+
+/** End the badge of every row in `rows` that `root` no longer holds - a row that closed - or, given no root, of every row: the tree is gone. */
+function dropBadges(rows, root = null) {
+  for (const node of rows) {
+    if (root !== null && node.parentNode === root) continue;
+    node._uiBadge?.destroy();
+    node._uiBadge = null;
+  }
 }
 
 /** Give the row `id` the tab stop, and the focus when asked. */
@@ -142,11 +167,13 @@ function moveStop(tree, id, { focus }) {
 function draw(tree) {
   const { doc, root, state } = tree;
   const had = root.contains(doc.activeElement);
+  const before = Array.from(root.querySelectorAll(ROW));
   reconcileKeyedList(root, state.rows, {
     key: (row) => row.id,
     create: () => rowNode(doc),
     update: (node, row) => writeRow(node, row, state)
   });
+  dropBadges(before, root);
   moveStop(tree, state.focusId, { focus: had && !root.contains(doc.activeElement) });
 }
 
@@ -195,7 +222,7 @@ function bindTree(tree) {
  * @param {HTMLElement} host
  * @param {{onActivate?: (id: string) => void, onToggle?: (id: string, expanded: boolean) => void}} [callbacks]
  * @returns {{update(model: {label?: string, items?: Array<{id: string, parentId?: string, label?: string, count?: number,
- *   tone?: string}>, expanded?: string[], selectedId?: string}): void, destroy(): void}}
+ *   badge?: number|object, tone?: string}>, expanded?: string[], selectedId?: string}): void, destroy(): void}}
  */
 export function createTree(host, callbacks = {}) {
   const doc = documentOf(host);
@@ -218,7 +245,9 @@ export function createTree(host, callbacks = {}) {
       draw(tree);
     },
     destroy() {
-      if (life.destroy()) root.remove();
+      if (!life.destroy()) return;
+      dropBadges(Array.from(root.querySelectorAll(ROW)));
+      root.remove();
     }
   };
 }

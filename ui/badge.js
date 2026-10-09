@@ -73,6 +73,26 @@ export function badgeModel(badge) {
   return badge && typeof badge === 'object' ? badge : {};
 }
 
+/**
+ * An item's badge inside the control that draws it, kept across redraws:
+ * mounted in `host` the first time its item names one, redrawn after that, and
+ * destroyed when the item names none. The tabs and the tree both keep theirs
+ * through this.
+ * @param {{update(model: object): void, destroy(): void}|null} handle the badge kept from the last draw
+ * @param {HTMLElement} host
+ * @param {number|object|null} [badge] the item's own `badge`
+ * @returns {{update(model: object): void, destroy(): void}|null} the badge to keep, or null for an item with none
+ */
+export function syncBadge(handle, host, badge) {
+  if (badge === undefined || badge === null) {
+    handle?.destroy();
+    return null;
+  }
+  const kept = handle ?? createBadge(host);
+  kept.update(badgeModel(badge));
+  return kept;
+}
+
 /** The badge's nodes, hidden until a model gives it a count: a figure for the eye, a sentence for the ear. */
 function badgeNodes(doc) {
   const root = el(doc, 'span', { className: CLASS, attrs: { hidden: true } });
