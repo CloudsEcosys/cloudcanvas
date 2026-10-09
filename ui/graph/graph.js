@@ -22,24 +22,17 @@
 import { createLiveRegion, say } from '../../addons/announce.js';
 import { reconcileKeyedList } from '../../addons/keyed-list.js';
 import { CONTROL_ATTR } from '../../addons/trait.js';
-import { button, clamp, createLife, documentOf, el, uniqueId } from '../dom.js';
+import { button, clamp, createLife, documentOf, el, svg, uniqueId } from '../dom.js';
 import { injectUiStyles } from '../styles.js';
 import { NODE_HEIGHT, NODE_WIDTH, boundsOf, edgeEnd, layoutGraph, normalizeGraph } from './layout.js';
 import { bindGraph } from './interact.js';
 
 export const GRAPH = 'cloudcanvas-ui-graph';
-const SVG_NS = 'http://www.w3.org/2000/svg';
 
 /** The graph's default words. */
 export const GRAPH_LABELS = /* @__PURE__ */ Object.freeze({
   zoomIn: 'Zoom in', zoomOut: 'Zoom out', fit: 'Fit', linksTo: 'links to', linkedFrom: 'linked from'
 });
-
-function svg(doc, tag, attrs) {
-  const node = doc.createElementNS(SVG_NS, tag);
-  for (const [name, value] of Object.entries(attrs)) node.setAttribute(name, String(value));
-  return node;
-}
 
 function drawEdges(g, positions) {
   const markerId = g.markerId;

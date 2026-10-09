@@ -1,9 +1,9 @@
 /**
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
- * The UI kit's control rules: buttons and fields, dialog, tabs, splitter,
- * results, status, toasts, composer, voice, markdown, breadcrumbs, badge, tree,
- * progress, chips, nav bar, empty state and combobox. Data, not code; joined
+ * The UI kit's control rules: buttons and fields, dialog, drawer, tabs,
+ * splitter, results, status, toasts, composer, voice, markdown, breadcrumbs,
+ * badge, tree, progress, chips, nav bar, empty state and combobox. Data, not code; joined
  * with `./views.js` by `../styles.js`. The live-region rule is the engine's own
  * (`LIVE_REGION_CSS`), so a region is hidden even where the canvas sheet is not
  * loaded and even under a CSP that refuses inline style attributes.
@@ -92,7 +92,18 @@ export const UI_CONTROLS_CSS = `${LIVE_REGION_CSS}/* ------------------ UI KIT: 
 .cloudcanvas-ui-dialog-description { margin: 0; color: var(--cc-text-muted, #94a3b8); }
 .cloudcanvas-ui-dialog-body { min-width: 0; }
 
-.cloudcanvas-ui-tabs { display: flex; gap: var(--cc-space-1, 4px); overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: thin; }
+/* A drawer's place and size are the host's; the sheet says where it folds to: its control's aim, or its own top edge. */
+.cloudcanvas-ui-drawer { transform-origin: var(--drawer-origin-x, 50%) var(--drawer-origin-y, 0%); }
+
+/* A strip that scrolls clips, so it keeps the room a risen flag stands in. */
+.cloudcanvas-ui-tabs {
+  display: flex;
+  gap: var(--cc-space-1, 4px);
+  padding-top: var(--cc-ui-flag-rise, 0px);
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+}
 .cloudcanvas-ui-tabs-item { display: inline-flex; align-items: center; flex: none; scroll-snap-align: start; }
 .cloudcanvas-ui-tabs-tab, .cloudcanvas-ui-tabs-close {
   min-height: var(--cc-control-min, 28px);
@@ -111,6 +122,15 @@ export const UI_CONTROLS_CSS = `${LIVE_REGION_CSS}/* ------------------ UI KIT: 
   font-weight: var(--cc-weight-semibold, 600);
 }
 .cloudcanvas-ui-tabs-tab:disabled { opacity: 0.5; cursor: not-allowed; }
+/* A badge needs the height a tab's padding takes: the label is centred in the whole tab instead, where it already sat. */
+.cloudcanvas-ui-tabs-tab.is-badged {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--cc-space-1, 4px);
+  padding-top: 0;
+  padding-bottom: 0;
+}
 
 .cloudcanvas-ui-splitter { flex: none; position: relative; min-width: 8px; min-height: 8px; touch-action: none; cursor: col-resize; }
 .cloudcanvas-ui-splitter[aria-orientation="horizontal"] { cursor: row-resize; }
@@ -248,6 +268,27 @@ export const UI_CONTROLS_CSS = `${LIVE_REGION_CSS}/* ------------------ UI KIT: 
 .cloudcanvas-ui-badge[data-tone="danger"] { background: var(--cc-tone-danger, #f87171); }
 .cloudcanvas-ui-badge[data-tone="warning"] { background: var(--cc-tone-warning, #eab308); }
 .cloudcanvas-ui-badge[data-tone="success"] { background: var(--cc-tone-success, #22c55e); }
+/* A flag is its SVG: the box keeps only the tone, stands in front of what it is planted on, and rises by what a host gives it. */
+.cloudcanvas-ui-badge[data-shape="flag"] {
+  z-index: var(--cc-z-ui-raised, 2);
+  width: auto;
+  min-width: 0;
+  height: auto;
+  padding: 0;
+  color: var(--cc-accent, #38bdf8);
+  background: transparent;
+  border-radius: 0;
+  transform: translateY(calc(-1 * var(--cc-ui-flag-rise, 0px)));
+}
+.cloudcanvas-ui-badge[data-shape="flag"][data-tone="danger"] { color: var(--cc-tone-danger, #f87171); }
+.cloudcanvas-ui-badge[data-shape="flag"][data-tone="warning"] { color: var(--cc-tone-warning, #eab308); }
+.cloudcanvas-ui-badge[data-shape="flag"][data-tone="success"] { color: var(--cc-tone-success, #22c55e); }
+.cloudcanvas-ui-badge-flag { display: block; flex: none; overflow: visible; filter: drop-shadow(0 1px 1px var(--cc-ui-flag-shadow, rgba(2, 6, 23, 0.4))); }
+.cloudcanvas-ui-badge-flag-pennant { fill: currentColor; }
+.cloudcanvas-ui-badge-flag-staff { fill: var(--cc-text-muted, #94a3b8); }
+.cloudcanvas-ui-badge-flag-lit { fill: var(--cc-ui-flag-light, #ffffff); stop-color: var(--cc-ui-flag-light, #ffffff); }
+.cloudcanvas-ui-badge-flag-shaded { fill: var(--cc-ui-flag-shade, #020617); stop-color: var(--cc-ui-flag-shade, #020617); }
+.cloudcanvas-ui-badge-flag-figure { fill: var(--cc-ui-on-accent, #0f172a); font-variant-numeric: tabular-nums; text-anchor: middle; }
 
 .cloudcanvas-ui-tree { display: grid; gap: 2px; }
 .cloudcanvas-ui-tree-row {
@@ -315,7 +356,15 @@ export const UI_CONTROLS_CSS = `${LIVE_REGION_CSS}/* ------------------ UI KIT: 
 }
 .cloudcanvas-ui-chips-remove { padding: 0 var(--cc-space-1, 4px); color: var(--cc-text-muted, #94a3b8); }
 
-.cloudcanvas-ui-navbar-list { display: flex; gap: var(--cc-space-1, 4px); margin: 0; padding: 0; overflow-x: auto; list-style: none; }
+.cloudcanvas-ui-navbar-list {
+  display: flex;
+  gap: var(--cc-space-1, 4px);
+  margin: 0;
+  padding: 0;
+  padding-top: var(--cc-ui-flag-rise, 0px);
+  overflow-x: auto;
+  list-style: none;
+}
 .cloudcanvas-ui-navbar-item { flex: none; }
 .cloudcanvas-ui-navbar-link {
   position: relative;

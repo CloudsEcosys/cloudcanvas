@@ -14,7 +14,15 @@
  * `tone` is success, warning or danger; anything else is the accent. The badge
  * is quiet by default - a count that ticks is not an interruption - and
  * `live: true` makes its changes polite announcements.
+ *
+ * TWO SHAPES. `shape: 'pill'` is the default. `shape: 'flag'` draws the same
+ * figure inside an inline SVG marker (`./badge-flag.js`), planted beside its
+ * label the way a map plants a pin; a dot flag is an empty pennant. The flag
+ * is the badge's tone, stands in front of what it is planted on, and - like
+ * the pill's figure - is not there for assistive technology. A host that wants
+ * it to stick out of its label gives it a rise (`--cc-ui-flag-rise`).
  */
+import { createFlag } from './badge-flag.js';
 import { SR_ONLY_CLASS, createLife, documentOf, el, textNode, writeText } from './dom.js';
 import { injectUiStyles } from './styles.js';
 
@@ -53,13 +61,43 @@ export function countLabel(label, count) {
   return String(count);
 }
 
+/**
+ * The model a control hands its item's badge: the item's own, a bare number as
+ * its count, or none at all - which shows nothing. The nav bar and the tabs
+ * both read an item's `badge` through this, so the two cannot come to differ.
+ * @param {number|object|null} [badge]
+ * @returns {object}
+ */
+export function badgeModel(badge) {
+  if (typeof badge === 'number') return { count: badge };
+  return badge && typeof badge === 'object' ? badge : {};
+}
+
 /** The badge's nodes, hidden until a model gives it a count: a figure for the eye, a sentence for the ear. */
 function badgeNodes(doc) {
   const root = el(doc, 'span', { className: CLASS, attrs: { hidden: true } });
   const figure = el(doc, 'span', { className: `${CLASS}-figure`, attrs: { 'aria-hidden': 'true' } });
   const spoken = el(doc, 'span', { className: SR_ONLY_CLASS });
   root.append(figure, spoken);
-  return { root, figure: textNode(doc, figure), spoken: textNode(doc, spoken) };
+  return { root, figure, figureText: textNode(doc, figure), spoken: textNode(doc, spoken), flag: null };
+}
+
+/**
+ * Draw `figure` in the model's shape: as the pill's own text, or inside the
+ * flag - built the first time one is asked for, and taken out again when the
+ * pill returns, so a pill never carries a trace of it.
+ */
+function writeShape(nodes, flagged, figure) {
+  writeText(nodes.figureText, flagged ? '' : figure);
+  if (!flagged) {
+    nodes.root.removeAttribute('data-shape');
+    nodes.flag?.node.remove();
+    return;
+  }
+  nodes.root.setAttribute('data-shape', 'flag');
+  nodes.flag ??= createFlag(nodes.root.ownerDocument);
+  nodes.flag.write(figure);
+  if (nodes.flag.node.parentNode !== nodes.figure) nodes.figure.append(nodes.flag.node);
 }
 
 /** A live badge is a polite status; a quiet one carries no role at all. */
@@ -81,14 +119,15 @@ function writeBadge(nodes, model) {
   nodes.root.classList.toggle('is-dot', dot);
   if (TONES.has(model.tone)) nodes.root.setAttribute('data-tone', model.tone);
   else nodes.root.removeAttribute('data-tone');
-  writeText(nodes.figure, dot ? '' : formatCount(count, model.max));
+  writeShape(nodes, model.shape === 'flag', dot ? '' : formatCount(count, model.max));
   writeText(nodes.spoken, shown ? countLabel(model.label, count) : '');
 }
 
 /**
  * @param {HTMLElement} host
  * @returns {{update(model: {count?: number, max?: number, label?: string|((count: number) => string),
- *   showZero?: boolean, dot?: boolean, tone?: 'success'|'warning'|'danger', live?: boolean}): void, destroy(): void}}
+ *   showZero?: boolean, dot?: boolean, tone?: 'success'|'warning'|'danger', live?: boolean,
+ *   shape?: 'pill'|'flag'}): void, destroy(): void}}
  */
 export function createBadge(host) {
   const doc = documentOf(host);

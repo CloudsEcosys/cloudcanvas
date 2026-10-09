@@ -18,7 +18,7 @@
  * bar; it is written as `data-placement` and the sheet lays the same buttons
  * out either way. Where the bar sits on the page is the host's.
  */
-import { createBadge } from './badge.js';
+import { badgeModel, createBadge } from './badge.js';
 import { createLife, documentOf, el, textNode, uniqueItems, writeText } from './dom.js';
 import { keepFocus, placeChildren } from './render.js';
 import { injectUiStyles } from './styles.js';
@@ -33,12 +33,6 @@ function entryFor(doc, id) {
   link.append(label);
   node.append(link);
   return { node, link, text: textNode(doc, label), badge: createBadge(link) };
-}
-
-/** The model the kit badge takes: the item's own, a bare number as its count, or none at all. */
-function badgeModel(badge) {
-  if (typeof badge === 'number') return { count: badge };
-  return badge && typeof badge === 'object' ? badge : {};
 }
 
 /** Redraw the destinations in place: entries are kept by id, and one the model dropped takes its badge with it. */

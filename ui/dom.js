@@ -1,8 +1,8 @@
 /**
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
- * The UI kit's DOM helpers: one element builder, one button, one field, and the
- * lifecycle every control is torn down through.
+ * The UI kit's DOM helpers: one element builder, its SVG twin, one button, one
+ * field, and the lifecycle every control is torn down through.
  *
  * NOTHING TOUCHES A DOCUMENT AT IMPORT. Each helper takes the document it
  * builds in - a control mounts into a host and uses `host.ownerDocument` - so
@@ -45,6 +45,16 @@ export function el(doc, tag, { className = '', text, attrs } = {}) {
   if (className) node.className = className;
   if (text !== undefined && text !== null) node.append(doc.createTextNode(String(text)));
   applyAttrs(node, attrs);
+  return node;
+}
+
+/** The namespace every vector element is created in: `createElement('path')` is an unknown HTML element that draws nothing. */
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/** Create an SVG element with `attrs`, each written as its string. */
+export function svg(doc, tag, attrs = {}) {
+  const node = doc.createElementNS(SVG_NS, tag);
+  for (const [name, value] of Object.entries(attrs)) node.setAttribute(name, String(value));
   return node;
 }
 
