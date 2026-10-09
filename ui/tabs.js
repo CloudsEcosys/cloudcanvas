@@ -31,8 +31,10 @@
  *
  * `layers` on an item are the parent scopes its tab stands in front of,
  * outermost first: buttons beside the tab (`./tabs-layers.js`), at most three,
- * the rest folded into a menu. A press on one reports `onLayer(tabId,
- * layerId)` and selects nothing: going up is the host's to answer.
+ * the rest folded into a menu, drawn as folder tabs stacked behind it. A press
+ * on one reports `onLayer(tabId, layerId)` and selects nothing: going up is
+ * the host's to answer. A strip with any stack carries `data-layered`, and
+ * there every tab is drawn as a folder tab; a strip with none is unchanged.
  *
  * A REDRAW KEEPS FOCUS. A tab or a layer the model still names stays where it
  * is, so focus on it is never lost, and a reorder hands focus back to what had
@@ -62,11 +64,16 @@ function closes(item) {
   return item?.closable === true && item.pinned !== true;
 }
 
-/** The close control is beside its tab, shown when the tab can be closed; a pinned tab has none on the page at all. */
+/**
+ * The close control is beside its tab, shown when the tab can be closed; a
+ * pinned tab has none on the page at all. The row says which it is, so the
+ * sheet can draw a tab and its close control as one.
+ */
 function writeClose(view, item, closeLabel) {
   view.close.setAttribute('data-ui-close', item.id);
   view.close.setAttribute('aria-label', `${closeLabel} ${String(item.label)}`);
   view.close.hidden = !closes(item);
+  view.row.classList.toggle('is-closable', closes(item));
   if (item.pinned === true) view.close.remove();
   else if (view.close.parentNode !== view.row) view.row.append(view.close);
 }
@@ -119,6 +126,9 @@ function restingId(state) {
 function render(root, doc, views, state) {
   const keep = new Set(state.items.map((item) => item.id));
   for (const id of [...views.keys()]) if (!keep.has(id)) dropTab(views, id);
+  // One stack makes the strip a row of folders, which the sheet draws as such; without one it is the strip it always was.
+  if (state.items.some((item) => (item.layers ?? []).length > 0)) root.setAttribute('data-layered', 'true');
+  else root.removeAttribute('data-layered');
   placeChildren(root, state.items.map((item) => {
     if (!views.has(item.id)) views.set(item.id, tabView(doc));
     const view = views.get(item.id);

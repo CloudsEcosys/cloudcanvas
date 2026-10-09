@@ -2,13 +2,20 @@
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
  * A tab's layers: the parent scopes it stands in front of, drawn as folder
- * tabs behind it (`./tabs.js` owns the strip; this is the part beside each tab).
+ * tabs stacked behind it (`./tabs.js` owns the strip; this is the part beside
+ * each tab, and `./css/tabs-layers.js` is how it is drawn).
  *
  * `layers` on an item runs outermost parent first, nearest parent last. Each
  * is a real button named "Up to {label}", its label drawn - cut short by the
  * sheet, whole in `title` - in a `role="group"` named "Parent scopes of {tab
  * label}". The group sits before its tab in the tab's row and never inside the
  * tab: a button in a tab is invalid ARIA, and the tablist owns only tabs.
+ *
+ * A STACK, NOT A TRAIL. The button is a layer's place in the row and its
+ * target; its label is on a face inside it, which the sheet is free to draw
+ * wider than that place and tucked behind the next. Each button says how many
+ * steps behind the tab it stands (`data-depth`, 1 for the nearest parent), and
+ * the page's own order - outermost first, the tab last - is the stack's.
  *
  * AT MOST THREE SHOW. With more, the outermost fold into a single "…" layer,
  * which is one of the three, and that opens a kit menu (`./menu.js`) listing
@@ -49,6 +56,14 @@ function split(layers) {
 
 const labelOf = (layer) => String(layer.label ?? layer.id);
 
+/** A layer's button and the face on it that carries what is read; `text` is the face's text node. */
+function layerButton(doc, className, attrs) {
+  const node = el(doc, 'button', { className, attrs: { type: 'button', ...attrs } });
+  const face = el(doc, 'span', { className: `${CLASS}-layer-face` });
+  node.append(face);
+  return { node, text: textNode(doc, face) };
+}
+
 /** Name a layer's button: what it does for the ear, its whole label for the pointer, the label itself for the eye. */
 function writeLayer(entry, layer) {
   writeText(entry.text, labelOf(layer));
@@ -59,16 +74,10 @@ function writeLayer(entry, layer) {
 /** One tab's group, its fold, and the buttons of the layers that show, kept by layer id. */
 function layersView(doc, tabId) {
   const group = el(doc, 'div', { className: `${CLASS}-layers`, attrs: { role: 'group', 'data-ui-layers': tabId } });
-  const fold = el(doc, 'button', { className: `${CLASS}-layer is-fold`, text: '…',
-    attrs: { type: 'button', 'data-ui-fold': tabId, 'aria-haspopup': 'menu', 'aria-expanded': 'false' } });
-  const rows = rowCache({
-    create(layer) {
-      const node = el(doc, 'button', { className: `${CLASS}-layer`, attrs: { type: 'button', 'data-ui-layer': layer.id } });
-      return { node, text: textNode(doc, node) };
-    },
-    update: writeLayer
-  });
-  return { group, fold, rows };
+  const fold = layerButton(doc, `${CLASS}-layer is-fold`, { 'data-ui-fold': tabId, 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
+  writeText(fold.text, '…');
+  const rows = rowCache({ create: (layer) => layerButton(doc, `${CLASS}-layer`, { 'data-ui-layer': layer.id }), update: writeLayer });
+  return { group, fold: fold.node, rows };
 }
 
 /**
@@ -90,12 +99,13 @@ export function writeLayers(doc, view, item, active) {
   const { group, fold, rows } = view.layers;
   group.setAttribute('aria-label', `Parent scopes of ${String(item.label)}`);
   fold.setAttribute('aria-label', `${folded.length} more parent scopes`);
-  const nodes = rows.sync(shown);
-  placeChildren(group, folded.length > 0 ? [fold, ...nodes] : nodes);
-  for (const node of group.children) {
+  const nodes = folded.length > 0 ? [fold, ...rows.sync(shown)] : rows.sync(shown);
+  placeChildren(group, nodes);
+  nodes.forEach((node, index) => {
+    node.setAttribute('data-depth', String(nodes.length - index));
     node.setAttribute('tabindex', active ? '0' : '-1');
     node.disabled = item.disabled === true;
-  }
+  });
   if (group.parentNode !== view.row) view.row.insertBefore(group, view.tab);
 }
 
