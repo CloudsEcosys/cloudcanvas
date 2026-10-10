@@ -6,7 +6,9 @@
  * `../styles.js`. The surface is the kit's own (`--cc-ui-surface`, as a dialog
  * and a toast have it), so a theme that moves the cards moves the menu; its
  * font and its text colour are the ones `./controls.js` gives every kit root.
- * Nothing here moves: a menu is there or it is not.
+ * Nothing here moves: a menu is there or it is not. It is the top floating
+ * layer of the kit: over a context window, a toast or a dialog it was opened
+ * above, none of which may cover what it offers.
  */
 export const UI_MENU_CSS = `
 /* ------------------ UI KIT: MENU ------------------ */
@@ -15,7 +17,7 @@ export const UI_MENU_CSS = `
 .cloudcanvas-ui-menu { display: contents; }
 .cloudcanvas-ui-menu-panel {
   position: fixed;
-  z-index: var(--cc-z-ui-menu, 1250);
+  z-index: var(--cc-z-ui-menu, 1400);
   box-sizing: border-box;
   display: grid;
   min-width: var(--cc-menu-min-width, 168px);

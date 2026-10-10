@@ -1,12 +1,12 @@
 /**
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
- * Tabs: an ARIA tablist with one tab stop, drawn as a row of folder tabs, with
- * optional close buttons, a pinned tab, the parent scopes behind each tab, and
- * tabs the user can move.
+ * Tabs: an ARIA tablist with one tab stop, drawn as a quiet row of underlined
+ * tabs or as a row of folder tabs, with optional close buttons, a pinned tab,
+ * the parent scopes behind each tab, and tabs the user can move.
  *
- *   const tabs = createTabs(host, { onSelect: (id) => show(id), onClose: (id) => drop(id), onLayer: (id, layer) => up(id, layer),
- *     onReorder: (id, beforeId) => move(id, beforeId) });
+ *   const tabs = createTabs(host, { face: 'folder', onSelect: (id) => show(id), onClose: (id) => drop(id),
+ *     onLayer: (id, layer) => up(id, layer), onReorder: (id, beforeId) => move(id, beforeId) });
  *   tabs.update({ label: 'Views', activeId: 'today', items: [{ id: 'home', label: 'Home', pinned: true },
  *     { id: 'today', label: 'Today', closable: true, layers: [{ id: 'work', label: 'Work' }] }] });
  *
@@ -16,18 +16,26 @@
  * inside a tab is invalid ARIA) and are skipped by Tab: Delete is their keyboard
  * path. The labelled tablist owns its ordered tabs through `aria-owns`, outside
  * the visual rows so close buttons are not tablist children. `panelId` on an
- * item becomes the tab's `aria-controls`.
+ * item becomes the tab's `aria-controls`. In the page a close button is beside
+ * its tab; the sheet stands it inside the tab's face, and it says which tab it
+ * belongs to (`itemIdOf`).
  *
- * EVERY TAB IS A FOLDER TAB (`./css/tabs.js`), with layers or with none, and
- * the active one stands in front: its row carries `is-active`, and every other
- * is drawn a step back. A label is the tab's own text, whole; the sheet cuts a
- * long one with an ellipsis, so the tab says it whole in `title` too.
+ * THE LOOK IS A CHOICE, made once: `face`, beside the callbacks. `'line'`, the
+ * default, is the quiet strip for a row of tabs inside a page - a label, and a
+ * line under the tab that is selected. `'folder'` is the row of folder tabs a
+ * host's contexts live in: every tab a folder, the active one in front, each
+ * tab's layers stacked behind it. The strip says which it wears (`data-face`),
+ * and `./css/tabs.js` draws both. Either way the row of the active tab carries
+ * `is-active`, and layers work: on a line strip they are read in line.
  *
- * `badge` on an item is the kit badge (`./badge.js`) inside its tab: the model
- * the nav bar takes, or a bare number for the count. What it says is part of
- * the tab's name. An item that names none has none, and its tab is untouched.
- * A badged tab is not cut short - the sheet cannot cut a label and keep the
- * badge beside it - and carries no `title`.
+ * A LABEL has an element of its own, first in its tab and whole; the sheet cuts
+ * a long one there with an ellipsis, badge or no badge. The pointer gets it
+ * whole in a `title`: the tab's, or - where a badge makes the tab's name say
+ * more than its label - the label's own, so nothing is said twice.
+ *
+ * `badge` on an item is the kit badge (`./badge.js`) inside its tab, after the
+ * label: the model the nav bar takes, or a bare number for the count. What it
+ * says is part of the tab's name. An item that names none has none.
  *
  * `activeId: null` selects nothing: every tab is `aria-selected="false"`, and
  * the tab stop rests on the first tab that can take focus, so the list is
@@ -67,13 +75,30 @@ import { createReveal } from './tabs-reveal.js';
 
 const CLASS = 'cloudcanvas-ui-tabs';
 
+/** The faces a strip can wear, the first being the one it wears unasked. */
+const FACES = /* @__PURE__ */ Object.freeze(['line', 'folder']);
+
+/**
+ * The face a strip was asked for, checked before anything is mounted.
+ * @param {unknown} face `'line'`, `'folder'`, or nothing (undefined or null) for the default
+ * @returns {'line'|'folder'}
+ * @throws {TypeError} for anything else: a strip does not guess a look
+ */
+function faceOf(face) {
+  const asked = face ?? FACES[0];
+  if (!FACES.includes(asked)) throw new TypeError(`A tab strip's face is 'line' or 'folder', not ${String(asked)}`);
+  return asked;
+}
+
+/** One tab's nodes: its row, the tab with its label in an element of its own (`label` is that element's text), and the close control beside it. */
 function tabView(doc) {
   const row = el(doc, 'div', { className: `${CLASS}-item`, attrs: { role: 'presentation' } });
   const tab = el(doc, 'button', { className: `${CLASS}-tab`, attrs: { id: uniqueId('ui-tab'), role: 'tab', type: 'button' } });
-  const label = textNode(doc, tab);
+  const name = el(doc, 'span', { className: `${CLASS}-label` });
+  tab.append(name);
   const close = el(doc, 'button', { className: `${CLASS}-close`, text: '×', attrs: { type: 'button', tabindex: '-1' } });
   row.append(tab, close);
-  return { row, tab, label, close, badge: null, layers: null };
+  return { row, tab, name, label: textNode(doc, name), close, badge: null, layers: null };
 }
 
 /** Whether `item`'s tab can be closed: it says so, and it is not pinned. */
@@ -84,10 +109,12 @@ function closes(item) {
 /**
  * The close control is beside its tab, shown when the tab can be closed; a
  * pinned tab has none on the page at all. The row says which it is, so the
- * sheet can draw a tab and its close control as one.
+ * sheet can keep room for the control inside the tab's face, and the control
+ * says which tab it is a part of.
  */
 function writeClose(view, item, closeLabel) {
   view.close.setAttribute('data-ui-close', item.id);
+  view.close.setAttribute('data-ui-for', item.id);
   view.close.setAttribute('aria-label', `${closeLabel} ${String(item.label)}`);
   view.close.hidden = !closes(item);
   view.row.classList.toggle('is-closable', closes(item));
@@ -101,11 +128,22 @@ function writeBadge(view, badge) {
   view.tab.classList.toggle('is-badged', view.badge !== null);
 }
 
-/** The tab's label: its own text, whole, and - on a tab the sheet may cut short, which is one with no badge - in its title too. */
+/** Say `text` in `node`'s title, or - given null - say nothing there. */
+function writeTitle(node, text) {
+  if (text === null) node.removeAttribute('title');
+  else node.title = text;
+}
+
+/**
+ * The tab's label: its own text, whole, and whole again for the pointer where
+ * the sheet may cut it - in the tab's title, or in the label's own when a badge
+ * makes the tab's name more than its label.
+ */
 function writeLabel(view, item) {
-  writeText(view.label, item.label);
-  if (view.badge === null) view.tab.title = String(item.label ?? '');
-  else view.tab.removeAttribute('title');
+  const whole = String(item.label ?? '');
+  writeText(view.label, whole);
+  writeTitle(view.tab, view.badge === null ? whole : null);
+  writeTitle(view.name, view.badge === null ? null : whole);
 }
 
 function writeTab(doc, view, item, state) {
@@ -261,18 +299,21 @@ function tabItems(items) {
 
 /**
  * @param {HTMLElement} host
- * @param {{onSelect?: (id: string) => void, onClose?: (id: string) => void,
+ * @param {{face?: 'line'|'folder', onSelect?: (id: string) => void, onClose?: (id: string) => void,
  *   onLayer?: (tabId: string, layerId: string) => void,
- *   onReorder?: (id: string, beforeId: string|null) => void}} [callbacks]
+ *   onReorder?: (id: string, beforeId: string|null) => void}} [callbacks] the strip's callbacks, and beside them the one
+ *   thing about it that is decided once: `face`, the look it wears (`'line'` unless `'folder'` is asked for)
+ * @throws {TypeError} for a face that is neither
  * @returns {{update(model: {label?: string, activeId?: string|null, activation?: 'auto'|'manual', closeLabel?: string,
  *   items?: Array<{id: string, label?: string, panelId?: string, badge?: number|object, closable?: boolean,
  *   pinned?: boolean, layers?: Array<{id: string, label?: string}>, disabled?: boolean}>}): void, destroy(): void}}
  */
 export function createTabs(host, callbacks = {}) {
   const doc = documentOf(host);
+  const face = faceOf(callbacks.face);
   injectUiStyles(doc);
   const life = createLife();
-  const root = el(doc, 'div', { className: CLASS });
+  const root = el(doc, 'div', { className: CLASS, attrs: { 'data-face': face } });
   // Ordered tab ownership separates semantics from the adjacent close layout.
   const list = el(doc, 'div', { className: SR_ONLY_CLASS, attrs: { role: 'tablist', hidden: true } });
   host.append(list, root);

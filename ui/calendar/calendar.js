@@ -15,6 +15,8 @@
  * dates as `Date`, ISO strings or `YYYY-MM-DD`. The calendar keeps its own view
  * and date between updates; a model `view` or `date` that changes wins. Moves
  * are reported, never applied: the grid shows what the next update says.
+ * `selectedId` marks the event a host has selected, on every day it is drawn:
+ * for the eye and for assistive technology (`aria-current`). Focus is not moved.
  *
  * KEYBOARD. Day buttons are one tab stop: arrows move a day (Up/Down a week in
  * the month), Page keys a period, Home/End the week's ends, Enter picks the day.
@@ -147,6 +149,7 @@ function applyModel(cal, model) {
   }
   cal.last = { view: model.view, date: date ? dayKey(date) : cal.last.date };
   state.events = normalizeEvents(model.events ?? []);
+  state.selectedId = model.selectedId ?? null;
   state.weekStartsOn = Number.isInteger(model.weekStartsOn) ? ((model.weekStartsOn % 7) + 7) % 7 : 0;
   state.now = toDate(model.now) ?? new Date();
   state.snap = Number.isInteger(model.snapMinutes) && model.snapMinutes > 0 && model.snapMinutes <= 240 ? model.snapMinutes : 15;
@@ -163,7 +166,7 @@ function createRecord(host, callbacks, labels) {
   const root = el(doc, 'div', { className: CAL, attrs: { role: 'region' } });
   const today = startOfDay(new Date());
   const cal = { doc, life, root, callbacks, labels: { ...CALENDAR_LABELS, ...labels }, format: null, last: {}, focusAfter: null,
-    state: { view: 'month', anchor: today, focusDate: today, events: [], views: [...CALENDAR_VIEWS], pending: null } };
+    state: { view: 'month', anchor: today, focusDate: today, events: [], views: [...CALENDAR_VIEWS], pending: null, selectedId: null } };
   root.append(toolbar(cal));
   cal.body = el(doc, 'div', { className: `${CAL}-body` });
   root.append(cal.body);
@@ -177,7 +180,10 @@ function createRecord(host, callbacks, labels) {
  * @param {HTMLElement} host
  * @param {{onNavigate?: Function, onPick?: Function, onActivate?: Function, onMove?: Function,
  *   labels?: Partial<typeof CALENDAR_LABELS>}} [callbacks]
- * @returns {{update(model: object): void, destroy(): void}}
+ * @returns {{update(model: {view?: string, views?: string[], date?: Date|string, now?: Date|string, locale?: string,
+ *   weekStartsOn?: number, snapMinutes?: number, hours?: {start: number, end: number}, selectedId?: string|null,
+ *   events?: Array<{id: string, title?: string, start: Date|string, end?: Date|string, allDay?: boolean, tone?: string,
+ *   movable?: boolean}>}): void, destroy(): void}}
  */
 export function createCalendar(host, callbacks = {}) {
   const cal = createRecord(host, callbacks, callbacks.labels);

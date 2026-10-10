@@ -8,7 +8,7 @@
  *     onActivate: (cardId) => open(cardId),
  *     canMove: (cardId, fromId, toId) => toId !== 'done' || 'Finish the checklist first'
  *   });
- *   board.update({ label: 'Plan', columns: [{ id: 'todo', label: 'To do', cards: [{ id: 'a', title: 'Call' }] }] });
+ *   board.update({ label: 'Plan', selectedId: 'a', columns: [{ id: 'todo', label: 'To do', cards: [{ id: 'a', title: 'Call' }] }] });
  *
  * CONTROLLED. A drop reports `onMove(cardId, columnId, index)` - `index` counts
  * the target column's cards without the moved one - and the board shows the
@@ -18,13 +18,26 @@
  * KEYBOARD. One tab stop; arrows rove between cards, Enter opens one. Space
  * picks a card up: arrows then move it (Left/Right between columns, Up/Down
  * within one), Space or Enter drops it, Escape puts it back. Every step is
- * announced. A touch drag starts after a short press, so swiping still scrolls.
+ * announced. A touch drag starts once a finger that has rested travels
+ * (`./drag.js`): a swipe still scrolls, and a still hold is the host's.
+ *
+ * A COLUMN MAY STAND FOR AN ITEM. A column that carries `itemId` - the parent
+ * its cards are grouped under, say - has a heading that is a button: a tab
+ * stop of its own, pressed as a card is (`onActivate(itemId)`), and carrying
+ * that item's id for `itemIdOf`. It is not a card: it is not picked up, and
+ * the arrows do not rove to it.
+ *
+ * `selectedId` marks the item a host has selected, on its card and on a
+ * heading that stands for it: for the eye and for assistive technology
+ * (`aria-current`). Focus is not moved; a board drawn for the first time
+ * rests its tab stop there.
  */
 import { createLiveRegion, say } from '../addons/announce.js';
 import { reconcileKeyedList } from '../addons/keyed-list.js';
-import { createLife, documentOf, el, uniqueId, uniqueItems } from './dom.js';
+import { createLife, documentOf, el, itemIdOf, itemNodeOf, markSelected, uniqueId, uniqueItems } from './dom.js';
 import { trackDrag } from './drag.js';
 import { bindBoardKeys, cardNodes, focusCard, placeOf } from './kanban-keys.js';
+import { keepFocus } from './render.js';
 import { injectUiStyles } from './styles.js';
 
 const CLASS = 'cloudcanvas-ui-kanban';
@@ -38,7 +51,7 @@ function cardNode(doc) {
   return item;
 }
 
-function writeCard(item, card, column) {
+function writeCard(item, card, column, selectedId) {
   const button = item.firstChild;
   const [title, detail, meta] = button.children;
   button.setAttribute('data-ui-id', card.id);
@@ -50,6 +63,7 @@ function writeCard(item, card, column) {
   detail.hidden = !card.detail;
   meta.textContent = String(card.meta ?? '');
   meta.hidden = !card.meta;
+  markSelected(button, card.id === selectedId);
 }
 
 function columnNode(doc, column) {
@@ -63,37 +77,72 @@ function columnNode(doc, column) {
   return section;
 }
 
-function writeColumn(section, column, doc) {
-  const [label, count] = section.firstChild.children;
+/**
+ * The heading's label: a button when the column stands for an item - it takes
+ * focus, is pressed as a card is and carries that item's id - and plain text
+ * when the column is only a column. One becomes the other with the model.
+ */
+function headingLabel(doc, heading, itemId) {
+  const tag = itemId === null ? 'span' : 'button';
+  let label = heading.firstChild;
+  if (label.localName !== tag) {
+    label = el(doc, tag, { className: `${CLASS}-label`, attrs: { type: itemId === null ? null : 'button' } });
+    heading.firstChild.replaceWith(label);
+  }
+  if (itemId !== null) label.setAttribute('data-ui-id', itemId);
+  return label;
+}
+
+function writeColumn(section, column, { doc, model }) {
+  const heading = section.firstChild;
+  const label = headingLabel(doc, heading, column.itemId);
   label.textContent = String(column.label ?? column.id);
-  count.textContent = String(column.cards.length);
+  markSelected(label, column.itemId !== null && column.itemId === model.selectedId);
+  heading.lastChild.textContent = String(column.cards.length);
   reconcileKeyedList(section.lastChild, column.cards, {
-    key: (card) => card.id, create: () => cardNode(doc), update: (item, card) => writeCard(item, card, column)
+    key: (card) => card.id, create: () => cardNode(doc), update: (item, card) => writeCard(item, card, column, model.selectedId)
   });
+}
+
+/** The id of the item a column stands for, or null for a column that is only a column. Given, it is a name. */
+function itemIdFor(column) {
+  const id = column.itemId ?? null;
+  if (id !== null && (typeof id !== 'string' || id.trim() === '')) throw new TypeError(`Invalid item id for column ${column.id}: ${String(id)}`);
+  return id;
 }
 
 /** The model with its columns and cards checked: ids unique across the whole board. */
 function normalize(model) {
   const columns = uniqueItems(model.columns ?? [], 'column')
-    .map((column) => ({ ...column, cards: Array.isArray(column.cards) ? column.cards : [] }));
+    .map((column) => ({ ...column, itemId: itemIdFor(column), cards: Array.isArray(column.cards) ? column.cards : [] }));
   uniqueItems(columns.flatMap((column) => column.cards), 'card');
-  return { ...model, columns };
+  return { ...model, selectedId: model.selectedId ?? null, columns };
+}
+
+/**
+ * Leave focus right after a redraw. A heading that held it and is still a
+ * control keeps it; any other focus the board had goes to the card with the
+ * tab stop. Focus outside the board is not the board's.
+ */
+function restoreFocus(board, held) {
+  const stays = held?.matches(`button.${CLASS}-label`) === true && board.root.contains(held);
+  focusCard(board, board.state.focusId, { move: held !== null && !stays });
+  if (stays) keepFocus(board.root, held);
 }
 
 function render(board, model) {
   const columns = model.columns;
   board.model = model;
   board.root.setAttribute('aria-label', String(model.label ?? 'Board'));
-  const hadFocus = board.root.contains(board.doc.activeElement) ? board.state.focusId : null;
+  const held = board.root.contains(board.doc.activeElement) ? board.doc.activeElement : null;
   reconcileKeyedList(board.lane, columns, {
     key: (column) => column.id, create: (column) => columnNode(board.doc, column),
-    update: (section, column) => writeColumn(section, column, board.doc)
+    update: (section, column) => writeColumn(section, column, board)
   });
-  const cards = cardNodes(board);
-  if (!cards.some((card) => card.getAttribute('data-ui-id') === board.state.focusId)) {
-    board.state.focusId = cards[0]?.getAttribute('data-ui-id') ?? null;
-  }
-  focusCard(board, board.state.focusId, { move: hadFocus !== null });
+  const ids = cardNodes(board).map((card) => card.getAttribute('data-ui-id'));
+  // The stop the keys placed stays; with none, it rests on the selected card, else on the first.
+  if (!ids.includes(board.state.focusId)) board.state.focusId = ids.includes(model.selectedId) ? model.selectedId : ids[0] ?? null;
+  restoreFocus(board, held);
 }
 
 /** The column and index a pointer at `point` would drop into. */
@@ -156,7 +205,8 @@ function bindPointer(board) {
  * @param {{onMove?: (cardId: string, columnId: string, index: number) => void,
  *   onActivate?: (cardId: string) => void,
  *   canMove?: (cardId: string, fromColumnId: string, toColumnId: string) => boolean|string}} [callbacks]
- * @returns {{update(model: object): void, destroy(): void}}
+ * @returns {{update(model: {label?: string, selectedId?: string|null, columns?: Array<{id: string, label?: string, itemId?: string,
+ *   cards?: Array<{id: string, title?: string, detail?: string, meta?: string, tone?: string}>}>}): void, destroy(): void}}
  */
 export function createKanban(host, callbacks = {}) {
   const doc = documentOf(host);
@@ -166,7 +216,7 @@ export function createKanban(host, callbacks = {}) {
   const lane = el(doc, 'div', { className: `${CLASS}-lane` });
   root.append(lane);
   host.append(root);
-  const board = { doc, life, root, lane, callbacks, model: { columns: [] }, state: { focusId: null, grab: null },
+  const board = { doc, life, root, lane, callbacks, model: { selectedId: null, columns: [] }, state: { focusId: null, grab: null },
     drag: null, region: createLiveRegion(root), moveVerdict };
   board.say = (text) => say(board.region, text);
   board.render = () => render(board, board.model);
@@ -179,9 +229,10 @@ export function createKanban(host, callbacks = {}) {
     board.render();
     return true;
   };
+  // A card, or a heading that stands for an item: each is the face of one, and a press on either opens it.
   life.on(lane, 'click', (event) => {
-    const card = event.target.closest?.(`.${CLASS}-card`);
-    if (card && !board.state.grab) callbacks.onActivate?.(card.getAttribute('data-ui-id'));
+    const face = itemNodeOf(event.target, lane);
+    if (face && !board.state.grab) callbacks.onActivate?.(itemIdOf(face));
   });
   bindBoardKeys(board);
   bindPointer(board);

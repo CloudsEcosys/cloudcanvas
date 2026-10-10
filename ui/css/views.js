@@ -8,6 +8,34 @@
  * written through the CSSOM (`--calendar-top`, `--timeline-x`, `--graph-x`,
  * ...); every size a theme may want is a `--cc-ui-*` token with its default in
  * the fallback.
+ *
+ * SELECTED is a ring inside the item (`--cc-ui-selected-ring`): no scrolling
+ * parent cuts it, and the focus ring and the mark of a move - outlines, drawn
+ * outside - stand clear of it, so an item can be selected, focused and in hand
+ * at once and say all three.
+ *
+ * A HEADING THAT STANDS FOR AN ITEM (a kanban column's, a timeline group's) is
+ * a button in the heading's own type, in the text colour, with the ring every
+ * item wears.
+ *
+ * UNDER A FINGER a chip, a milestone and a node are 44px targets, though drawn
+ * smaller. The target is the item's own `::after`, reaching out from the
+ * item; it lies under every item drawn in the same day, lane, row or graph (a
+ * level below them, inside a container that keeps its own stacking), so a
+ * press on something drawn is never taken by a neighbour's reach. A milestone
+ * and a node reach out from their middle. Chips stand one under another, so a
+ * chip reaches down from its own top: the room between two is the upper
+ * one's, and nothing reaches up over what is above. Where chips are stacked
+ * in one day only the last has the whole 44px; the others have their own
+ * height and the room to the next - there is no more room than that. A graph
+ * is drawn at its zoom (`--graph-k`, written by the control): a node's target
+ * is 44px on the screen. A timeline row, the all-day strip and a day of the
+ * month are tall enough for one whole target. Under a fine pointer none of
+ * this exists.
+ *
+ * WHAT CUTS ITS OWN TEXT cannot have a target that reaches past it. So a
+ * graph node's label is cut in a box of its own, on any pointer, and under a
+ * finger a chip leaves the cutting to its time and its title.
  */
 
 const FONT = 'var(--cc-font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif)';
@@ -35,6 +63,21 @@ export const UI_VIEWS_CSS = `/* ------------------ UI KIT: VIEWS ---------------
 .cloudcanvas-ui-kanban-item.is-grabbed .cloudcanvas-ui-kanban-card {
   outline: 2px dashed var(--cc-ui-drop, var(--cc-accent, #38bdf8));
   outline-offset: 2px;
+}
+/* Selected: a ring inside the item. */
+:is(.cloudcanvas-ui-kanban-card, .cloudcanvas-ui-kanban-label[data-ui-id], .cloudcanvas-ui-calendar-event, .cloudcanvas-ui-timeline-bar, .cloudcanvas-ui-timeline-group-label).is-selected {
+  box-shadow: var(--cc-ui-selected-ring, inset 0 0 0 2px var(--cc-accent, #38bdf8));
+}
+/* A heading that stands for an item: a button that reads as the heading it is. */
+:is(.cloudcanvas-ui-kanban-label[data-ui-id], .cloudcanvas-ui-timeline-group-label) {
+  padding: 0 var(--cc-space-1, 4px);
+  font: inherit;
+  text-align: start;
+  color: var(--cc-text, #e2e8f0);
+  background: transparent;
+  border: 0;
+  border-radius: var(--cc-radius-sm, 6px);
+  cursor: pointer;
 }
 
 /* Kanban */
@@ -125,6 +168,7 @@ export const UI_VIEWS_CSS = `/* ------------------ UI KIT: VIEWS ---------------
 .cloudcanvas-ui-calendar-more { padding: 0 var(--cc-space-1, 4px); text-align: left; color: var(--cc-accent, #38bdf8); }
 .cloudcanvas-ui-calendar-events { display: grid; gap: 2px; min-width: 0; }
 .cloudcanvas-ui-calendar-event {
+  position: relative;
   display: flex;
   gap: var(--cc-space-1, 4px);
   min-width: 0;
@@ -208,6 +252,7 @@ export const UI_VIEWS_CSS = `/* ------------------ UI KIT: VIEWS ---------------
   white-space: nowrap;
   text-overflow: ellipsis;
   background: var(--cc-ui-surface, var(--cc-card-bg, rgba(30, 41, 59, 0.85)));
+  cursor: pointer;
 }
 .cloudcanvas-ui-timeline-track { position: relative; flex: none; width: var(--timeline-width); height: 2.25rem; }
 .cloudcanvas-ui-timeline-bar {
@@ -276,11 +321,8 @@ export const UI_VIEWS_CSS = `/* ------------------ UI KIT: VIEWS ---------------
   box-sizing: border-box;
   translate: var(--graph-x) var(--graph-y);
   padding: 0 var(--cc-space-2, 8px);
-  overflow: hidden;
   font: inherit;
   font-size: var(--cc-type-sm, 12px);
-  white-space: nowrap;
-  text-overflow: ellipsis;
   color: var(--cc-text, #e2e8f0);
   background: var(--cc-card-bg, rgba(30, 41, 59, 0.85));
   border: 1px solid var(--cc-card-border, rgba(255, 255, 255, 0.1));
@@ -289,6 +331,8 @@ export const UI_VIEWS_CSS = `/* ------------------ UI KIT: VIEWS ---------------
   box-shadow: var(--cc-shadow-1, 0 4px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06));
   cursor: pointer;
 }
+/* A node cuts nothing itself: its label does. */
+.cloudcanvas-ui-graph-node-label { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .cloudcanvas-ui-graph-node.is-selected { border-color: var(--cc-accent, #38bdf8); }
 
 @media (max-width: 40rem) {
@@ -301,5 +345,35 @@ export const UI_VIEWS_CSS = `/* ------------------ UI KIT: VIEWS ---------------
 }
 @media (pointer: coarse) {
   :is(.cloudcanvas-ui-calendar-day, .cloudcanvas-ui-calendar-day-head) { min-height: 2.25rem; }
+  :is(.cloudcanvas-ui-kanban-label[data-ui-id], .cloudcanvas-ui-timeline-group-label) { min-height: var(--cc-control-min-coarse, 44px); }
+  /* Room for one whole target: a timeline row, the all-day strip, and a day of the month under its number. */
+  .cloudcanvas-ui-timeline-row { min-height: var(--cc-control-min-coarse, 44px); }
+  .cloudcanvas-ui-timeline-track { height: var(--cc-control-min-coarse, 44px); }
+  .cloudcanvas-ui-calendar-allday-cell { min-height: calc(var(--cc-control-min-coarse, 44px) + 2 * var(--cc-space-1, 4px)); }
+  .cloudcanvas-ui-calendar-cell { min-height: 5.75rem; }
+
+  /* The 44px targets of what is drawn smaller: see the head of this file. */
+  :is(.cloudcanvas-ui-calendar, .cloudcanvas-ui-timeline, .cloudcanvas-ui-graph) { --target: var(--cc-control-min-coarse, 44px); --target-under: -1; }
+  .cloudcanvas-ui-graph-node { --target: calc(var(--cc-control-min-coarse, 44px) / var(--graph-k, 1)); }
+  .cloudcanvas-ui-calendar-month { isolation: isolate; }
+  .cloudcanvas-ui-calendar-day { position: relative; z-index: var(--cc-z-ui-raised, 2); }
+  :is(.cloudcanvas-ui-calendar-events, .cloudcanvas-ui-calendar-allday-cell, .cloudcanvas-ui-calendar-column, .cloudcanvas-ui-timeline-track, .cloudcanvas-ui-graph-nodes) { isolation: isolate; }
+  :is(.cloudcanvas-ui-calendar-event, .cloudcanvas-ui-timeline-bar.is-point) { overflow: visible; }
+  /* A chip cuts nothing itself now: its time does, as its title does, and still gives way last. */
+  .cloudcanvas-ui-calendar-event-time { flex: none; max-width: 100%; max-height: 100%; overflow: hidden; }
+  .cloudcanvas-ui-timeline-bar.is-point::before { border-radius: inherit; }
+  :is(.cloudcanvas-ui-calendar-event, .cloudcanvas-ui-timeline-bar.is-point, .cloudcanvas-ui-graph-node)::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: calc(50% - 1.5px);
+    z-index: var(--target-under);
+    width: max(100%, var(--target));
+    height: max(100%, var(--target));
+    translate: -50% -50%;
+  }
+  .cloudcanvas-ui-calendar .cloudcanvas-ui-calendar-event::after { top: 0; translate: -50% 0; }
+  .cloudcanvas-ui-calendar .cloudcanvas-ui-calendar-timed::after { left: 0; width: 100%; translate: none; }
+  .cloudcanvas-ui-timeline-bar.is-point::after { rotate: -45deg; }
 }
 `;

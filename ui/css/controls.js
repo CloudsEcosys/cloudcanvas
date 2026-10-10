@@ -39,8 +39,8 @@ export const UI_CONTROLS_CSS = `${LIVE_REGION_CSS}/* ------------------ UI KIT: 
   border-radius: var(--cc-radius-sm, 6px);
 }
 :is(.cloudcanvas-ui-button, .cloudcanvas-ui-field, .cloudcanvas-ui-splitter, .cloudcanvas-ui-results-option,
-  .cloudcanvas-ui-dialog-panel, .cloudcanvas-ui-kanban-card, .cloudcanvas-ui-calendar-day, .cloudcanvas-ui-calendar-day-head,
-  .cloudcanvas-ui-calendar-event, .cloudcanvas-ui-calendar-more, .cloudcanvas-ui-calendar-scroller, .cloudcanvas-ui-timeline-bar, .cloudcanvas-ui-graph-node,
+  .cloudcanvas-ui-dialog-panel, .cloudcanvas-ui-kanban-card, .cloudcanvas-ui-kanban-label[data-ui-id], .cloudcanvas-ui-calendar-day, .cloudcanvas-ui-calendar-day-head,
+  .cloudcanvas-ui-calendar-event, .cloudcanvas-ui-calendar-more, .cloudcanvas-ui-calendar-scroller, .cloudcanvas-ui-timeline-bar, .cloudcanvas-ui-timeline-group-label, .cloudcanvas-ui-graph-node,
   .cloudcanvas-ui-breadcrumbs-open, .cloudcanvas-ui-tree-row, .cloudcanvas-ui-chips-toggle, .cloudcanvas-ui-chips-remove,
   .cloudcanvas-ui-navbar-link):focus-visible {
   outline: var(--cc-focus-ring-width, 2px) solid var(--cc-focus-ring, var(--cc-accent, #38bdf8));
@@ -66,8 +66,9 @@ export const UI_CONTROLS_CSS = `${LIVE_REGION_CSS}/* ------------------ UI KIT: 
   border: 0;
 }
 
-/* Centred by its own margin: a host that resets every margin takes the browser's away. */
+/* Centred by its own margin: a host that resets every margin takes the browser's away. One that is not modal stands above the toasts. */
 .cloudcanvas-ui-dialog {
+  z-index: var(--cc-z-ui-dialog, 1350);
   width: min(var(--cc-ui-dialog-width, 36rem), calc(100vw - 2rem));
   max-height: calc(100dvh - 2rem);
   margin: auto;

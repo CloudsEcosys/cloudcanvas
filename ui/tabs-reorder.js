@@ -11,7 +11,8 @@
  * this: its tabs are not picked up and its keys are the ones it always had.
  *
  * BY POINTER. A press on a tab that travels becomes a drag (`./drag.js`: a
- * touch after a short rest, so a swipe still scrolls the strip). The tab's row
+ * touch only once it has rested and then travels, so a swipe still scrolls the
+ * strip and a still hold is the host's, for its menu). The tab's row
  * is marked `is-dragging`, and the row it would land before carries
  * `data-drop="before"` - the last row `data-drop="after"`, for the end. A drop
  * where the tab already stands is no move: nothing is marked and nothing is

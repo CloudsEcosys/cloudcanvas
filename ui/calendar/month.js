@@ -5,7 +5,7 @@
  * three event chips, then a "+N more" that opens the day. An ARIA grid of
  * rows and gridcells, drawn fresh on every render from the calendar record.
  */
-import { el } from '../dom.js';
+import { el, markSelected } from '../dom.js';
 import { dayKey, sameDay } from './dates.js';
 import { describeEvent, eventsByDay, isAllDayLike } from './model.js';
 
@@ -24,6 +24,7 @@ export function eventChip(cal, event, { showTime }) {
   if (showTime && !isAllDayLike(event)) chip.append(el(doc, 'span', { className: `${CAL}-event-time`, text: format.time.format(event.start) }));
   chip.append(el(doc, 'span', { className: `${CAL}-event-title`, text: event.title }));
   if (cal.state.pending?.id === event.id) chip.classList.add('is-grabbed');
+  markSelected(chip, event.id === cal.state.selectedId);
   return chip;
 }
 

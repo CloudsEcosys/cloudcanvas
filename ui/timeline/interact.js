@@ -1,11 +1,14 @@
 /**
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
- * What the timeline does with a click, a key or a drag. A move in progress is
+ * What the timeline does with a click, a key or a drag. A press on a bar, on
+ * the label beside it or on a heading that stands for an item opens that item:
+ * each says which item it belongs to (`itemIdOf`). A move in progress is
  * `state.pending` (`{id, original, times, resize, domain}`); the axis is frozen
  * at its `domain` while it lasts, so the bar moves under the pointer rather
  * than the axis moving under the bar.
  */
+import { itemIdOf, itemNodeOf } from '../dom.js';
 import { trackDrag } from '../drag.js';
 import { setTabStop } from '../roving.js';
 import { TIMELINE_SCALES, shiftItem } from './model.js';
@@ -21,12 +24,14 @@ function itemById(tl, id) {
 }
 
 /**
- * One tab stop, and the focus the draw owes (`tl.focusAfter`): `true` is the timeline's own (a pick-up, a step, a
- * drop), a plain focus() the view follows; `'keep'` returns a focus the draw found on a bar, and scrolls nothing.
+ * One tab stop among the bars - where the keys placed it, else on the selected bar, else on the first - and the focus the
+ * draw owes (`tl.focusAfter`): `true` is the timeline's own (a pick-up, a step, a drop), a plain focus() the view
+ * follows; `'keep'` returns a focus the draw found on a bar, and scrolls nothing.
  */
 function writeTabStops(tl) {
   const nodes = bars(tl);
-  const current = nodes.find((node) => node.getAttribute('data-ui-id') === tl.state.focusId) ?? nodes[0] ?? null;
+  const barOf = (id) => nodes.find((node) => node.getAttribute('data-ui-id') === id);
+  const current = barOf(tl.state.focusId) ?? barOf(tl.state.selectedId) ?? nodes[0] ?? null;
   tl.state.focusId = current?.getAttribute('data-ui-id') ?? null;
   setTabStop(nodes, current);
   if (tl.focusAfter && current) current.focus(tl.focusAfter === 'keep' ? { preventScroll: true } : undefined);
@@ -121,8 +126,8 @@ function bindDrag(tl) {
 export function bindTimeline(tl) {
   tl.writeTabStops = () => writeTabStops(tl);
   tl.life.on(tl.sheet, 'click', (event) => {
-    const bar = event.target.closest?.(BAR);
-    if (bar && !tl.state.pending) tl.callbacks.onActivate?.(bar.getAttribute('data-ui-id'));
+    const part = itemNodeOf(event.target, tl.sheet);
+    if (part && !tl.state.pending) tl.callbacks.onActivate?.(itemIdOf(part));
   });
   tl.life.on(tl.sheet, 'keydown', (event) => onKeyDown(tl, event));
   tl.life.on(tl.sheet, 'keyup', (event) => { if (event.key === ' ' && event.target.closest?.(BAR)) event.preventDefault(); });

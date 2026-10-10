@@ -15,6 +15,12 @@
  * ONE LIFE PER CONTROL. `createLife()` hands out an `AbortSignal` every
  * listener is registered with, and tracks every timer and extra disposer, so
  * `destroy()` is a single `life.destroy()` that leaves nothing behind.
+ *
+ * WHICH ITEM AN ELEMENT BELONGS TO is asked, never read. A control writes an
+ * item's id on the item's own face, and on a part that stands for the item
+ * without being it (the label beside a timeline bar, a tab's close control);
+ * `itemIdOf(element)` answers for either, and for anything inside them. The
+ * attributes are the kit's own to change.
  */
 
 /** The document a host lives in; a missing host or document is a caller error. */
@@ -140,6 +146,49 @@ export function visualBox(view) {
     width: viewport?.width ?? view.innerWidth,
     height: viewport?.height ?? view.innerHeight
   };
+}
+
+/** The attribute an item's own face carries its id in, and the one a part that stands for an item carries it in. */
+const ITEM_ID = 'data-ui-id';
+const ITEM_PART = 'data-ui-for';
+
+/**
+ * The nearest element, at `element` or above it, that says which item it
+ * belongs to: the item's face, or a part that stands for it.
+ * @param {unknown} element an element, or a text node inside one; anything else belongs to no item
+ * @param {Element|null} [root] look no further out than this: a control asks about its own items only
+ * @returns {Element|null}
+ */
+export function itemNodeOf(element, root = null) {
+  const from = element?.nodeType === 3 ? element.parentElement : element;
+  const node = from?.closest?.(`[${ITEM_ID}], [${ITEM_PART}]`) ?? null;
+  return node && (root === null || root.contains(node)) ? node : null;
+}
+
+/**
+ * Which item `element` belongs to: the id of the nearest kit item it is, is
+ * inside, or stands for - a card, a chip, a bar or the label beside it, a
+ * node, a tab or its close control, a tree row, a heading that stands for an
+ * item - or null for an element that belongs to none.
+ * @param {unknown} element an event's target, as it comes
+ * @returns {string|null}
+ */
+export function itemIdOf(element) {
+  const node = itemNodeOf(element);
+  return node ? node.getAttribute(ITEM_ID) ?? node.getAttribute(ITEM_PART) : null;
+}
+
+/**
+ * Mark `node` as the selected item, or as not: for the eye by a class the
+ * sheet draws (`is-selected`), for assistive technology by `aria-current`.
+ * Focus is not touched.
+ * @param {Element} node an item's face
+ * @param {boolean} selected
+ */
+export function markSelected(node, selected) {
+  node.classList.toggle('is-selected', selected);
+  if (selected) node.setAttribute('aria-current', 'true');
+  else node.removeAttribute('aria-current');
 }
 
 /** A list of items whose `id`s are non-empty and unique, or a TypeError naming `kind`. */

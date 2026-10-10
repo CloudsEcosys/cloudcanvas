@@ -15,11 +15,26 @@
  * `onChange`, never applied. Keyboard: Up/Down between bars, Enter opens,
  * Space picks up, Left/Right move a day (Shift resizes), Space or Enter drops,
  * Escape puts it back. The scale (day | week | month) is kept between updates;
- * a model `scale` that changes wins. A redraw keeps focus on the bar that held
- * it and scrolls nothing; only the timeline's own keyboard moves bring the view along.
+ * a model `scale` that changes wins. A redraw keeps focus on the bar or the
+ * heading that held it and scrolls nothing; only the timeline's own keyboard
+ * moves bring the view along.
+ *
+ * A ROW'S LABEL BELONGS TO ITS BAR: a press on the label beside a bar is a
+ * press on that bar, and `itemIdOf` answers with the bar's item for either.
+ *
+ * A GROUP MAY BE AN ITEM. `group` is the name consecutive items are headed
+ * by, or `{id, label}` for a group that stands for an item - the parent its
+ * bars belong to. That heading is a button: a tab stop of its own, pressed as
+ * a bar is (`onActivate(id)`), carrying the group's id. Two groups of one
+ * name and different ids are two groups.
+ *
+ * `selectedId` marks the item a host has selected, on its bar and on a
+ * heading that stands for it: for the eye and for assistive technology
+ * (`aria-current`). Focus is not moved; the tab stop rests there until the
+ * keys place it.
  */
 import { createLiveRegion, say } from '../../addons/announce.js';
-import { button, createLife, documentOf, el, textNode, writeText } from '../dom.js';
+import { button, createLife, documentOf, el, markSelected, textNode, writeText } from '../dom.js';
 import { injectUiStyles } from '../styles.js';
 import { toDate } from '../calendar/dates.js';
 import { TIMELINE_SCALES, barOf, domainFor, normalizeItems, tickDates, widthOf, xOf } from './model.js';
@@ -57,6 +72,7 @@ function barNode(tl, item) {
     'aria-label': describeItem(tl, item), 'data-tone': item.tone || null, 'data-movable': item.movable ? 'true' : null } });
   node.classList.toggle('is-point', geometry.point);
   node.classList.toggle('is-grabbed', tl.state.pending?.id === item.id);
+  markSelected(node, item.id === tl.state.selectedId);
   node.style.setProperty('--timeline-x', `${geometry.left}px`);
   node.style.setProperty('--timeline-w', `${geometry.width}px`);
   if (item.progress !== null) node.style.setProperty('--timeline-progress', String(item.progress));
@@ -65,12 +81,26 @@ function barNode(tl, item) {
   return node;
 }
 
+/** A row: the bar on its track, and beside it the bar's name again, for the eye - a part of the same item, which says so. */
 function rowNode(tl, item) {
   const row = el(tl.doc, 'div', { className: `${TL}-row`, attrs: { 'data-row-id': item.id } });
   const track = el(tl.doc, 'div', { className: `${TL}-track` });
   track.append(barNode(tl, item));
-  row.append(el(tl.doc, 'div', { className: `${TL}-label`, text: item.title, attrs: { 'aria-hidden': 'true' } }), track);
+  row.append(el(tl.doc, 'div', { className: `${TL}-label`, text: item.title, attrs: { 'aria-hidden': 'true', 'data-ui-for': item.id } }), track);
   return row;
+}
+
+/** The heading of `item`'s group: its name, or - for a group that stands for an item - a button that is that item's face. */
+function groupNode(tl, item) {
+  const heading = el(tl.doc, 'div', { className: `${TL}-group`, attrs: { role: 'heading', 'aria-level': '3' } });
+  if (item.groupId === null) {
+    heading.textContent = item.group;
+    return heading;
+  }
+  const face = el(tl.doc, 'button', { className: `${TL}-group-label`, text: item.group, attrs: { type: 'button', 'data-ui-id': item.groupId } });
+  markSelected(face, item.groupId === tl.state.selectedId);
+  heading.append(face);
+  return heading;
 }
 
 function axisNode(tl) {
@@ -89,12 +119,11 @@ function axisNode(tl) {
 
 function rowsNode(tl, items) {
   const rows = el(tl.doc, 'div', { className: `${TL}-rows`, attrs: { role: 'list' } });
-  let group = null;
+  let last = { group: '', groupId: null };
   for (const item of items) {
-    if (item.group !== group) {
-      group = item.group;
-      if (group) rows.append(el(tl.doc, 'div', { className: `${TL}-group`, text: group, attrs: { role: 'heading', 'aria-level': '3' } }));
-    }
+    // A new heading where the group changes: its name, or the item it stands for.
+    if (item.group && (item.group !== last.group || item.groupId !== last.groupId)) rows.append(groupNode(tl, item));
+    last = item;
     const row = rowNode(tl, item);
     row.setAttribute('role', 'listitem');
     rows.append(row);
@@ -119,6 +148,18 @@ function writeScales(tl) {
   }
 }
 
+/** What holds focus in the sheet before a redraw: a bar, or the heading of a group that stands for an item - by that group's id. */
+function heldFocus(tl) {
+  const held = tl.sheet.contains(tl.doc.activeElement) ? tl.doc.activeElement : null;
+  return { bar: Boolean(held?.closest(`.${TL}-bar`)), groupId: held?.closest(`.${TL}-group-label`)?.getAttribute('data-ui-id') ?? null };
+}
+
+/** The heading drawn for the group `groupId`, or null: a group that has gone, or none asked for. */
+function headingOf(tl, groupId) {
+  if (groupId === null) return null;
+  return Array.from(tl.sheet.querySelectorAll(`.${TL}-group-label`)).find((node) => node.getAttribute('data-ui-id') === groupId) ?? null;
+}
+
 function render(tl) {
   const { state } = tl;
   const items = state.pending ? state.items.map((item) => (item.id === state.pending.id ? { ...item, ...state.pending.times } : item)) : state.items;
@@ -128,14 +169,17 @@ function render(tl) {
   const now = el(tl.doc, 'div', { className: `${TL}-now`, attrs: { 'aria-hidden': 'true' } });
   now.style.setProperty('--timeline-x', `${xOf(state.now, tl.domain, state.scale)}px`);
   grid.append(axisNode(tl), rowsNode(tl, items), now);
-  // Every bar is redrawn: a draw that names no focus of its own (a host update, a pointer drag) keeps it on the bar that
-  // held it. 'keep', not true: `writeTabStops` returns such a focus without scrolling.
-  const held = tl.doc.activeElement?.closest(`.${TL}-bar`);
-  if (!tl.focusAfter && held && tl.sheet.contains(held)) tl.focusAfter = 'keep';
+  // Every bar and heading is redrawn: a draw that names no focus of its own (a host update, a pointer drag) keeps it on
+  // what held it. A heading has it back; a bar's - and a heading's whose group has gone - is the tab stop's to take, as
+  // 'keep', not true: `writeTabStops` returns such a focus without scrolling.
+  const held = heldFocus(tl);
   tl.sheet.replaceChildren(grid);
+  const heading = headingOf(tl, held.groupId);
+  if (!tl.focusAfter && !heading && (held.bar || held.groupId !== null)) tl.focusAfter = 'keep';
   writeScales(tl);
   writeText(tl.rangeText, `${tl.format.format(tl.domain.start)} – ${tl.format.format(tl.domain.end)}`);
   tl.writeTabStops();
+  heading?.focus({ preventScroll: true });
 }
 
 function applyModel(tl, model) {
@@ -143,6 +187,7 @@ function applyModel(tl, model) {
   if (model.scale !== tl.lastScale && Object.hasOwn(TIMELINE_SCALES, model.scale)) state.scale = model.scale;
   tl.lastScale = model.scale;
   state.items = normalizeItems(model.items ?? []);
+  state.selectedId = model.selectedId ?? null;
   state.now = toDate(model.now) ?? new Date();
   if (model.locale !== tl.locale || !tl.format) {
     tl.locale = model.locale;
@@ -157,7 +202,9 @@ function applyModel(tl, model) {
  * @param {HTMLElement} host
  * @param {{onActivate?: (id: string) => void, onChange?: (id: string, times: {start: Date, end: Date|null}) => void,
  *   onScale?: (scale: string) => void, labels?: Partial<typeof TIMELINE_LABELS>}} [callbacks]
- * @returns {{update(model: object): void, destroy(): void}}
+ * @returns {{update(model: {label?: string, scale?: string, now?: Date|string, locale?: string, selectedId?: string|null,
+ *   items?: Array<{id: string, title?: string, start: Date|string, end?: Date|string, group?: string|{id?: string, label?: string},
+ *   tone?: string, progress?: number, movable?: boolean}>}): void, destroy(): void}}
  */
 export function createTimeline(host, callbacks = {}) {
   const doc = documentOf(host);
@@ -165,7 +212,7 @@ export function createTimeline(host, callbacks = {}) {
   const life = createLife();
   const root = el(doc, 'div', { className: TL, attrs: { role: 'region' } });
   const tl = { doc, life, root, callbacks, labels: { ...TIMELINE_LABELS, ...callbacks.labels }, format: null, lastScale: undefined,
-    state: { scale: 'week', items: [], now: new Date(), pending: null, focusId: null } };
+    state: { scale: 'week', items: [], now: new Date(), pending: null, focusId: null, selectedId: null } };
   root.append(toolbar(tl));
   tl.sheet = el(doc, 'div', { className: `${TL}-sheet` });
   root.append(tl.sheet);

@@ -59,9 +59,11 @@ export const UI_TOKENS = /* @__PURE__ */ Object.freeze({
   '--cc-ui-gutter': { category: C.SIZE, purpose: 'Width of the timeline label column' },
   '--cc-ui-graph-height': { category: C.SIZE, purpose: 'Height of the relationship-graph viewport' },
   '--cc-ui-tab-layer-shadow': { category: C.SHADOW, purpose: 'Shadow a folder tab casts on the layer behind it' },
-  '--cc-z-ui-toast': { category: C.Z_INDEX, purpose: 'Toast stack stacking order' },
-  '--cc-z-ui-context': { category: C.Z_INDEX, purpose: 'Nonmodal floating context windows, below modal dialogs and toasts' },
-  '--cc-z-ui-menu': { category: C.Z_INDEX, purpose: 'Menus: above the floating context windows one may be opened from, below toasts' },
+  '--cc-ui-selected-ring': { category: C.SHADOW, purpose: 'Ring inside a card, chip, bar or heading a view marks as the selected item' },
+  '--cc-z-ui-context': { category: C.Z_INDEX, purpose: 'Nonmodal floating context windows: the lowest of the floating layers, below toasts, dialogs and menus' },
+  '--cc-z-ui-toast': { category: C.Z_INDEX, purpose: 'Toast stack: above the floating context windows, below a dialog and below a menu, which it must not cover' },
+  '--cc-z-ui-dialog': { category: C.Z_INDEX, purpose: 'A dialog that is not modal: above toasts, below a menu opened over it (a modal dialog is in the top layer)' },
+  '--cc-z-ui-menu': { category: C.Z_INDEX, purpose: 'Menus: the top floating layer, above the context windows, toasts and dialogs one may be opened over' },
   '--cc-z-ui-raised': { category: C.Z_INDEX, purpose: 'Parts raised inside a UI view: sticky labels, a card being dragged' },
   '--cc-z-ui-sticky': { category: C.Z_INDEX, purpose: 'Sticky headers inside a UI view, above raised parts (the timeline axis)' }
 });

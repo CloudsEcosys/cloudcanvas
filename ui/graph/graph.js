@@ -22,7 +22,7 @@
 import { createLiveRegion, say } from '../../addons/announce.js';
 import { reconcileKeyedList } from '../../addons/keyed-list.js';
 import { CONTROL_ATTR } from '../../addons/trait.js';
-import { button, clamp, createLife, documentOf, el, svg, uniqueId } from '../dom.js';
+import { button, clamp, createLife, documentOf, el, markSelected, svg, uniqueId } from '../dom.js';
 import { injectUiStyles } from '../styles.js';
 import { NODE_HEIGHT, NODE_WIDTH, boundsOf, edgeEnd, layoutGraph, normalizeGraph } from './layout.js';
 import { bindGraph } from './interact.js';
@@ -66,14 +66,19 @@ function describeNode(g, node) {
   return parts.filter(Boolean).join('; ');
 }
 
+/** A node's button, its label in a box of its own inside it: the sheet cuts the label there, and the node itself cuts nothing. */
+function nodeElement(doc) {
+  const element = el(doc, 'button', { className: `${GRAPH}-node`, attrs: { type: 'button', tabindex: '-1' } });
+  element.append(el(doc, 'span', { className: `${GRAPH}-node-label` }));
+  return element;
+}
+
 function writeNode(g, element, node, point) {
   element.setAttribute('data-ui-id', node.id);
   element.setAttribute('aria-label', describeNode(g, node));
-  element.textContent = node.label;
-  element.classList.toggle('is-selected', node.id === g.state.selectedId);
+  element.firstChild.textContent = node.label;
+  markSelected(element, node.id === g.state.selectedId);
   element.classList.toggle('is-grabbed', node.id === g.state.pending?.id);
-  if (node.id === g.state.selectedId) element.setAttribute('aria-current', 'true');
-  else element.removeAttribute('aria-current');
   if (node.tone) element.setAttribute('data-tone', node.tone);
   else element.removeAttribute('data-tone');
   element.style.setProperty('--graph-x', `${point.x}px`);
@@ -82,8 +87,10 @@ function writeNode(g, element, node, point) {
   element.style.setProperty('height', `${NODE_HEIGHT}px`);
 }
 
+/** Draw the world where the view has it, and say how far it is zoomed: the sheet sizes what must stay a fixed size on the screen by it. */
 function applyView(g) {
   g.world.style.setProperty('transform', `translate(${g.view.x}px, ${g.view.y}px) scale(${g.view.k})`);
+  g.world.style.setProperty('--graph-k', String(g.view.k));
 }
 
 function render(g) {
@@ -93,7 +100,7 @@ function render(g) {
   drawEdges(g, positions);
   reconcileKeyedList(g.nodeLayer, g.state.nodes, {
     key: (node) => node.id,
-    create: () => el(g.doc, 'button', { className: `${GRAPH}-node`, attrs: { type: 'button', tabindex: '-1' } }),
+    create: () => nodeElement(g.doc),
     update: (node, entry) => writeNode(g, node, entry, positions.get(entry.id))
   });
   const nodes = Array.from(g.nodeLayer.children);

@@ -13,13 +13,13 @@
 
 export {
   BUTTON_CLASS, FIELD_CLASS, SR_ONLY_CLASS, documentOf, el, button, input, textNode, writeText, clamp, uniqueItems, focusablesIn, uniqueId,
-  createLife
+  createLife, itemIdOf
 } from './dom.js';
 export { setValue, setLabel, show, keepFocus, placeChildren, rowCache } from './render.js';
 export { nextIndex, setTabStop, isTypingTarget } from './roving.js';
 export { UI_CSS, UI_STYLE_ID, injectUiStyles } from './styles.js';
 export { UI_TOKENS } from './tokens.js';
-export { trackDrag, DRAG_START_PX, TOUCH_DRAG_DELAY_MS } from './drag.js';
+export { trackDrag, DRAG_START_PX, TOUCH_DRAG_DELAY_MS, TOUCH_DRAG_START_PX } from './drag.js';
 
 export { createDialog } from './dialog.js';
 export { createContextActions } from './context-actions.js';

@@ -15,7 +15,19 @@ export const TIMELINE_SCALES = /* @__PURE__ */ Object.freeze({
 
 const DAY_MS = 86400000;
 
-/** Every item checked (string ids, unique; a real start; an end after it or none), in the given order. */
+/**
+ * An item's group as the label it is headed by and the id it carries: a bare
+ * label carries none, and `{id, label}` is a group that stands for an item,
+ * headed by its id when it has no label. Given, the id is a name.
+ */
+function groupOf(group, itemId) {
+  if (group === null || typeof group !== 'object') return { group: group ? String(group) : '', groupId: null };
+  const id = group.id ?? null;
+  if (id !== null && (typeof id !== 'string' || id.trim() === '')) throw new TypeError(`Timeline item ${itemId} has a group with an invalid id: ${String(id)}`);
+  return { group: String(group.label ?? id ?? ''), groupId: id };
+}
+
+/** Every item checked (string ids, unique; a real start; an end after it or none; a group's id a name), in the given order. */
 export function normalizeItems(items) {
   if (!Array.isArray(items)) throw new TypeError('Timeline items must be an array');
   const seen = new Set();
@@ -29,7 +41,7 @@ export function normalizeItems(items) {
     if (item.end !== undefined && item.end !== null && !end) throw new TypeError(`Timeline item ${id} has an invalid end`);
     const progress = Number.isFinite(item.progress) ? Math.min(1, Math.max(0, item.progress)) : null;
     return { id, title: String(item.title ?? id), start, end: end && end > start ? end : null,
-      group: item.group ? String(item.group) : '', tone: item.tone ? String(item.tone) : '', progress, movable: item.movable !== false };
+      ...groupOf(item.group, id), tone: item.tone ? String(item.tone) : '', progress, movable: item.movable !== false };
   });
 }
 
