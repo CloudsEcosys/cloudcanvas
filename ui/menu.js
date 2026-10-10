@@ -14,6 +14,12 @@
  * `items` of its own: ONE LEVEL of submenu, no deeper. Ids are unique across
  * the menu and its submenus.
  *
+ * A SECTION OF ITS OWN. A menu opens over the page, most often from the
+ * document's body, where it is part of no section the page has. So the box
+ * that holds it is one: a `role="region"` with the menu's name, there only
+ * while the menu is open. Wherever a host mounts it, an open menu is inside a
+ * landmark, as all of a page's content should be, and it is still a `menu`.
+ *
  * IT OPENS BY THE MODEL AND CLOSES ITSELF. `open: true` shows it - at `at`
  * (client coordinates), else below `anchor`, else below what had focus - held
  * inside the visual viewport (`./menu/place.js`), and focus goes to its first
@@ -46,10 +52,13 @@ import { keepFocus } from './render.js';
 import { nextIndex } from './roving.js';
 import { injectUiStyles } from './styles.js';
 
-/** The menu's nodes: a box that draws nothing, holding the menu's own panel and the panel of its one submenu, shut. */
+/**
+ * The menu's nodes: a box that draws nothing, holding the menu's own panel and the panel of its one submenu, shut. The
+ * box is the section the menu is, named by its panel, so it has the menu's name without a second copy to keep.
+ */
 function menuNodes(doc) {
-  const root = el(doc, 'div', { className: MENU_CLASS, attrs: { hidden: true, 'data-cc-control': true } });
   const panel = createPanel(doc, `${MENU_CLASS}-panel`);
+  const root = el(doc, 'div', { className: MENU_CLASS, attrs: { hidden: true, role: 'region', 'aria-labelledby': panel.node.id, 'data-cc-control': true } });
   const flyout = createPanel(doc, `${MENU_CLASS}-panel is-submenu`);
   flyout.node.hidden = true;
   root.append(panel.node, flyout.node);

@@ -28,13 +28,18 @@
  * a bar is (`onActivate(id)`), carrying the group's id. Two groups of one
  * name and different ids are two groups.
  *
+ * THE ROWS ARE LISTS, AND A HEADING IS NOT A ROW. Each run of rows under one
+ * heading is a `role="list"` of its own, named by that heading, which stands
+ * before it; rows with no group are a list with no name. A list then owns list
+ * items and nothing else, which is what the role allows.
+ *
  * `selectedId` marks the item a host has selected, on its bar and on a
  * heading that stands for it: for the eye and for assistive technology
  * (`aria-current`). Focus is not moved; the tab stop rests there until the
  * keys place it.
  */
 import { createLiveRegion, say } from '../../addons/announce.js';
-import { button, createLife, documentOf, el, markSelected, textNode, writeText } from '../dom.js';
+import { button, createLife, documentOf, el, markSelected, textNode, uniqueId, writeText } from '../dom.js';
 import { injectUiStyles } from '../styles.js';
 import { toDate } from '../calendar/dates.js';
 import { TIMELINE_SCALES, barOf, domainFor, normalizeItems, tickDates, widthOf, xOf } from './model.js';
@@ -83,16 +88,16 @@ function barNode(tl, item) {
 
 /** A row: the bar on its track, and beside it the bar's name again, for the eye - a part of the same item, which says so. */
 function rowNode(tl, item) {
-  const row = el(tl.doc, 'div', { className: `${TL}-row`, attrs: { 'data-row-id': item.id } });
+  const row = el(tl.doc, 'div', { className: `${TL}-row`, attrs: { role: 'listitem', 'data-row-id': item.id } });
   const track = el(tl.doc, 'div', { className: `${TL}-track` });
   track.append(barNode(tl, item));
   row.append(el(tl.doc, 'div', { className: `${TL}-label`, text: item.title, attrs: { 'aria-hidden': 'true', 'data-ui-for': item.id } }), track);
   return row;
 }
 
-/** The heading of `item`'s group: its name, or - for a group that stands for an item - a button that is that item's face. */
-function groupNode(tl, item) {
-  const heading = el(tl.doc, 'div', { className: `${TL}-group`, attrs: { role: 'heading', 'aria-level': '3' } });
+/** The heading of `item`'s group, with the `id` its list is named by: its name, or - for a group that stands for an item - a button that is that item's face. */
+function groupNode(tl, item, id) {
+  const heading = el(tl.doc, 'div', { className: `${TL}-group`, attrs: { id, role: 'heading', 'aria-level': '3' } });
   if (item.groupId === null) {
     heading.textContent = item.group;
     return heading;
@@ -117,16 +122,30 @@ function axisNode(tl) {
   return axis;
 }
 
+/**
+ * A list for the rows from `item` on, put after the heading of its group when it has one. The heading is no row, so it
+ * stands before the list and names it; its id is the timeline's and the heading's place, the same at every draw.
+ */
+function listNode(tl, rows, item) {
+  const list = el(tl.doc, 'div', { className: `${TL}-list`, attrs: { role: 'list' } });
+  if (item.group) {
+    const heading = groupNode(tl, item, `${tl.id}-group-${rows.children.length}`);
+    list.setAttribute('aria-labelledby', heading.id);
+    rows.append(heading);
+  }
+  rows.append(list);
+  return list;
+}
+
+/** The rows, as one list for each run of items under one heading: a new one where the group changes - its name, or the item it stands for. */
 function rowsNode(tl, items) {
-  const rows = el(tl.doc, 'div', { className: `${TL}-rows`, attrs: { role: 'list' } });
-  let last = { group: '', groupId: null };
+  const rows = el(tl.doc, 'div', { className: `${TL}-rows` });
+  let last = null;
+  let list = null;
   for (const item of items) {
-    // A new heading where the group changes: its name, or the item it stands for.
-    if (item.group && (item.group !== last.group || item.groupId !== last.groupId)) rows.append(groupNode(tl, item));
+    if (!list || item.group !== last.group || item.groupId !== last.groupId) list = listNode(tl, rows, item);
     last = item;
-    const row = rowNode(tl, item);
-    row.setAttribute('role', 'listitem');
-    rows.append(row);
+    list.append(rowNode(tl, item));
   }
   return rows;
 }
@@ -211,7 +230,7 @@ export function createTimeline(host, callbacks = {}) {
   injectUiStyles(doc);
   const life = createLife();
   const root = el(doc, 'div', { className: TL, attrs: { role: 'region' } });
-  const tl = { doc, life, root, callbacks, labels: { ...TIMELINE_LABELS, ...callbacks.labels }, format: null, lastScale: undefined,
+  const tl = { doc, life, root, callbacks, id: uniqueId(TL), labels: { ...TIMELINE_LABELS, ...callbacks.labels }, format: null, lastScale: undefined,
     state: { scale: 'week', items: [], now: new Date(), pending: null, focusId: null, selectedId: null } };
   root.append(toolbar(tl));
   tl.sheet = el(doc, 'div', { className: `${TL}-sheet` });

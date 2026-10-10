@@ -19,6 +19,13 @@
  * `onAction(toastId, actionId)` - one handler for every toast. Either way an
  * action is taken once and closes its toast.
  *
+ * ONE REGION OF A NAME IN A DOCUMENT, however many toasters name it. The first
+ * toaster to name a region makes it, in its own host; a later one of the same
+ * name shows its toasts there too, each with an id no other toast in it has;
+ * the last of them to be destroyed removes it. A region is a landmark, and two
+ * of one name cannot be told apart. A region that left the page with the host
+ * it was made in comes to the host of the toaster that shows next.
+ *
  * WHERE THE REGION SITS is the sheet's: along the bottom, held off each edge by
  * a token of its own (`--cc-ui-toast-inset-bottom`, `-left`, `-right`), so a
  * host keeps it clear of a bar or a button it floats there.
@@ -34,6 +41,31 @@ const RESUME_FLOOR_MS = 1500;
 
 /** The most actions one toast offers. */
 const MAX_ACTIONS = 2;
+
+/** The regions in use, by document and then by name: `{node, holders, count}`. */
+const REGIONS = /* @__PURE__ */ new WeakMap();
+
+/**
+ * The one region named `label` in `doc`, for one more toaster: made in `host` when no toaster holds one of that name
+ * yet. `holders` is how many toasters share it, and `count` the toasts it has been given, which is what numbers them.
+ */
+function holdRegion(doc, host, label) {
+  const named = REGIONS.get(doc) ?? new Map();
+  REGIONS.set(doc, named);
+  const region = named.get(label) ?? { node: el(doc, 'section', { className: `${CLASS}s`, attrs: { 'aria-label': label } }), holders: 0, count: 0 };
+  named.set(label, region);
+  region.holders += 1;
+  if (!region.node.isConnected) host.append(region.node);
+  return region;
+}
+
+/** One toaster fewer holds `region`: the last takes it off the page, and its name is free again. */
+function releaseRegion(doc, label, region) {
+  region.holders -= 1;
+  if (region.holders > 0) return;
+  region.node.remove();
+  REGIONS.get(doc).delete(label);
+}
 
 /** A toast's nodes: its message, a button for each action, and the dismiss control. `on.take` answers an action, `on.close` the dismiss. */
 function toastNode(doc, life, entry, labels, on) {
@@ -127,10 +159,8 @@ export function createToaster(host, { max = 3, timeout = 6000, labels = {}, onAc
   injectUiStyles(doc);
   const life = createLife();
   const words = { region: labels.region ?? 'Notifications', dismiss: labels.dismiss ?? 'Dismiss' };
-  const region = el(doc, 'section', { className: `${CLASS}s`, attrs: { 'aria-label': words.region } });
-  host.append(region);
+  const region = holdRegion(doc, host, words.region);
   const entries = new Map();
-  let count = 0;
   const close = (id) => {
     const entry = entries.get(id);
     if (!entry) return false;
@@ -147,11 +177,12 @@ export function createToaster(host, { max = 3, timeout = 6000, labels = {}, onAc
   return {
     show(options) {
       if (life.dead) return null;
-      count += 1;
-      const entry = validEntry(options, `toast-${count}`, timeout, onAction);
+      const entry = validEntry(options, `toast-${region.count + 1}`, timeout, onAction);
+      region.count += 1;
       entry.node = toastNode(doc, life, entry, words, { close, take });
       entries.set(entry.id, entry);
-      region.append(entry.node);
+      if (!region.node.isConnected) host.append(region.node);
+      region.node.append(entry.node);
       bindPause(life, entry.node, entry, close);
       armTimer(life, entry, close);
       while (entries.size > Math.max(1, max)) close(entries.keys().next().value);
@@ -161,8 +192,9 @@ export function createToaster(host, { max = 3, timeout = 6000, labels = {}, onAc
     clear() { for (const id of [...entries.keys()]) close(id); },
     destroy() {
       if (!life.destroy()) return;
+      for (const entry of entries.values()) entry.node.remove();
       entries.clear();
-      region.remove();
+      releaseRegion(doc, words.region, region);
     }
   };
 }
