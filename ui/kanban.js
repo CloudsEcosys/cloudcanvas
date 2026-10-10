@@ -51,6 +51,20 @@ function cardNode(doc) {
   return item;
 }
 
+/** A card's detail line: its words, or, when it has a `time`, the moment as a `<time datetime title>` that reads as `text`. */
+function writeDetail(detail, card) {
+  const when = card.time?.iso && card.time?.text ? card.time : null;
+  detail.textContent = when ? '' : String(card.detail ?? '');
+  if (when) {
+    const node = detail.ownerDocument.createElement('time');
+    node.setAttribute('datetime', String(when.iso));
+    node.setAttribute('title', String(when.title ?? when.iso));
+    node.textContent = String(when.text);
+    detail.append(node);
+  }
+  detail.hidden = !when && !card.detail;
+}
+
 function writeCard(item, card, column, selectedId) {
   const button = item.firstChild;
   const [title, detail, meta] = button.children;
@@ -59,8 +73,7 @@ function writeCard(item, card, column, selectedId) {
   if (card.tone) button.setAttribute('data-tone', String(card.tone));
   else button.removeAttribute('data-tone');
   title.textContent = String(card.title ?? '');
-  detail.textContent = String(card.detail ?? '');
-  detail.hidden = !card.detail;
+  writeDetail(detail, card);
   meta.textContent = String(card.meta ?? '');
   meta.hidden = !card.meta;
   markSelected(button, card.id === selectedId);
@@ -206,7 +219,7 @@ function bindPointer(board) {
  *   onActivate?: (cardId: string) => void,
  *   canMove?: (cardId: string, fromColumnId: string, toColumnId: string) => boolean|string}} [callbacks]
  * @returns {{update(model: {label?: string, selectedId?: string|null, columns?: Array<{id: string, label?: string, itemId?: string,
- *   cards?: Array<{id: string, title?: string, detail?: string, meta?: string, tone?: string}>}>}): void, destroy(): void}}
+ *   cards?: Array<{id: string, title?: string, detail?: string, time?: {iso: string, text: string, title?: string}, meta?: string, tone?: string}>}>}): void, destroy(): void}}
  */
 export function createKanban(host, callbacks = {}) {
   const doc = documentOf(host);
