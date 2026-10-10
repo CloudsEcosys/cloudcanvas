@@ -34,6 +34,7 @@ export { createBadge, formatCount, countLabel } from './badge.js';
 export { createBreadcrumbs } from './breadcrumbs.js';
 export { createTree } from './tree.js';
 export { createProgress } from './progress.js';
+export { createSwitch } from './switch.js';
 export { createChips } from './chips.js';
 export { createNavBar } from './navbar.js';
 export { createEmptyState } from './empty.js';

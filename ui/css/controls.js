@@ -294,6 +294,12 @@ export const UI_CONTROLS_CSS = `${LIVE_REGION_CSS}/* ------------------ UI KIT: 
 .cloudcanvas-ui-tree-count { flex: none; font-size: var(--cc-type-xs, 11px); color: var(--cc-text-muted, #94a3b8); }
 .cloudcanvas-ui-tree-row > .cloudcanvas-ui-badge { flex: none; }
 
+.cloudcanvas-ui-switch { display: grid; grid-template-columns: auto 1fr; align-items: center; column-gap: var(--cc-space-2, 8px); min-height: 2.75rem; font: inherit; color: inherit; cursor: pointer; }
+.cloudcanvas-ui-switch-box { margin: 0; width: 1.25rem; height: 1.25rem; accent-color: var(--cc-accent, #38bdf8); cursor: inherit; }
+.cloudcanvas-ui-switch-detail { grid-column: 2; font-size: var(--cc-type-sm, 12px); color: var(--cc-text-muted, #94a3b8); }
+.cloudcanvas-ui-switch-detail[hidden] { display: none; }
+.cloudcanvas-ui-switch:has(.cloudcanvas-ui-switch-box:disabled) { opacity: 0.6; cursor: default; }
+.cloudcanvas-ui-switch-box:focus-visible { outline: 2px solid var(--cc-focus, currentColor); outline-offset: 2px; }
 .cloudcanvas-ui-progress { display: grid; gap: var(--cc-space-1, 4px); }
 .cloudcanvas-ui-progress-label { font-size: var(--cc-type-sm, 12px); color: var(--cc-text-muted, #94a3b8); }
 .cloudcanvas-ui-progress-bar { width: 100%; height: 0.5rem; accent-color: var(--cc-accent, #38bdf8); }
