@@ -78,7 +78,7 @@ function toastNode(doc, life, entry, labels, on) {
       onClick: () => on.take(entry.id, action) }));
   }
   node.append(button(doc, { className: `${CLASS}-dismiss`, label: '×', ariaLabel: labels.dismiss,
-    signal: life.signal, onClick: () => on.close(entry.id) }));
+    signal: life.signal, onClick: () => on.close(entry.id, 'dismiss') }));
   return node;
 }
 
@@ -121,7 +121,7 @@ function armTimer(life, entry, close) {
   if (entry.timeout === 0 || entry.paused) return;
   const wait = Math.max(entry.remaining ?? entry.timeout, entry.remaining === undefined ? 0 : RESUME_FLOOR_MS);
   entry.deadline = Date.now() + wait;
-  entry.cancel = life.later(() => close(entry.id), wait);
+  entry.cancel = life.later(() => close(entry.id, 'timeout'), wait);
 }
 
 function bindPause(life, node, entry, close) {
@@ -142,37 +142,39 @@ function bindPause(life, node, entry, close) {
   life.on(node, 'pointerleave', resume);
   life.on(node, 'focusout', () => queueMicrotask(resume));
   life.on(node, 'keydown', (event) => {
-    if (event.key === 'Escape') { event.preventDefault(); close(entry.id); }
+    if (event.key === 'Escape') { event.preventDefault(); close(entry.id, 'escape'); }
   });
 }
 
 /**
  * @param {HTMLElement} host
  * @param {{max?: number, timeout?: number, labels?: {region?: string, dismiss?: string},
- *   onAction?: (toastId: string, actionId: string) => void}} [options] `onAction` hears every action a toast lists in `actions`
+ *   onAction?: (toastId: string, actionId: string) => void,
+ *   onClose?: (toastId: string, reason: 'dismiss'|'timeout'|'escape'|'action'|'max'|'api'|'clear') => void}} [options] `onClose` hears every toast that leaves, once, and why (a destroyed toaster reports none); `onAction` hears every action a toast lists in `actions`
  * @returns {{show(options: {message: string, tone?: 'info'|'success'|'warning'|'danger', timeout?: number,
  *   action?: {label: string, run: () => void}, actions?: Array<{id: string, label: string}>}): string,
  *   dismiss(id: string): boolean, clear(): void, destroy(): void}}
  */
-export function createToaster(host, { max = 3, timeout = 6000, labels = {}, onAction } = {}) {
+export function createToaster(host, { max = 3, timeout = 6000, labels = {}, onAction, onClose } = {}) {
   const doc = documentOf(host);
   injectUiStyles(doc);
   const life = createLife();
   const words = { region: labels.region ?? 'Notifications', dismiss: labels.dismiss ?? 'Dismiss' };
   const region = holdRegion(doc, host, words.region);
   const entries = new Map();
-  const close = (id) => {
+  const close = (id, reason = 'api') => {
     const entry = entries.get(id);
     if (!entry) return false;
     entry.cancel?.();
     entries.delete(id);
     entry.node.remove();
+    onClose?.(id, reason);
     return true;
   };
   // An action is taken once: it closes its toast whatever it does, and a toast that has gone takes none.
   const take = (id, action) => {
     if (!entries.has(id)) return;
-    try { action.run(); } finally { close(id); }
+    try { action.run(); } finally { close(id, 'action'); }
   };
   return {
     show(options) {
@@ -185,11 +187,11 @@ export function createToaster(host, { max = 3, timeout = 6000, labels = {}, onAc
       region.node.append(entry.node);
       bindPause(life, entry.node, entry, close);
       armTimer(life, entry, close);
-      while (entries.size > Math.max(1, max)) close(entries.keys().next().value);
+      while (entries.size > Math.max(1, max)) close(entries.keys().next().value, 'max');
       return entry.id;
     },
-    dismiss: (id) => close(id),
-    clear() { for (const id of [...entries.keys()]) close(id); },
+    dismiss: (id) => close(id, 'api'),
+    clear() { for (const id of [...entries.keys()]) close(id, 'clear'); },
     destroy() {
       if (!life.destroy()) return;
       for (const entry of entries.values()) entry.node.remove();
