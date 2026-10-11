@@ -15,7 +15,9 @@
  * can be asked for - on hover, on keyboard focus and on the selection - with
  * the crosshair, and a toggle that folds has its chevron. Under a finger the
  * toggle and the handle are 44px targets on the screen at any zoom
- * (`--graph-k`), as a node is.
+ * (`--graph-k`), as a node is. The handle's reach lies out from the node's
+ * right edge, never over the node, and only for a node that is pointed at,
+ * focused or selected: the fold pill is the pill's, a node's middle is the node's.
  *
  * Nothing here moves: dimming, emphasis and a spring back are instant, so
  * there is no motion to turn off for a reader who asked for less.
@@ -196,5 +198,9 @@ export const UI_GRAPH_CSS = `/* ------------------ UI KIT: GRAPH ---------------
     height: ${TARGET};
     translate: -50% -50%;
   }
+  /* The handle's reach starts at the node's right edge and runs out from it, never over the node: the pill is the pill's, a node's middle is the node's. It is there for the node that is pointed at, focused or selected, as the handle is drawn. */
+  .cloudcanvas-ui-graph-handle { pointer-events: none; }
+  .cloudcanvas-ui-graph-node:is(:hover, :focus-visible, .is-selected) .cloudcanvas-ui-graph-handle { pointer-events: auto; }
+  .cloudcanvas-ui-graph-handle::after { left: 7px; translate: 0 -50%; }
 }
 `;
