@@ -39,7 +39,7 @@ export const UI_TIMELINE_CSS = `/* ------------------ UI KIT: TIMELINE ---------
 .cloudcanvas-ui-timeline-hint { margin: 0; font-size: var(--cc-type-xs, 11px); color: var(--cc-text-muted, #94a3b8); }
 .cloudcanvas-ui-timeline-sheet { position: relative; isolation: isolate; max-height: var(--cc-ui-timeline-height, 28rem); overflow: auto; touch-action: pan-x pan-y; border: 1px solid ${LINE}; border-radius: var(--cc-radius-md, 10px); }
 .cloudcanvas-ui-timeline-sheet.is-drag-active { user-select: none; }
-.cloudcanvas-ui-timeline-grid { position: relative; width: calc(var(--timeline-gutter) + var(--timeline-width)); min-width: 100%; }
+.cloudcanvas-ui-timeline-grid { position: relative; width: calc(var(--timeline-gutter) + var(--timeline-width)); min-width: 100%; padding-bottom: var(--cc-space-2, 8px); }
 .cloudcanvas-ui-timeline-axis { position: sticky; top: 0; z-index: var(--cc-z-ui-sticky, 3); display: flex; height: 1.75rem; background: ${SURFACE}; border-bottom: 1px solid ${LINE}; }
 .cloudcanvas-ui-timeline-corner { position: sticky; left: 0; z-index: var(--cc-z-ui-raised, 2); flex: none; width: var(--timeline-gutter); background: ${SURFACE}; }
 .cloudcanvas-ui-timeline-ticks { position: relative; flex: none; width: var(--timeline-width); }
@@ -118,7 +118,7 @@ export const UI_TIMELINE_CSS = `/* ------------------ UI KIT: TIMELINE ---------
 .cloudcanvas-ui-timeline-row.is-current .cloudcanvas-ui-timeline-label { font-weight: var(--cc-weight-semibold, 600); }
 .cloudcanvas-ui-timeline-track { position: relative; flex: none; width: var(--timeline-width); height: 2.25rem; }
 .cloudcanvas-ui-timeline[data-can-create] .cloudcanvas-ui-timeline-track { cursor: crosshair; }
-/* The span being made: a band of the days it covers - its border and padding within them - with their dates in it, running on past its end when it is shorter than they are, in the page's text colour: the band is a wash over the page (see the calendar's). */
+/* The span being made: a band of the days it covers - its border within them - and its dates in a tag of their own. A title drawn beside a short bar or a milestone is centred on the row, where a band over those days would write its dates too, so the tag hangs below that line: its top is the row's middle (the band's own) and 0.85em down, past a title's half height at the line height of 1.6 a page may inherit, which on the last row is below the row, so the grid keeps room for it and the sheet does not grow when it is drawn - on the sheet's surface so it is read at 4.5:1 whatever is under it, in the page's text colour (see the calendar's band). */
 .cloudcanvas-ui-timeline-draft {
   position: absolute;
   top: 6px;
@@ -126,17 +126,23 @@ export const UI_TIMELINE_CSS = `/* ------------------ UI KIT: TIMELINE ---------
   left: var(--timeline-x);
   width: var(--timeline-w);
   box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  padding: 0 var(--cc-space-2, 8px);
   overflow: visible;
-  font-size: var(--cc-type-xs, 11px);
-  white-space: nowrap;
-  color: var(--cc-text, #e2e8f0);
   background: var(--cc-btn-bg-hover, rgba(56, 189, 248, 0.22));
   border: 2px dashed var(--cc-ui-drop, ${ACCENT});
   border-radius: var(--cc-radius-sm, 6px);
   pointer-events: none;
+}
+.cloudcanvas-ui-timeline-draft-words {
+  position: absolute;
+  top: calc(50% + 0.85em);
+  left: -2px;
+  padding: 0 var(--cc-space-1, 4px);
+  font-size: var(--cc-type-xs, 11px);
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--cc-text, #e2e8f0);
+  background: ${SURFACE};
+  border-radius: var(--cc-radius-sm, 6px);
 }
 
 /* A folded group's summary: the days its items cover, its name and count in the page's text; a press opens the group's item, so it points, and it is no row to drag a span across. */

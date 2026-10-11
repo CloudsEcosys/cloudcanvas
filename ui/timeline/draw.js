@@ -21,9 +21,9 @@
  * gone ends it.
  */
 import { addDays, startOfDay } from '../calendar/dates.js';
-import { clamp, el } from '../dom.js';
+import { clamp } from '../dom.js';
 import { asSentence, cancelOnLeave } from '../draw-keys.js';
-import { spanOf, writeBand } from './create.js';
+import { bandNode, spanOf, writeBand } from './create.js';
 import { TL, TIMELINE_SCALES, daysIn } from './model.js';
 import { revealDays, revealRow } from './reveal.js';
 import { daysWords } from './rows.js';
@@ -82,7 +82,7 @@ export function placeCursor(tl) {
   const span = spanOf(tl, cursor.anchor ? dayOf(tl, cursor.anchor) : at, at);
   if (cursor.band?.parentElement !== found.track) {
     cursor.band?.remove();
-    cursor.band = el(tl.doc, 'div', { className: `${TL}-draft is-keyboard`, attrs: { 'aria-hidden': 'true' } });
+    cursor.band = bandNode(tl, `${TL}-draft is-keyboard`);
     found.track.append(cursor.band);
   }
   writeBand(tl, cursor.band, span);

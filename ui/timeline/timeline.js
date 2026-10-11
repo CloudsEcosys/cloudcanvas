@@ -62,8 +62,12 @@
  * (`aria-current`). The arrows and a press move the selection; the model's
  * replaces it when the model changes it. The hint under the toolbar says what
  * the selection can do. A FOLDED GROUP draws a summary bar on its heading's
- * row (`./rows.js`). `focusId`, as the graph's, brings its item into view
- * ONCE when it changes - its bar, or the heading of the folded group it is in
+ * row (`./rows.js`); it stands for the group's item, so a press on it is
+ * `onActivate(id, { summary: true })` and a right-click `onMenu(id, point,
+ * { summary: true })` - the same id the heading's button and the item's own bar
+ * report, with the descriptor after the arguments those calls have, which they
+ * do not carry (`./interact.js`). `focusId`, as the graph's, brings its item
+ * into view ONCE when it changes - its bar, or the heading of the folded group it is in
  * - and gives it the tab stop; the reader's scrolling after it is never
  * fought (`./reveal.js`).
  *
@@ -245,7 +249,9 @@ function timelineState(doc, life, root, callbacks) {
 
 /**
  * @param {HTMLElement} host
- * @param {{onActivate?: (id: string) => void, onChange?: (id: string, times: {start: Date, end: Date|null}) => void,
+ * @param {{onActivate?: (id: string, part?: {summary: true}) => void,
+ *   onMenu?: (id: string, point: {x: number, y: number}, part?: {summary: true}) => void,
+ *   onChange?: (id: string, times: {start: Date, end: Date|null}) => void,
  *   onCreate?: (span: {groupId: string|null, start: Date, end: Date}) => void,
  *   onScale?: (scale: string) => void, onGutter?: (px: number) => void, onWindow?: (days: {from: string, to: string}) => void,
  *   labels?: Partial<typeof TIMELINE_LABELS>}} [callbacks]

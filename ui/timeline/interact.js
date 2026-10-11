@@ -3,7 +3,12 @@
  *
  * What the timeline does with a click or a key. A press on a bar, on the label
  * beside it or on a heading that stands for an item opens that item: each says
- * which item it belongs to (`itemIdOf`). The moves are `./move.js`, the keys
+ * which item it belongs to (`itemIdOf`). A folded group's summary bar is the
+ * exception that says so: it stands for the group's item, so its id is the
+ * item's, and its press and menu go to the host with `{ summary: true }` after
+ * what they always carried (`onActivate(id, { summary: true })`,
+ * `onMenu(id, point, { summary: true })`); anything else's call is as it was.
+ * The moves are `./move.js`, the keys
  * `./keys.js`, a span drawn by keyboard `./draw.js`, the scroll at the sheet's
  * edges `./edge.js`, the gutter `./gutter.js`.
  */
@@ -37,6 +42,10 @@ function writeTabStops(tl) {
   tl.focusAfter = false;
 }
 
+/** The descriptor a press or a menu on a folded group's summary bar carries after its other arguments. */
+const SUMMARY = Object.freeze({ summary: true });
+const isSummary = (part) => part.classList.contains(`${TL}-summary`);
+
 function onClick(tl, event) {
   const toggle = event.target.closest?.(`.${TL}-group-toggle`);
   if (toggle) { tl.fold(toggle.getAttribute('data-group-id'), toggle.getAttribute('aria-expanded') === 'true'); return; }
@@ -44,7 +53,8 @@ function onClick(tl, event) {
   if (!part || tl.state.pending) return;
   const id = itemIdOf(part);
   select(tl, id);
-  tl.callbacks.onActivate?.(id);
+  if (isSummary(part)) tl.callbacks.onActivate?.(id, SUMMARY);
+  else tl.callbacks.onActivate?.(id);
 }
 
 function onFocusIn(tl, event) {
@@ -55,12 +65,14 @@ function onFocusIn(tl, event) {
   select(tl, id);
 }
 
-/** A right-click on an item - its bar, its title, its heading - asks for its menu, at the pointer. */
+/** A right-click on an item - its bar, its title, its heading, a folded group's summary bar - asks for its menu, at the pointer. */
 function onContextMenu(tl, event) {
   const part = itemNodeOf(event.target, tl.sheet);
   if (!part || typeof tl.callbacks.onMenu !== 'function') return;
   event.preventDefault();
-  tl.callbacks.onMenu(itemIdOf(part), { x: event.clientX, y: event.clientY });
+  const point = { x: event.clientX, y: event.clientY };
+  if (isSummary(part)) tl.callbacks.onMenu(itemIdOf(part), point, SUMMARY);
+  else tl.callbacks.onMenu(itemIdOf(part), point);
 }
 
 /** Wire clicks, keys and drags on the timeline sheet. */

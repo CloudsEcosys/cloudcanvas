@@ -12,6 +12,11 @@
  * band is drawn a host's update waits: the sheet is drawn again when the drag
  * ends. Nothing is made by the kit. The keyboard's way to the same report is
  * `./draw.js`, which draws its band as this one is drawn.
+ *
+ * THE BAND SAYS ITS DAYS IN A TAG OF ITS OWN, hung below it: a bar's title is
+ * drawn beside the bar, on the row's middle, where a band over those days
+ * would write its dates too. The tag stands under that line, inside the row,
+ * on the sheet's surface.
  */
 import { el } from '../dom.js';
 import { trackDrag } from '../drag.js';
@@ -28,13 +33,20 @@ export function spanOf(tl, from, to) {
   return { start, end: addDays(start, days), first, days };
 }
 
-/** A band over `span`'s days, saying them: "Sep 28", or "Sep 28 – Oct 1". */
+/** A band for a span, with the tag its days are written in (`writeBand`); `className` is the keyboard's when it draws it. */
+export function bandNode(tl, className = `${TL}-draft`) {
+  const band = el(tl.doc, 'div', { className, attrs: { 'aria-hidden': 'true' } });
+  band.append(el(tl.doc, 'span', { className: `${TL}-draft-words` }));
+  return band;
+}
+
+/** A band over `span`'s days, saying them in its tag: "Sep 28", or "Sep 28 – Oct 1". */
 export function writeBand(tl, band, span) {
   const perDay = TIMELINE_SCALES[tl.state.scale].perDay;
   band.style.setProperty('--timeline-x', `${span.first * perDay}px`);
   band.style.setProperty('--timeline-w', `${span.days * perDay}px`);
   const last = addDays(span.end, -1);
-  band.textContent = span.days === 1 ? tl.format.format(span.start) : `${tl.format.format(span.start)} – ${tl.format.format(last)}`;
+  band.firstChild.textContent = span.days === 1 ? tl.format.format(span.start) : `${tl.format.format(span.start)} – ${tl.format.format(last)}`;
 }
 
 /** The day the pointer is over, counted from the domain's start; a pointer past either end of the track is on its first or last day. */
@@ -66,7 +78,7 @@ export function bindCreate(tl) {
     selector: TRACK,
     canStart: (track, event) => typeof tl.callbacks.onCreate === 'function' && !tl.state.pending && event.target === track,
     onStart(track, point) {
-      const band = el(tl.doc, 'div', { className: `${TL}-draft`, attrs: { 'aria-hidden': 'true' } });
+      const band = bandNode(tl);
       track.append(band);
       tl.state.creating = { track, band, groupId: track.getAttribute('data-group-id'), span: null, from: 0 };
       tl.state.creating.from = dayUnder(tl, tl.state.creating, point);

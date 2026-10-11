@@ -17,6 +17,8 @@
  * group's name and how many it holds. It is a part of the group's item (a
  * press opens it, as the heading does) for the eye alone - the heading says
  * the same - and it is no empty row: a drag that starts on it makes no span.
+ * A press or a menu on it says so to the host (`{ summary: true }`,
+ * `./interact.js`), since its id is the item's own.
  */
 import { addDays, startOfDay } from '../calendar/dates.js';
 import { el } from '../dom.js';

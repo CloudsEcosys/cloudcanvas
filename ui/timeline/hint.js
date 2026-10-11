@@ -24,9 +24,10 @@ function groupVerbs(tl, groupId) {
   return [cb.onActivate && labels.hintOpen, cb.onAdd && labels.hintAdd, folds && labels.hintFold, cb.onCreate && labels.hintDraw];
 }
 
-/** What nothing selected says: how to begin. */
+/** What nothing selected says: how to begin, by pointer and by keyboard. */
 function startVerbs(tl) {
-  return [tl.labels.hintNone, tl.callbacks.onCreate && tl.labels.hintCreate];
+  const { labels, callbacks: cb } = tl;
+  return [labels.hintNone, cb.onCreate && labels.hintCreate, cb.onCreate && labels.hintDraw];
 }
 
 /** The hint for the timeline's selection, or '' when it has nothing to say. */
