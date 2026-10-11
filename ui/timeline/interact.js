@@ -49,11 +49,20 @@ function onFocusIn(tl, event) {
   select(tl, id);
 }
 
+/** A right-click on an item - its bar, its title, its heading - asks for its menu, at the pointer. */
+function onContextMenu(tl, event) {
+  const part = itemNodeOf(event.target, tl.sheet);
+  if (!part || typeof tl.callbacks.onMenu !== 'function') return;
+  event.preventDefault();
+  tl.callbacks.onMenu(itemIdOf(part), { x: event.clientX, y: event.clientY });
+}
+
 /** Wire clicks, keys and drags on the timeline sheet. */
 export function bindTimeline(tl) {
   tl.writeTabStops = () => writeTabStops(tl);
   tl.fold = (groupId, collapsed) => tl.callbacks.onToggleGroup?.(groupId, collapsed);
   tl.life.on(tl.sheet, 'click', (event) => onClick(tl, event));
+  tl.life.on(tl.sheet, 'contextmenu', (event) => onContextMenu(tl, event));
   tl.life.on(tl.sheet, 'focusin', (event) => onFocusIn(tl, event));
   bindKeys(tl);
   bindMove(tl);

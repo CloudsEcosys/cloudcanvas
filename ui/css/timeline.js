@@ -195,4 +195,22 @@ export const UI_TIMELINE_CSS = `/* ------------------ UI KIT: TIMELINE ---------
   pointer-events: none;
   background: var(--cc-tone-danger, #f87171);
 }
+
+@media (pointer: coarse) {
+  /* A finger gets a whole target at everything that is dragged or pressed: the toggle, the separator, a bar's handles. */
+  .cloudcanvas-ui-timeline-group-toggle { width: var(--cc-control-min-coarse, 44px); height: var(--cc-control-min-coarse, 44px); }
+  .cloudcanvas-ui-timeline-gutter-handle { right: calc(-0.5 * var(--cc-control-min-coarse, 44px)); width: var(--cc-control-min-coarse, 44px); }
+  .cloudcanvas-ui-timeline-gutter-handle::after { left: calc(50% - 1px); }
+  :is(.cloudcanvas-ui-timeline-handle, .cloudcanvas-ui-timeline-handle-start) { width: 14px; }
+  :is(.cloudcanvas-ui-timeline-handle, .cloudcanvas-ui-timeline-handle-start)::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    width: var(--cc-control-min-coarse, 44px);
+    height: var(--cc-control-min-coarse, 44px);
+    translate: 0 -50%;
+  }
+  .cloudcanvas-ui-timeline-handle::after { right: 0; }
+  .cloudcanvas-ui-timeline-handle-start::after { left: 0; }
+}
 `;
