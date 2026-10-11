@@ -221,7 +221,6 @@ export const UI_VIEWS_CSS = `/* ------------------ UI KIT: VIEWS ---------------
 
 @media (max-width: 40rem) {
   .cloudcanvas-ui-kanban-lane { grid-auto-columns: 85%; }
-  .cloudcanvas-ui-timeline { --timeline-gutter: var(--cc-ui-gutter, 6rem); }
   :is(.cloudcanvas-ui-calendar-time-head, .cloudcanvas-ui-calendar-allday, .cloudcanvas-ui-calendar-time-grid) {
     grid-template-columns: 2.5rem repeat(var(--calendar-days), minmax(0, 1fr));
   }

@@ -40,6 +40,7 @@ function barNode(tl, item, geometry, inside) {
   const node = el(doc, 'button', { className: `${TL}-bar`, attrs: { type: 'button', tabindex: '-1', 'data-ui-id': item.id, title: name,
     'aria-label': name, 'data-tone': item.tone || null, 'data-status-tone': item.statusTone || null, 'data-movable': item.movable ? 'true' : null } });
   node.classList.toggle('is-point', geometry.point);
+  node.classList.toggle('is-short', !geometry.point && !inside);
   node.classList.toggle('is-grabbed', tl.state.pending?.id === item.id);
   writeGeometry(node, geometry);
   if (item.progress !== null) node.style.setProperty('--timeline-progress', String(item.progress));

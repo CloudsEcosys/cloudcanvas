@@ -114,7 +114,7 @@ function gridNode(tl, items) {
   grid.style.setProperty('--timeline-width', `${widthOf(tl.domain, state.scale)}px`);
   const now = el(tl.doc, 'div', { className: `${TL}-now`, attrs: { 'aria-hidden': 'true' } });
   now.style.setProperty('--timeline-x', `${xOf(state.now, tl.domain, state.scale)}px`);
-  grid.append(axisNode(tl), rowsNode(tl, items), linksLayer(tl), now);
+  grid.append(axisNode(tl), linksLayer(tl), rowsNode(tl, items), now);
   return grid;
 }
 

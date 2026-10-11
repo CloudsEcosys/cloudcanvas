@@ -13,6 +13,9 @@
 
 export const UI_CALENDAR_CSS = `/* ------------------ UI KIT: CALENDAR ------------------ */
 
+/* A drag across the grid selects no text on its way. */
+.cloudcanvas-ui-calendar-body.is-drag-active { user-select: none; }
+
 /* The line under the toolbar: what the selection can do. */
 .cloudcanvas-ui-calendar-hint { margin: 0; font-size: var(--cc-type-xs, 11px); color: var(--cc-text-muted, #94a3b8); }
 

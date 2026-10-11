@@ -36,6 +36,7 @@ export const UI_TIMELINE_CSS = `/* ------------------ UI KIT: TIMELINE ---------
 .cloudcanvas-ui-timeline-range { font-size: var(--cc-type-sm, 12px); color: var(--cc-text-muted, #94a3b8); }
 .cloudcanvas-ui-timeline-hint { margin: 0; font-size: var(--cc-type-xs, 11px); color: var(--cc-text-muted, #94a3b8); }
 .cloudcanvas-ui-timeline-sheet { position: relative; isolation: isolate; max-height: var(--cc-ui-timeline-height, 28rem); overflow: auto; touch-action: pan-x pan-y; border: 1px solid ${LINE}; border-radius: var(--cc-radius-md, 10px); }
+.cloudcanvas-ui-timeline-sheet.is-drag-active { user-select: none; }
 .cloudcanvas-ui-timeline-grid { position: relative; width: calc(var(--timeline-gutter) + var(--timeline-width)); min-width: 100%; }
 .cloudcanvas-ui-timeline-axis { position: sticky; top: 0; z-index: var(--cc-z-ui-sticky, 3); display: flex; height: 1.75rem; background: ${SURFACE}; border-bottom: 1px solid ${LINE}; }
 .cloudcanvas-ui-timeline-corner { position: sticky; left: 0; z-index: var(--cc-z-ui-raised, 2); flex: none; width: var(--timeline-gutter); background: ${SURFACE}; }
@@ -166,6 +167,7 @@ export const UI_TIMELINE_CSS = `/* ------------------ UI KIT: TIMELINE ---------
 }
 .cloudcanvas-ui-timeline-bar[data-status-tone]::before { background: color-mix(in oklab, var(--timeline-tone) var(--timeline-fill, 40%), transparent); }
 .cloudcanvas-ui-timeline-bar.is-point { top: 50%; bottom: auto; left: calc(var(--timeline-x) - 7px); width: 14px; height: 14px; padding: 0; translate: 0 -50%; rotate: 45deg; }
+.cloudcanvas-ui-timeline-bar.is-short { padding: 0; }
 .cloudcanvas-ui-timeline-bar-title { position: relative; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 
 /* The title of a milestone, or of a bar too short to hold it: beside it, a part of the same item. */
@@ -191,6 +193,7 @@ export const UI_TIMELINE_CSS = `/* ------------------ UI KIT: TIMELINE ---------
   width: 12px;
   height: 12px;
   box-sizing: border-box;
+  z-index: var(--cc-z-ui-raised, 2);
   translate: 0 -50%;
   background: var(--cc-card-bg, rgba(30, 41, 59, 0.85));
   border: 2px solid ${ACCENT};
@@ -202,7 +205,7 @@ export const UI_TIMELINE_CSS = `/* ------------------ UI KIT: TIMELINE ---------
 .cloudcanvas-ui-timeline-row:is(:hover, :focus-within, .is-current) .cloudcanvas-ui-timeline-link { opacity: 1; }
 .cloudcanvas-ui-timeline-bar.is-drop-target { outline: 2px dashed var(--cc-ui-drop, ${ACCENT}); outline-offset: 2px; }
 
-/* The dependencies: connectors in a layer of their own over the rows, which the pointer passes through except at a line. */
+/* The dependencies: connectors in a layer of their own over the bars, which the pointer passes through except at a line - and the handle a link is dragged from stands above it, where a connector starts. */
 .cloudcanvas-ui-timeline-links {
   position: absolute;
   top: 0;
@@ -223,7 +226,7 @@ export const UI_TIMELINE_CSS = `/* ------------------ UI KIT: TIMELINE ---------
 .cloudcanvas-ui-timeline-draft-link { fill: none; stroke: ${ACCENT}; stroke-width: 2; stroke-dasharray: 6 5; }
 
 /* The handles at a bar's ends: each resizes, and says so under the pointer. */
-:is(.cloudcanvas-ui-timeline-handle, .cloudcanvas-ui-timeline-handle-start) { position: absolute; top: 0; bottom: 0; width: 10px; cursor: ew-resize; background: ${ACCENT}; opacity: 0.4; }
+:is(.cloudcanvas-ui-timeline-handle, .cloudcanvas-ui-timeline-handle-start) { position: absolute; top: 0; bottom: 0; width: min(10px, 30%); cursor: ew-resize; background: ${ACCENT}; opacity: 0.4; }
 .cloudcanvas-ui-timeline-handle { right: 0; border-radius: 0 var(--cc-radius-sm, 6px) var(--cc-radius-sm, 6px) 0; }
 .cloudcanvas-ui-timeline-handle-start { left: 0; border-radius: var(--cc-radius-sm, 6px) 0 0 var(--cc-radius-sm, 6px); }
 .cloudcanvas-ui-timeline-row:is(:hover, :focus-within, .is-current) :is(.cloudcanvas-ui-timeline-handle, .cloudcanvas-ui-timeline-handle-start) { opacity: 0.75; }
@@ -237,12 +240,15 @@ export const UI_TIMELINE_CSS = `/* ------------------ UI KIT: TIMELINE ---------
   background: var(--cc-tone-danger, #f87171);
 }
 
+@media (max-width: 40rem) {
+  .cloudcanvas-ui-timeline { --timeline-gutter: var(--cc-ui-gutter, 6rem); }
+}
 @media (pointer: coarse) {
   /* A finger gets a whole target at everything that is dragged or pressed: the toggle, the separator, a bar's handles. */
   .cloudcanvas-ui-timeline-group-toggle { width: var(--cc-control-min-coarse, 44px); height: var(--cc-control-min-coarse, 44px); }
   .cloudcanvas-ui-timeline-gutter-handle { right: calc(-0.5 * var(--cc-control-min-coarse, 44px)); width: var(--cc-control-min-coarse, 44px); }
   .cloudcanvas-ui-timeline-gutter-handle::after { left: calc(50% - 1px); }
-  :is(.cloudcanvas-ui-timeline-handle, .cloudcanvas-ui-timeline-handle-start) { width: 14px; }
+  :is(.cloudcanvas-ui-timeline-handle, .cloudcanvas-ui-timeline-handle-start) { width: min(14px, 30%); }
   :is(.cloudcanvas-ui-timeline-handle, .cloudcanvas-ui-timeline-handle-start)::after {
     content: "";
     position: absolute;
