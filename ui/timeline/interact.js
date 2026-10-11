@@ -14,6 +14,7 @@ import { TL } from './model.js';
 import { bindKeys } from './keys.js';
 import { bindLinks } from './links.js';
 import { BAR, bars, bindMove } from './move.js';
+import { bindReach } from './reach.js';
 import { select } from './select.js';
 import { bindZoom } from './zoom.js';
 
@@ -71,4 +72,5 @@ export function bindTimeline(tl) {
   bindLinks(tl);
   bindGutter(tl);
   bindZoom(tl);
+  bindReach(tl);
 }

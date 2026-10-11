@@ -90,6 +90,11 @@ export function domainFor(items, scale, now) {
   return { start: addDays(first, -pad), end: addDays(last, pad + 1) };
 }
 
+/** How many days the domain covers. */
+export function daysIn(domain) {
+  return Math.round((domain.end.getTime() - domain.start.getTime()) / DAY_MS);
+}
+
 /** Pixel offset of `date` from the domain start. */
 export function xOf(date, domain, scale) {
   return ((date.getTime() - domain.start.getTime()) / DAY_MS) * TIMELINE_SCALES[scale].perDay;

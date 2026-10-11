@@ -32,6 +32,12 @@
  * (`onActivate(id)`), carrying the group's id. Two groups of one name and
  * different ids are two groups.
  *
+ * THE AXIS REACHES WHERE THE READER CAN LOOK. It covers the items and today, a
+ * sheet's width of days beyond them on each side, and more each time the reader
+ * scrolls near either end: a span (`onCreate({groupId, start, end})`) is dragged
+ * across the empty part of any row, a group's heading included - folded or
+ * not - on any day the axis shows, whatever is on the row. See `./reach.js`.
+ *
  * THE ROWS ARE A TREEGRID: a heading is a row of level 1, a bar's row level 2
  * under it. `selectedId` marks the item that is selected, on its bar and on a
  * heading that stands for it: for the eye and for assistive technology
@@ -46,8 +52,9 @@ import { injectUiStyles } from '../styles.js';
 import { toDate } from '../calendar/dates.js';
 import { applyGutter } from './gutter.js';
 import { bindTimeline } from './interact.js';
-import { TL, TIMELINE_SCALES, domainFor, normalizeItems, widthOf, xOf } from './model.js';
+import { TL, TIMELINE_SCALES, normalizeItems, widthOf, xOf } from './model.js';
 import { drawLinks, linksLayer } from './links.js';
+import { domainOf, viewAfter, viewBefore } from './reach.js';
 import { axisNode, describeItem, rowsNode } from './rows.js';
 import { paint } from './select.js';
 
@@ -120,13 +127,15 @@ function gridNode(tl, items) {
 
 function render(tl) {
   const { state } = tl;
-  tl.domain = state.pending?.domain ?? domainFor(state.items, state.scale, state.now);
+  const view = viewBefore(tl);
+  tl.domain = state.pending?.domain ?? domainOf(tl);
   // Every bar and heading is redrawn: a draw that names no focus of its own (a host update, a pointer drag) keeps it on
   // what held it. A heading and the separator have it back; a bar's - and a heading's whose group has gone - is the tab
   // stop's to take, as 'keep', not true: `writeTabStops` returns such a focus without scrolling.
   const held = heldFocus(tl);
   tl.drawing = true;
   tl.sheet.replaceChildren(gridNode(tl, drawnItems(state)));
+  viewAfter(tl, view);
   drawLinks(tl);
   const heading = headingOf(tl, held.groupId);
   if (!tl.focusAfter && !heading && (held.bar || held.groupId !== null)) tl.focusAfter = 'keep';
@@ -185,7 +194,7 @@ function markAbilities(root, callbacks) {
 
 function timelineState(doc, life, root, callbacks) {
   return { doc, life, root, callbacks, id: uniqueId(TL), labels: { ...TIMELINE_LABELS, ...callbacks.labels }, format: null, lastScale: undefined,
-    byId: new Map(), groups: new Map(), seen: { selectedId: undefined, gutter: undefined },
+    byId: new Map(), groups: new Map(), seen: { selectedId: undefined, gutter: undefined }, reach: { before: 0, after: 0 },
     state: { scale: 'week', items: [], now: new Date(), pending: null, creating: null, linking: null, focusId: null, selectedId: null, selectedLink: null, gutter: null } };
 }
 

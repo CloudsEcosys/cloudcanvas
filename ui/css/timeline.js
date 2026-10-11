@@ -60,8 +60,10 @@ export const UI_TIMELINE_CSS = `/* ------------------ UI KIT: TIMELINE ---------
 .cloudcanvas-ui-timeline-gutter-handle:focus-visible { outline: ${RING}; outline-offset: 0; }
 
 /* A group's heading: a row of its own, level 1 of the treegrid. */
-.cloudcanvas-ui-timeline-group { position: sticky; left: 0; width: max-content; }
-.cloudcanvas-ui-timeline-group-cell { display: flex; align-items: center; gap: var(--cc-space-1, 4px); padding: var(--cc-space-1, 4px) var(--cc-space-2, 8px); font-size: var(--cc-type-sm, 12px); font-weight: var(--cc-weight-semibold, 600); color: var(--cc-text-muted, #94a3b8); }
+/* It is as wide as the sheet's content, so the empty track beside its name takes a dragged span; the name stays in view as the sheet is scrolled. */
+.cloudcanvas-ui-timeline-group { position: relative; display: flex; }
+.cloudcanvas-ui-timeline-group > .cloudcanvas-ui-timeline-track { position: absolute; top: 0; bottom: 0; left: var(--timeline-gutter); height: auto; }
+.cloudcanvas-ui-timeline-group-cell { position: sticky; left: 0; z-index: var(--cc-z-ui-raised, 2); flex: none; display: flex; align-items: center; gap: var(--cc-space-1, 4px); padding: var(--cc-space-1, 4px) var(--cc-space-2, 8px); font-size: var(--cc-type-sm, 12px); font-weight: var(--cc-weight-semibold, 600); color: var(--cc-text-muted, #94a3b8); }
 .cloudcanvas-ui-timeline-group-label:focus-visible { outline: ${RING}; outline-offset: var(--cc-focus-ring-offset, 2px); }
 /* The chevron: drawn, not written, so the heading's words are its name alone; it points down when the group is open and right when it is folded. */
 .cloudcanvas-ui-timeline-group-toggle {

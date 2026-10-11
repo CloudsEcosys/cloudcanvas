@@ -99,11 +99,20 @@ function foldCount(tl, item) {
   return el(tl.doc, 'span', { className: `${TL}-group-count`, text: count, attrs: { title: tl.labels.hidden.replace('{count}', String(count)) } });
 }
 
+/**
+ * The empty track of a heading row, drawn when the host takes `onCreate`: a span is dragged across it as across any
+ * row's, for the group the heading is, folded or not. It holds no bar, so it is for the pointer alone.
+ */
+function headingTrack(tl, item) {
+  return el(tl.doc, 'div', { className: `${TL}-track`, attrs: { role: 'gridcell', 'aria-hidden': 'true', 'data-group-id': item.groupId } });
+}
+
 /** The heading row of `item`'s group: its name, or - for a group that stands for an item - a button that is that item's face. */
 function groupNode(tl, item) {
   const row = el(tl.doc, 'div', { className: `${TL}-group`, attrs: { role: 'row', 'aria-level': 1 } });
   const cell = el(tl.doc, 'div', { className: `${TL}-group-cell`, attrs: { role: 'gridcell' } });
   row.append(cell);
+  if (typeof tl.callbacks.onCreate === 'function') row.append(headingTrack(tl, item));
   if (item.groupId === null) {
     cell.textContent = item.group;
     return row;
