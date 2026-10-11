@@ -1,8 +1,9 @@
 /**
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
- * The UI kit's view rules: kanban, calendar and timeline, what the graph
- * shares with them (its own rules are `./graph.js`), and the tones they share
+ * The UI kit's view rules: kanban and calendar, what the graph and the
+ * timeline share with them (their own rules are `./graph.js` and
+ * `./timeline.js`), and the tones they share
  * with the chips and the tree: a tone colours the leading edge, the meaning
  * tones (success, warning, danger) and the eight category tones alike.
  * Geometry that changes per element arrives as inline custom properties
@@ -216,85 +217,6 @@ export const UI_VIEWS_CSS = `/* ------------------ UI KIT: VIEWS ---------------
   height: calc(var(--calendar-length) * var(--cc-ui-hour-height, 48px) / 60 - 2px);
   flex-direction: column;
   white-space: normal;
-}
-
-/* Timeline */
-.cloudcanvas-ui-timeline { --timeline-gutter: var(--cc-ui-gutter, 10rem); display: grid; gap: var(--cc-space-2, 8px); }
-.cloudcanvas-ui-timeline-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--cc-space-2, 8px); }
-.cloudcanvas-ui-timeline-scales { display: flex; gap: var(--cc-space-1, 4px); }
-.cloudcanvas-ui-timeline-range { font-size: var(--cc-type-sm, 12px); color: var(--cc-text-muted, #94a3b8); }
-.cloudcanvas-ui-timeline-sheet { position: relative; isolation: isolate; max-height: var(--cc-ui-timeline-height, 28rem); overflow: auto; border: 1px solid ${LINE}; border-radius: var(--cc-radius-md, 10px); }
-.cloudcanvas-ui-timeline-grid { position: relative; width: calc(var(--timeline-gutter) + var(--timeline-width)); min-width: 100%; }
-.cloudcanvas-ui-timeline-axis { position: sticky; top: 0; z-index: var(--cc-z-ui-sticky, 3); display: flex; height: 1.75rem; background: var(--cc-ui-surface, var(--cc-card-bg, rgba(30, 41, 59, 0.85))); border-bottom: 1px solid ${LINE}; }
-.cloudcanvas-ui-timeline-corner { position: sticky; left: 0; z-index: var(--cc-z-ui-raised, 2); flex: none; width: var(--timeline-gutter); background: var(--cc-ui-surface, var(--cc-card-bg, rgba(30, 41, 59, 0.85))); }
-.cloudcanvas-ui-timeline-ticks { position: relative; flex: none; width: var(--timeline-width); }
-.cloudcanvas-ui-timeline-tick {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: var(--timeline-x);
-  padding: var(--cc-space-1, 4px);
-  font-size: var(--cc-type-xs, 11px);
-  white-space: nowrap;
-  color: var(--cc-text-muted, #94a3b8);
-  border-left: 1px solid ${LINE};
-}
-.cloudcanvas-ui-timeline-group { position: sticky; left: 0; width: max-content; padding: var(--cc-space-1, 4px) var(--cc-space-2, 8px); font-size: var(--cc-type-sm, 12px); font-weight: var(--cc-weight-semibold, 600); color: var(--cc-text-muted, #94a3b8); }
-.cloudcanvas-ui-timeline-row { display: flex; align-items: center; min-height: 2.25rem; border-bottom: 1px solid ${LINE}; }
-.cloudcanvas-ui-timeline-label {
-  position: sticky;
-  left: 0;
-  z-index: var(--cc-z-ui-raised, 2);
-  flex: none;
-  width: var(--timeline-gutter);
-  padding: 0 var(--cc-space-2, 8px);
-  overflow: hidden;
-  font-size: var(--cc-type-sm, 12px);
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  background: var(--cc-ui-surface, var(--cc-card-bg, rgba(30, 41, 59, 0.85)));
-  cursor: pointer;
-}
-.cloudcanvas-ui-timeline-track { position: relative; flex: none; width: var(--timeline-width); height: 2.25rem; }
-.cloudcanvas-ui-timeline-bar {
-  position: absolute;
-  top: 6px;
-  bottom: 6px;
-  left: var(--timeline-x);
-  width: var(--timeline-w);
-  min-width: 4px;
-  display: flex;
-  align-items: center;
-  padding: 0 var(--cc-space-2, 8px);
-  overflow: hidden;
-  font: inherit;
-  font-size: var(--cc-type-xs, 11px);
-  color: var(--cc-ui-bar-text, var(--cc-text, #e2e8f0));
-  background: var(--cc-ui-bar, var(--cc-btn-bg-hover, rgba(56, 189, 248, 0.22)));
-  border: 1px solid var(--cc-accent, #38bdf8);
-  border-left-width: 4px;
-  border-radius: var(--cc-radius-sm, 6px);
-  cursor: pointer;
-}
-.cloudcanvas-ui-timeline-bar[data-movable] { cursor: grab; }
-.cloudcanvas-ui-timeline-bar::before {
-  content: "";
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: calc(var(--timeline-progress, 0) * 100%);
-  background: var(--cc-btn-bg-hover, rgba(56, 189, 248, 0.22));
-}
-.cloudcanvas-ui-timeline-bar.is-point { top: 50%; bottom: auto; left: calc(var(--timeline-x) - 7px); width: 14px; height: 14px; padding: 0; translate: 0 -50%; rotate: 45deg; }
-.cloudcanvas-ui-timeline-bar-title { position: relative; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.cloudcanvas-ui-timeline-handle { position: absolute; top: 0; right: 0; bottom: 0; width: 10px; cursor: ew-resize; background: var(--cc-accent, #38bdf8); opacity: 0.4; }
-.cloudcanvas-ui-timeline-now {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: calc(var(--timeline-gutter) + var(--timeline-x));
-  width: 2px;
-  pointer-events: none;
-  background: var(--cc-tone-danger, #f87171);
 }
 
 @media (max-width: 40rem) {

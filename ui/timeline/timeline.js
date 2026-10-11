@@ -5,51 +5,60 @@
  *
  *   const timeline = createTimeline(host, {
  *     onActivate: (id) => open(id),
- *     onChange: (id, { start, end }) => reschedule(id, start, end)
+ *     onChange: (id, { start, end }) => reschedule(id, start, end),
+ *     onGutter: (px) => remember(px)
  *   });
  *   timeline.update({ scale: 'week', items: [{ id: 'a', title: 'Draft', start: '2026-09-28', end: '2026-10-02', group: 'Writing' }] });
  *
- * Items are plain: `{id, title, start, end?, group?, tone?, progress?, movable?}`.
- * No `end` draws a milestone. Drag a bar to move it, drag its end handle to
- * change its length; both snap to whole days and are reported through
- * `onChange`, never applied. Keyboard: Up/Down between bars, Enter opens,
- * Space picks up, Left/Right move a day (Shift resizes), Space or Enter drops,
- * Escape puts it back. The scale (day | week | month) is kept between updates;
- * a model `scale` that changes wins. A redraw keeps focus on the bar or the
- * heading that held it and scrolls nothing; only the timeline's own keyboard
- * moves bring the view along.
+ * Items are plain: `{id, title, start, end?, milestone?, group?, groupId?, status?, tone?, progress?, depends?, movable?}`.
+ * No `end` (or `milestone: true`) draws a milestone. `status` is words, or
+ * `{label, tone}` with a tone of success, warning, danger or muted. Nothing is
+ * applied by the kit: it draws the model and reports.
+ *
+ * EVERY BAR AND MILESTONE DRAWS ITS TITLE: inside the bar when it is wide
+ * enough, else beside it; the full title is its tooltip and leads its name.
+ * The column of titles at the left (the gutter) is resized by the separator on
+ * the axis' corner (`onGutter(px)`; the model's `gutter` restores it). The
+ * scale (day | week | month) is kept between updates; a model `scale` that
+ * changes wins. A redraw keeps focus on the bar, the heading or the separator
+ * that held it and scrolls nothing.
  *
  * A ROW'S LABEL BELONGS TO ITS BAR: a press on the label beside a bar is a
  * press on that bar, and `itemIdOf` answers with the bar's item for either.
  *
  * A GROUP MAY BE AN ITEM. `group` is the name consecutive items are headed
- * by, or `{id, label}` for a group that stands for an item - the parent its
- * bars belong to. That heading is a button: a tab stop of its own, pressed as
- * a bar is (`onActivate(id)`), carrying the group's id. Two groups of one
- * name and different ids are two groups.
+ * by, or `{id, label, collapsed}` for a group that stands for an item - the
+ * parent its bars belong to. That heading is a button: pressed as a bar is
+ * (`onActivate(id)`), carrying the group's id. Two groups of one name and
+ * different ids are two groups.
  *
- * THE ROWS ARE LISTS, AND A HEADING IS NOT A ROW. Each run of rows under one
- * heading is a `role="list"` of its own, named by that heading, which stands
- * before it; rows with no group are a list with no name. A list then owns list
- * items and nothing else, which is what the role allows.
- *
- * `selectedId` marks the item a host has selected, on its bar and on a
+ * THE ROWS ARE A TREEGRID: a heading is a row of level 1, a bar's row level 2
+ * under it. `selectedId` marks the item that is selected, on its bar and on a
  * heading that stands for it: for the eye and for assistive technology
- * (`aria-current`). Focus is not moved; the tab stop rests there until the
- * keys place it.
+ * (`aria-current`). The arrows and a press move the selection; the model's
+ * replaces it when the model changes it. The hint under the toolbar says what
+ * the selection can do. The timeline has no motion, so a reader who asked for
+ * less gets none.
  */
 import { createLiveRegion, say } from '../../addons/announce.js';
-import { button, createLife, documentOf, el, markSelected, textNode, uniqueId, writeText } from '../dom.js';
+import { button, createLife, documentOf, el, textNode, uniqueId, writeText } from '../dom.js';
 import { injectUiStyles } from '../styles.js';
 import { toDate } from '../calendar/dates.js';
-import { TIMELINE_SCALES, barOf, domainFor, normalizeItems, tickDates, widthOf, xOf } from './model.js';
+import { applyGutter } from './gutter.js';
 import { bindTimeline } from './interact.js';
-
-export const TL = 'cloudcanvas-ui-timeline';
+import { TL, TIMELINE_SCALES, domainFor, normalizeItems, widthOf, xOf } from './model.js';
+import { axisNode, describeItem, rowsNode } from './rows.js';
+import { paint } from './select.js';
 
 /** The timeline's default words. */
 export const TIMELINE_LABELS = /* @__PURE__ */ Object.freeze({
-  scale: 'Zoom', day: 'Days', week: 'Weeks', month: 'Months', today: 'Today', done: 'done', milestone: 'milestone'
+  scale: 'Zoom', day: 'Days', week: 'Weeks', month: 'Months', today: 'Today', done: 'done', milestone: 'milestone',
+  gutter: 'Resize the title column', moved: 'Moved', notMoved: 'Not moved.', cancelled: 'Move cancelled.',
+  pickedUp: 'Picked up {title}. Left and Right move it a day, Shift resizes, Space drops it, Escape cancels.',
+  hintNone: 'Select a bar to see what it can do', hintCreate: 'drag on a row to add one', hintOpen: 'Enter opens',
+  hintMove: 'drag to move', hintResize: 'drag an edge to resize', hintKeys: 'Alt+arrows move a day, Alt+Shift+arrows resize',
+  hintLink: 'drag the dot to link', hintDelete: 'Delete removes', hintAdd: '+ adds one here', hintFold: 'Space folds',
+  hintUnlink: 'Delete removes the link'
 });
 
 function toolbar(tl) {
@@ -60,94 +69,6 @@ function toolbar(tl) {
   tl.rangeText = textNode(tl.doc, range);
   bar.append(tl.scaleGroup, today, range);
   return bar;
-}
-
-/** How a bar reads to a screen reader. */
-export function describeItem(tl, item) {
-  const date = (value) => tl.format.format(value);
-  const when = item.end ? `${date(item.start)} to ${date(item.end)}` : `${date(item.start)}, ${tl.labels.milestone}`;
-  const done = item.progress === null ? '' : `, ${Math.round(item.progress * 100)}% ${tl.labels.done}`;
-  return `${item.title}, ${when}${done}`;
-}
-
-function barNode(tl, item) {
-  const { doc } = tl;
-  const geometry = barOf(item, tl.domain, tl.state.scale);
-  const node = el(doc, 'button', { className: `${TL}-bar`, attrs: { type: 'button', tabindex: '-1', 'data-ui-id': item.id,
-    'aria-label': describeItem(tl, item), 'data-tone': item.tone || null, 'data-movable': item.movable ? 'true' : null } });
-  node.classList.toggle('is-point', geometry.point);
-  node.classList.toggle('is-grabbed', tl.state.pending?.id === item.id);
-  markSelected(node, item.id === tl.state.selectedId);
-  node.style.setProperty('--timeline-x', `${geometry.left}px`);
-  node.style.setProperty('--timeline-w', `${geometry.width}px`);
-  if (item.progress !== null) node.style.setProperty('--timeline-progress', String(item.progress));
-  if (!geometry.point) node.append(el(doc, 'span', { className: `${TL}-bar-title`, text: item.title }));
-  if (item.movable && !geometry.point) node.append(el(doc, 'span', { className: `${TL}-handle`, attrs: { 'aria-hidden': 'true' } }));
-  return node;
-}
-
-/** A row: the bar on its track, and beside it the bar's name again, for the eye - a part of the same item, which says so. */
-function rowNode(tl, item) {
-  const row = el(tl.doc, 'div', { className: `${TL}-row`, attrs: { role: 'listitem', 'data-row-id': item.id } });
-  const track = el(tl.doc, 'div', { className: `${TL}-track` });
-  track.append(barNode(tl, item));
-  row.append(el(tl.doc, 'div', { className: `${TL}-label`, text: item.title, attrs: { 'aria-hidden': 'true', 'data-ui-for': item.id } }), track);
-  return row;
-}
-
-/** The heading of `item`'s group, with the `id` its list is named by: its name, or - for a group that stands for an item - a button that is that item's face. */
-function groupNode(tl, item, id) {
-  const heading = el(tl.doc, 'div', { className: `${TL}-group`, attrs: { id, role: 'heading', 'aria-level': '3' } });
-  if (item.groupId === null) {
-    heading.textContent = item.group;
-    return heading;
-  }
-  const face = el(tl.doc, 'button', { className: `${TL}-group-label`, text: item.group, attrs: { type: 'button', 'data-ui-id': item.groupId } });
-  markSelected(face, item.groupId === tl.state.selectedId);
-  heading.append(face);
-  return heading;
-}
-
-function axisNode(tl) {
-  const axis = el(tl.doc, 'div', { className: `${TL}-axis`, attrs: { 'aria-hidden': 'true' } });
-  axis.append(el(tl.doc, 'div', { className: `${TL}-corner` }));
-  const ticks = el(tl.doc, 'div', { className: `${TL}-ticks` });
-  const format = tl.tickFormats[tl.state.scale];
-  for (const date of tickDates(tl.domain, tl.state.scale)) {
-    const tick = el(tl.doc, 'div', { className: `${TL}-tick`, text: format.format(date) });
-    tick.style.setProperty('--timeline-x', `${xOf(date, tl.domain, tl.state.scale)}px`);
-    ticks.append(tick);
-  }
-  axis.append(ticks);
-  return axis;
-}
-
-/**
- * A list for the rows from `item` on, put after the heading of its group when it has one. The heading is no row, so it
- * stands before the list and names it; its id is the timeline's and the heading's place, the same at every draw.
- */
-function listNode(tl, rows, item) {
-  const list = el(tl.doc, 'div', { className: `${TL}-list`, attrs: { role: 'list' } });
-  if (item.group) {
-    const heading = groupNode(tl, item, `${tl.id}-group-${rows.children.length}`);
-    list.setAttribute('aria-labelledby', heading.id);
-    rows.append(heading);
-  }
-  rows.append(list);
-  return list;
-}
-
-/** The rows, as one list for each run of items under one heading: a new one where the group changes - its name, or the item it stands for. */
-function rowsNode(tl, items) {
-  const rows = el(tl.doc, 'div', { className: `${TL}-rows` });
-  let last = null;
-  let list = null;
-  for (const item of items) {
-    if (!list || item.group !== last.group || item.groupId !== last.groupId) list = listNode(tl, rows, item);
-    last = item;
-    list.append(rowNode(tl, item));
-  }
-  return rows;
 }
 
 /**
@@ -167,10 +88,11 @@ function writeScales(tl) {
   }
 }
 
-/** What holds focus in the sheet before a redraw: a bar, or the heading of a group that stands for an item - by that group's id. */
+/** What holds focus in the sheet before a redraw: a bar, the heading of a group that stands for an item (by its id), or the separator. */
 function heldFocus(tl) {
   const held = tl.sheet.contains(tl.doc.activeElement) ? tl.doc.activeElement : null;
-  return { bar: Boolean(held?.closest(`.${TL}-bar`)), groupId: held?.closest(`.${TL}-group-label`)?.getAttribute('data-ui-id') ?? null };
+  return { bar: Boolean(held?.closest(`.${TL}-bar`)), gutter: Boolean(held?.closest(`.${TL}-gutter-handle`)),
+    groupId: held?.closest(`.${TL}-group-label`)?.getAttribute('data-ui-id') ?? null };
 }
 
 /** The heading drawn for the group `groupId`, or null: a group that has gone, or none asked for. */
@@ -179,26 +101,63 @@ function headingOf(tl, groupId) {
   return Array.from(tl.sheet.querySelectorAll(`.${TL}-group-label`)).find((node) => node.getAttribute('data-ui-id') === groupId) ?? null;
 }
 
-function render(tl) {
+/** The items as drawn: the one in hand at the times it is held at. */
+function drawnItems(state) {
+  const { pending } = state;
+  return pending ? state.items.map((item) => (item.id === pending.id ? { ...item, ...pending.times } : item)) : state.items;
+}
+
+function gridNode(tl, items) {
   const { state } = tl;
-  const items = state.pending ? state.items.map((item) => (item.id === state.pending.id ? { ...item, ...state.pending.times } : item)) : state.items;
-  tl.domain = state.pending?.domain ?? domainFor(state.items, state.scale, state.now);
   const grid = el(tl.doc, 'div', { className: `${TL}-grid` });
   grid.style.setProperty('--timeline-width', `${widthOf(tl.domain, state.scale)}px`);
   const now = el(tl.doc, 'div', { className: `${TL}-now`, attrs: { 'aria-hidden': 'true' } });
   now.style.setProperty('--timeline-x', `${xOf(state.now, tl.domain, state.scale)}px`);
   grid.append(axisNode(tl), rowsNode(tl, items), now);
+  return grid;
+}
+
+function render(tl) {
+  const { state } = tl;
+  tl.domain = state.pending?.domain ?? domainFor(state.items, state.scale, state.now);
   // Every bar and heading is redrawn: a draw that names no focus of its own (a host update, a pointer drag) keeps it on
-  // what held it. A heading has it back; a bar's - and a heading's whose group has gone - is the tab stop's to take, as
-  // 'keep', not true: `writeTabStops` returns such a focus without scrolling.
+  // what held it. A heading and the separator have it back; a bar's - and a heading's whose group has gone - is the tab
+  // stop's to take, as 'keep', not true: `writeTabStops` returns such a focus without scrolling.
   const held = heldFocus(tl);
-  tl.sheet.replaceChildren(grid);
+  tl.drawing = true;
+  tl.sheet.replaceChildren(gridNode(tl, drawnItems(state)));
   const heading = headingOf(tl, held.groupId);
   if (!tl.focusAfter && !heading && (held.bar || held.groupId !== null)) tl.focusAfter = 'keep';
   writeScales(tl);
   writeText(tl.rangeText, `${tl.format.format(tl.domain.start)} – ${tl.format.format(tl.domain.end)}`);
   tl.writeTabStops();
+  paint(tl);
   heading?.focus({ preventScroll: true });
+  if (held.gutter) tl.gutterNode?.focus({ preventScroll: true });
+  tl.drawing = false;
+}
+
+function writeFormats(tl, locale) {
+  tl.locale = locale;
+  tl.format = new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' });
+  tl.tickFormats = { day: new Intl.DateTimeFormat(locale, { weekday: 'short', day: 'numeric' }),
+    week: tl.format, month: new Intl.DateTimeFormat(locale, { month: 'short', year: 'numeric' }) };
+}
+
+/** Take what the model says that the reader may also change - the selection, the gutter - only when the model changed it. */
+function adopt(tl, model) {
+  const { seen, state } = tl;
+  const selectedId = model.selectedId ?? null;
+  if (selectedId !== seen.selectedId) {
+    seen.selectedId = selectedId;
+    state.selectedId = selectedId;
+    state.selectedLink = null;
+  }
+  const gutter = Number.isFinite(model.gutter) ? model.gutter : null;
+  if (gutter !== seen.gutter) {
+    seen.gutter = gutter;
+    if (gutter !== null) applyGutter(tl, gutter);
+  }
 }
 
 function applyModel(tl, model) {
@@ -206,35 +165,49 @@ function applyModel(tl, model) {
   if (model.scale !== tl.lastScale && Object.hasOwn(TIMELINE_SCALES, model.scale)) state.scale = model.scale;
   tl.lastScale = model.scale;
   state.items = normalizeItems(model.items ?? []);
-  state.selectedId = model.selectedId ?? null;
+  tl.byId = new Map(state.items.map((item) => [item.id, item]));
+  tl.groups = new Set(state.items.map((item) => item.groupId).filter((id) => id !== null));
   state.now = toDate(model.now) ?? new Date();
-  if (model.locale !== tl.locale || !tl.format) {
-    tl.locale = model.locale;
-    tl.format = new Intl.DateTimeFormat(model.locale, { month: 'short', day: 'numeric' });
-    tl.tickFormats = { day: new Intl.DateTimeFormat(model.locale, { weekday: 'short', day: 'numeric' }),
-      week: tl.format, month: new Intl.DateTimeFormat(model.locale, { month: 'short', year: 'numeric' }) };
-  }
+  if (model.locale !== tl.locale || !tl.format) writeFormats(tl, model.locale);
   tl.root.setAttribute('aria-label', String(model.label ?? 'Timeline'));
+  adopt(tl, model);
+}
+
+/** Say on the root which gestures the host takes, so the sheet shows their affordances and cursors. */
+function markAbilities(root, callbacks) {
+  for (const [name, callback] of [['data-can-move', 'onChange'], ['data-can-create', 'onCreate'], ['data-can-link', 'onLink'],
+    ['data-can-fold', 'onToggleGroup'], ['data-can-unlink', 'onUnlink']]) {
+    if (typeof callbacks[callback] === 'function') root.setAttribute(name, '');
+  }
+}
+
+function timelineState(doc, life, root, callbacks) {
+  return { doc, life, root, callbacks, id: uniqueId(TL), labels: { ...TIMELINE_LABELS, ...callbacks.labels }, format: null, lastScale: undefined,
+    byId: new Map(), groups: new Set(), seen: { selectedId: undefined, gutter: undefined },
+    state: { scale: 'week', items: [], now: new Date(), pending: null, focusId: null, selectedId: null, selectedLink: null, gutter: null } };
 }
 
 /**
  * @param {HTMLElement} host
  * @param {{onActivate?: (id: string) => void, onChange?: (id: string, times: {start: Date, end: Date|null}) => void,
- *   onScale?: (scale: string) => void, labels?: Partial<typeof TIMELINE_LABELS>}} [callbacks]
- * @returns {{update(model: {label?: string, scale?: string, now?: Date|string, locale?: string, selectedId?: string|null,
- *   items?: Array<{id: string, title?: string, start: Date|string, end?: Date|string, group?: string|{id?: string, label?: string},
- *   tone?: string, progress?: number, movable?: boolean}>}): void, destroy(): void}}
+ *   onScale?: (scale: string) => void, onGutter?: (px: number) => void, labels?: Partial<typeof TIMELINE_LABELS>}} [callbacks]
+ * @returns {{update(model: {label?: string, scale?: string, now?: Date|string, locale?: string, selectedId?: string|null, gutter?: number,
+ *   items?: Array<{id: string, title?: string, start: Date|string, end?: Date|string, milestone?: boolean,
+ *   group?: string|{id?: string, label?: string, collapsed?: boolean}, groupId?: string, status?: string|{label: string, tone?: string},
+ *   tone?: string, progress?: number, depends?: string[], movable?: boolean}>}): void, destroy(): void}}
  */
 export function createTimeline(host, callbacks = {}) {
   const doc = documentOf(host);
   injectUiStyles(doc);
   const life = createLife();
   const root = el(doc, 'div', { className: TL, attrs: { role: 'region' } });
-  const tl = { doc, life, root, callbacks, id: uniqueId(TL), labels: { ...TIMELINE_LABELS, ...callbacks.labels }, format: null, lastScale: undefined,
-    state: { scale: 'week', items: [], now: new Date(), pending: null, focusId: null, selectedId: null } };
+  markAbilities(root, callbacks);
+  const tl = timelineState(doc, life, root, callbacks);
   root.append(toolbar(tl));
+  tl.hint = el(doc, 'p', { className: `${TL}-hint` });
+  tl.hintText = textNode(doc, tl.hint);
   tl.sheet = el(doc, 'div', { className: `${TL}-sheet` });
-  root.append(tl.sheet);
+  root.append(tl.hint, tl.sheet);
   tl.region = createLiveRegion(root);
   tl.say = (text) => say(tl.region, text);
   tl.render = () => render(tl);
@@ -257,4 +230,3 @@ export function createTimeline(host, callbacks = {}) {
     }
   };
 }
-
