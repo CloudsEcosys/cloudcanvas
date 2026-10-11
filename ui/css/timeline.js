@@ -180,6 +180,47 @@ export const UI_TIMELINE_CSS = `/* ------------------ UI KIT: TIMELINE ---------
   cursor: pointer;
 }
 .cloudcanvas-ui-timeline-outside.is-point { left: calc(var(--timeline-x) + 12px); }
+.cloudcanvas-ui-timeline[data-can-link] .cloudcanvas-ui-timeline-outside { left: calc(var(--timeline-x) + var(--timeline-w) + 30px); }
+.cloudcanvas-ui-timeline[data-can-link] .cloudcanvas-ui-timeline-outside.is-point { left: calc(var(--timeline-x) + 32px); }
+
+/* The handle a link is dragged from: beside a bar's right edge, drawn when the host can link and the row is hovered, focused or selected. */
+.cloudcanvas-ui-timeline-link {
+  position: absolute;
+  top: 50%;
+  left: calc(var(--timeline-x) + var(--timeline-w) + 6px);
+  width: 12px;
+  height: 12px;
+  box-sizing: border-box;
+  translate: 0 -50%;
+  background: var(--cc-card-bg, rgba(30, 41, 59, 0.85));
+  border: 2px solid ${ACCENT};
+  border-radius: var(--cc-radius-pill, 9999px);
+  opacity: 0;
+  cursor: crosshair;
+}
+.cloudcanvas-ui-timeline-link.is-point { left: calc(var(--timeline-x) + 14px); }
+.cloudcanvas-ui-timeline-row:is(:hover, :focus-within, .is-current) .cloudcanvas-ui-timeline-link { opacity: 1; }
+.cloudcanvas-ui-timeline-bar.is-drop-target { outline: 2px dashed var(--cc-ui-drop, ${ACCENT}); outline-offset: 2px; }
+
+/* The dependencies: connectors in a layer of their own over the rows, which the pointer passes through except at a line. */
+.cloudcanvas-ui-timeline-links {
+  position: absolute;
+  top: 0;
+  left: var(--timeline-gutter);
+  z-index: var(--cc-z-ui-raised, 2);
+  width: var(--timeline-width);
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+.cloudcanvas-ui-timeline-connector-line { fill: none; stroke: var(--cc-connector, rgba(56, 189, 248, 0.6)); stroke-width: 1.5; }
+.cloudcanvas-ui-timeline-connector-hit { fill: none; stroke: ${ACCENT}; stroke-opacity: 0; stroke-width: 12; }
+.cloudcanvas-ui-timeline[data-can-unlink] .cloudcanvas-ui-timeline-connector { cursor: pointer; }
+.cloudcanvas-ui-timeline[data-can-unlink] .cloudcanvas-ui-timeline-connector-hit { pointer-events: stroke; }
+.cloudcanvas-ui-timeline-connector:is(:hover, .is-selected) .cloudcanvas-ui-timeline-connector-line { stroke: ${ACCENT}; stroke-width: 2.5; }
+.cloudcanvas-ui-timeline-connector:focus-visible { outline: ${RING}; outline-offset: 2px; }
+.cloudcanvas-ui-timeline-arrow { fill: ${ACCENT}; }
+.cloudcanvas-ui-timeline-draft-link { fill: none; stroke: ${ACCENT}; stroke-width: 2; stroke-dasharray: 6 5; }
 
 /* The handles at a bar's ends: each resizes, and says so under the pointer. */
 :is(.cloudcanvas-ui-timeline-handle, .cloudcanvas-ui-timeline-handle-start) { position: absolute; top: 0; bottom: 0; width: 10px; cursor: ew-resize; background: ${ACCENT}; opacity: 0.4; }
@@ -212,5 +253,7 @@ export const UI_TIMELINE_CSS = `/* ------------------ UI KIT: TIMELINE ---------
   }
   .cloudcanvas-ui-timeline-handle::after { right: 0; }
   .cloudcanvas-ui-timeline-handle-start::after { left: 0; }
+  .cloudcanvas-ui-timeline-link::after { content: ""; position: absolute; top: 50%; left: 50%; width: var(--cc-control-min-coarse, 44px); height: var(--cc-control-min-coarse, 44px); translate: -50% -50%; }
+  .cloudcanvas-ui-timeline[data-can-link] .cloudcanvas-ui-timeline-row.is-current .cloudcanvas-ui-timeline-link { opacity: 1; }
 }
 `;

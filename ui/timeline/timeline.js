@@ -47,6 +47,7 @@ import { toDate } from '../calendar/dates.js';
 import { applyGutter } from './gutter.js';
 import { bindTimeline } from './interact.js';
 import { TL, TIMELINE_SCALES, domainFor, normalizeItems, widthOf, xOf } from './model.js';
+import { drawLinks, linksLayer } from './links.js';
 import { axisNode, describeItem, rowsNode } from './rows.js';
 import { paint } from './select.js';
 
@@ -58,7 +59,7 @@ export const TIMELINE_LABELS = /* @__PURE__ */ Object.freeze({
   hintNone: 'Select a bar to see what it can do', hintCreate: 'drag on a row to add one', hintOpen: 'Enter opens',
   hintMove: 'drag to move', hintResize: 'drag an edge to resize', hintKeys: 'Alt+arrows move a day, Alt+Shift+arrows resize',
   hintLink: 'drag the dot to link', hintDelete: 'Delete removes', hintAdd: '+ adds one here', hintFold: 'Space folds',
-  hintUnlink: 'Delete removes the link', collapse: 'Collapse {group}', expand: 'Expand {group}', hidden: '{count} hidden'
+  hintUnlink: 'Delete removes the link', link: 'Drag to another bar to link them', dependsOn: 'depends on', collapse: 'Collapse {group}', expand: 'Expand {group}', hidden: '{count} hidden'
 });
 
 function toolbar(tl) {
@@ -113,7 +114,7 @@ function gridNode(tl, items) {
   grid.style.setProperty('--timeline-width', `${widthOf(tl.domain, state.scale)}px`);
   const now = el(tl.doc, 'div', { className: `${TL}-now`, attrs: { 'aria-hidden': 'true' } });
   now.style.setProperty('--timeline-x', `${xOf(state.now, tl.domain, state.scale)}px`);
-  grid.append(axisNode(tl), rowsNode(tl, items), now);
+  grid.append(axisNode(tl), rowsNode(tl, items), linksLayer(tl), now);
   return grid;
 }
 
@@ -126,6 +127,7 @@ function render(tl) {
   const held = heldFocus(tl);
   tl.drawing = true;
   tl.sheet.replaceChildren(gridNode(tl, drawnItems(state)));
+  drawLinks(tl);
   const heading = headingOf(tl, held.groupId);
   if (!tl.focusAfter && !heading && (held.bar || held.groupId !== null)) tl.focusAfter = 'keep';
   writeScales(tl);
@@ -184,7 +186,7 @@ function markAbilities(root, callbacks) {
 function timelineState(doc, life, root, callbacks) {
   return { doc, life, root, callbacks, id: uniqueId(TL), labels: { ...TIMELINE_LABELS, ...callbacks.labels }, format: null, lastScale: undefined,
     byId: new Map(), groups: new Map(), seen: { selectedId: undefined, gutter: undefined },
-    state: { scale: 'week', items: [], now: new Date(), pending: null, creating: null, focusId: null, selectedId: null, selectedLink: null, gutter: null } };
+    state: { scale: 'week', items: [], now: new Date(), pending: null, creating: null, linking: null, focusId: null, selectedId: null, selectedLink: null, gutter: null } };
 }
 
 /**
@@ -211,6 +213,8 @@ export function createTimeline(host, callbacks = {}) {
   tl.region = createLiveRegion(root);
   tl.say = (text) => say(tl.region, text);
   tl.render = () => render(tl);
+  tl.paint = () => paint(tl);
+  tl.busy = () => Boolean(tl.state.pending || tl.state.creating || tl.state.linking);
   tl.describe = (item) => describeItem(tl, item);
   tl.setScale = (scale) => { tl.state.scale = scale; tl.render(); callbacks.onScale?.(scale); };
   tl.scrollToNow = () => {
@@ -223,7 +227,7 @@ export function createTimeline(host, callbacks = {}) {
     update(model = {}) {
       if (life.dead) return;
       applyModel(tl, model);
-      if (!tl.state.pending && !tl.state.creating) tl.render();
+      if (!tl.busy()) tl.render();
     },
     destroy() {
       if (life.destroy()) root.remove();

@@ -25,7 +25,8 @@ export function describeItem(tl, item) {
   const when = item.end ? `${date(item.start)} to ${date(item.end)}` : `${date(item.start)}, ${tl.labels.milestone}`;
   const status = item.status ? `, ${item.status}` : '';
   const done = item.progress === null ? '' : `, ${Math.round(item.progress * 100)}% ${tl.labels.done}`;
-  return `${item.title}, ${when}${status}${done}`;
+  const needs = item.depends.filter((id) => tl.byId.has(id)).map((id) => tl.byId.get(id).title);
+  return `${item.title}, ${when}${status}${done}${needs.length ? `, ${tl.labels.dependsOn} ${needs.join(', ')}` : ''}`;
 }
 
 function writeGeometry(node, geometry) {
@@ -57,11 +58,20 @@ function outsideTitle(tl, item, geometry) {
   return node;
 }
 
+/** The handle a link is dragged from, beside the bar's right edge; it stands for no item, so a press on it opens nothing. */
+function linkHandle(tl, item, geometry) {
+  const node = el(tl.doc, 'span', { className: `${TL}-link`, attrs: { 'aria-hidden': 'true', 'data-link-from': item.id, title: tl.labels.link } });
+  node.classList.toggle('is-point', geometry.point);
+  writeGeometry(node, geometry);
+  return node;
+}
+
 function trackNode(tl, item) {
   const track = el(tl.doc, 'div', { className: `${TL}-track`, attrs: { role: 'gridcell', 'data-group-id': item.groupId } });
   const geometry = barOf(item, tl.domain, tl.state.scale);
   const inside = !geometry.point && geometry.width >= INSIDE_MIN_PX;
   track.append(barNode(tl, item, geometry, inside));
+  if (typeof tl.callbacks.onLink === 'function') track.append(linkHandle(tl, item, geometry));
   if (!inside) track.append(outsideTitle(tl, item, geometry));
   return track;
 }

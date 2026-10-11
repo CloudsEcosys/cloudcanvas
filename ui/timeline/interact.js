@@ -12,6 +12,7 @@ import { bindCreate } from './create.js';
 import { bindGutter } from './gutter.js';
 import { TL } from './model.js';
 import { bindKeys } from './keys.js';
+import { bindLinks } from './links.js';
 import { BAR, bars, bindMove } from './move.js';
 import { select } from './select.js';
 import { bindZoom } from './zoom.js';
@@ -67,6 +68,7 @@ export function bindTimeline(tl) {
   bindKeys(tl);
   bindMove(tl);
   bindCreate(tl);
+  bindLinks(tl);
   bindGutter(tl);
   bindZoom(tl);
 }

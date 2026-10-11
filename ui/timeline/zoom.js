@@ -38,7 +38,7 @@ function restore(tl, anchor) {
 function zoomBy(tl, step, clientX) {
   const { state } = tl;
   const next = stepScale(state.scale, step);
-  if (next === state.scale || state.pending || state.creating) return;
+  if (next === state.scale || tl.busy()) return;
   const anchor = anchorAt(tl, clientX);
   state.scale = next;
   tl.render();
