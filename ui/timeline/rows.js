@@ -75,6 +75,19 @@ function rowNode(tl, item) {
   return row;
 }
 
+/** The chevron that folds a group, drawn when the host takes `onToggleGroup`; `order` puts it first, the label stays first for the keys. */
+function foldToggle(tl, item) {
+  const word = item.collapsed ? tl.labels.expand : tl.labels.collapse;
+  return el(tl.doc, 'button', { className: `${TL}-group-toggle`, attrs: { type: 'button', tabindex: '-1', 'data-group-id': item.groupId,
+    'aria-expanded': String(!item.collapsed), 'aria-label': word.replace('{group}', item.group), title: word.replace('{group}', item.group) } });
+}
+
+/** How many items a folded group holds, beside its name. */
+function foldCount(tl, item) {
+  const count = tl.state.items.filter((other) => other.groupId === item.groupId).length;
+  return el(tl.doc, 'span', { className: `${TL}-group-count`, text: count, attrs: { title: tl.labels.hidden.replace('{count}', String(count)) } });
+}
+
 /** The heading row of `item`'s group: its name, or - for a group that stands for an item - a button that is that item's face. */
 function groupNode(tl, item) {
   const row = el(tl.doc, 'div', { className: `${TL}-group`, attrs: { role: 'row', 'aria-level': 1 } });
@@ -84,8 +97,11 @@ function groupNode(tl, item) {
     cell.textContent = item.group;
     return row;
   }
-  const face = el(tl.doc, 'button', { className: `${TL}-group-label`, text: item.group, attrs: { type: 'button', 'data-ui-id': item.groupId } });
-  cell.append(face);
+  cell.append(el(tl.doc, 'button', { className: `${TL}-group-label`, text: item.group, attrs: { type: 'button', 'data-ui-id': item.groupId } }));
+  if (typeof tl.callbacks.onToggleGroup !== 'function') return row;
+  row.setAttribute('aria-expanded', String(!item.collapsed));
+  cell.append(foldToggle(tl, item));
+  if (item.collapsed) cell.append(foldCount(tl, item));
   return row;
 }
 

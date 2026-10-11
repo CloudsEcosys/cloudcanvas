@@ -58,7 +58,7 @@ export const TIMELINE_LABELS = /* @__PURE__ */ Object.freeze({
   hintNone: 'Select a bar to see what it can do', hintCreate: 'drag on a row to add one', hintOpen: 'Enter opens',
   hintMove: 'drag to move', hintResize: 'drag an edge to resize', hintKeys: 'Alt+arrows move a day, Alt+Shift+arrows resize',
   hintLink: 'drag the dot to link', hintDelete: 'Delete removes', hintAdd: '+ adds one here', hintFold: 'Space folds',
-  hintUnlink: 'Delete removes the link'
+  hintUnlink: 'Delete removes the link', collapse: 'Collapse {group}', expand: 'Expand {group}', hidden: '{count} hidden'
 });
 
 function toolbar(tl) {
@@ -166,7 +166,7 @@ function applyModel(tl, model) {
   tl.lastScale = model.scale;
   state.items = normalizeItems(model.items ?? []);
   tl.byId = new Map(state.items.map((item) => [item.id, item]));
-  tl.groups = new Set(state.items.map((item) => item.groupId).filter((id) => id !== null));
+  tl.groups = new Map(state.items.filter((item) => item.groupId !== null).map((item) => [item.groupId, item.collapsed]));
   state.now = toDate(model.now) ?? new Date();
   if (model.locale !== tl.locale || !tl.format) writeFormats(tl, model.locale);
   tl.root.setAttribute('aria-label', String(model.label ?? 'Timeline'));
@@ -183,7 +183,7 @@ function markAbilities(root, callbacks) {
 
 function timelineState(doc, life, root, callbacks) {
   return { doc, life, root, callbacks, id: uniqueId(TL), labels: { ...TIMELINE_LABELS, ...callbacks.labels }, format: null, lastScale: undefined,
-    byId: new Map(), groups: new Set(), seen: { selectedId: undefined, gutter: undefined },
+    byId: new Map(), groups: new Map(), seen: { selectedId: undefined, gutter: undefined },
     state: { scale: 'week', items: [], now: new Date(), pending: null, creating: null, focusId: null, selectedId: null, selectedLink: null, gutter: null } };
 }
 

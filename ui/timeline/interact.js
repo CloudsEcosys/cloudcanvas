@@ -31,6 +31,8 @@ function writeTabStops(tl) {
 }
 
 function onClick(tl, event) {
+  const toggle = event.target.closest?.(`.${TL}-group-toggle`);
+  if (toggle) { tl.fold(toggle.getAttribute('data-group-id'), toggle.getAttribute('aria-expanded') === 'true'); return; }
   const part = itemNodeOf(event.target, tl.sheet);
   if (!part || tl.state.pending) return;
   const id = itemIdOf(part);
@@ -49,6 +51,7 @@ function onFocusIn(tl, event) {
 /** Wire clicks, keys and drags on the timeline sheet. */
 export function bindTimeline(tl) {
   tl.writeTabStops = () => writeTabStops(tl);
+  tl.fold = (groupId, collapsed) => tl.callbacks.onToggleGroup?.(groupId, collapsed);
   tl.life.on(tl.sheet, 'click', (event) => onClick(tl, event));
   tl.life.on(tl.sheet, 'focusin', (event) => onFocusIn(tl, event));
   bindKeys(tl);

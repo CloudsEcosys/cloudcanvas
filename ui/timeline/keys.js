@@ -6,6 +6,7 @@
  * End to the first and last, Space picks the bar up.
  */
 import { setTabStop } from '../roving.js';
+import { TL } from './model.js';
 import { BAR, bars, pickUp, pickupKey } from './move.js';
 import { select } from './select.js';
 
@@ -23,7 +24,19 @@ function walk(tl, bar, event) {
   return true;
 }
 
+/** A key on a group's heading: Space folds an open group and opens a folded one, Left folds, Right opens. */
+function groupKey(tl, face, event) {
+  const id = face.getAttribute('data-ui-id');
+  const folded = tl.groups.get(id) === true;
+  const ask = { ' ': !folded, ArrowLeft: folded ? null : true, ArrowRight: folded ? false : null }[event.key];
+  if (ask === undefined || typeof tl.callbacks.onToggleGroup !== 'function') return;
+  event.preventDefault();
+  if (ask !== null) tl.fold(id, ask);
+}
+
 function onKeyDown(tl, event) {
+  const face = event.target.closest?.(`.${TL}-group-label`);
+  if (face) { groupKey(tl, face, event); return; }
   const bar = event.target.closest?.(BAR);
   if (!bar) return;
   if (tl.state.pending?.keyboard) { pickupKey(tl, event); return; }
@@ -38,5 +51,8 @@ function onKeyDown(tl, event) {
 /** Wire the keys on the timeline's sheet. */
 export function bindKeys(tl) {
   tl.life.on(tl.sheet, 'keydown', (event) => onKeyDown(tl, event));
-  tl.life.on(tl.sheet, 'keyup', (event) => { if (event.key === ' ' && event.target.closest?.(BAR)) event.preventDefault(); });
+  tl.life.on(tl.sheet, 'keyup', (event) => {
+    const held = event.target.closest?.(`${BAR}, .${TL}-group-label`);
+    if (event.key === ' ' && held && (held.matches(BAR) || tl.callbacks.onToggleGroup)) event.preventDefault();
+  });
 }

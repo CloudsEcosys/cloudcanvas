@@ -62,6 +62,35 @@ export const UI_TIMELINE_CSS = `/* ------------------ UI KIT: TIMELINE ---------
 .cloudcanvas-ui-timeline-group { position: sticky; left: 0; width: max-content; }
 .cloudcanvas-ui-timeline-group-cell { display: flex; align-items: center; gap: var(--cc-space-1, 4px); padding: var(--cc-space-1, 4px) var(--cc-space-2, 8px); font-size: var(--cc-type-sm, 12px); font-weight: var(--cc-weight-semibold, 600); color: var(--cc-text-muted, #94a3b8); }
 .cloudcanvas-ui-timeline-group-label:focus-visible { outline: ${RING}; outline-offset: var(--cc-focus-ring-offset, 2px); }
+/* The chevron: drawn, not written, so the heading's words are its name alone; it points down when the group is open and right when it is folded. */
+.cloudcanvas-ui-timeline-group-toggle {
+  position: relative;
+  order: -1;
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: var(--cc-radius-sm, 6px);
+  cursor: pointer;
+}
+.cloudcanvas-ui-timeline-group-toggle::before {
+  content: "";
+  position: absolute;
+  top: calc(50% - 4px);
+  left: calc(50% - 3px);
+  width: 6px;
+  height: 6px;
+  border-right: 2px solid currentcolor;
+  border-bottom: 2px solid currentcolor;
+  rotate: 45deg;
+}
+.cloudcanvas-ui-timeline-group-toggle[aria-expanded="false"]::before { top: calc(50% - 3px); left: calc(50% - 4px); rotate: -45deg; }
+.cloudcanvas-ui-timeline-group-toggle:is(:hover, :focus-visible) { color: var(--cc-text, #e2e8f0); background: var(--cc-btn-bg-hover, rgba(56, 189, 248, 0.22)); }
+.cloudcanvas-ui-timeline-group-toggle:focus-visible { outline: ${RING}; outline-offset: 0; }
+.cloudcanvas-ui-timeline-group-count { padding: 0 var(--cc-space-1, 4px); font-weight: var(--cc-weight-medium, 500); color: var(--cc-text-muted, #94a3b8); border: 1px solid ${LINE}; border-radius: var(--cc-radius-sm, 6px); }
 
 .cloudcanvas-ui-timeline-row { display: flex; align-items: center; min-height: 2.25rem; border-bottom: 1px solid ${LINE}; }
 .cloudcanvas-ui-timeline-label {
