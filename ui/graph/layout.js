@@ -136,14 +136,21 @@ function anchorsOf(a, b) {
   return [{ x: a.x + NODE_WIDTH, y: ay }, { x: out, y: ay }, { x: out, y: by }, { x: b.x + NODE_WIDTH, y: by }];
 }
 
+/** The point `t` of the way (0 to 1) along the curve from box `a` to box `b`: where a label stands on it. */
+export function edgePoint(a, b, t) {
+  const [p0, p1, p2, p3] = anchorsOf(a, b);
+  const u = 1 - t;
+  const along = (axis) => round(u * u * u * p0[axis] + 3 * u * u * t * p1[axis] + 3 * u * t * t * p2[axis] + t * t * t * p3[axis]);
+  return { x: along('x'), y: along('y') };
+}
+
 /**
  * The curve from box `a` to box `b` as an SVG path, and its middle (where a label sits).
  * @returns {{d: string, mid: {x: number, y: number}}}
  */
 export function edgePath(a, b) {
   const [p0, p1, p2, p3] = anchorsOf(a, b).map((point) => ({ x: round(point.x), y: round(point.y) }));
-  const mid = { x: round((p0.x + 3 * p1.x + 3 * p2.x + p3.x) / 8), y: round((p0.y + 3 * p1.y + 3 * p2.y + p3.y) / 8) };
-  return { d: `M${p0.x} ${p0.y} C${p1.x} ${p1.y} ${p2.x} ${p2.y} ${p3.x} ${p3.y}`, mid };
+  return { d: `M${p0.x} ${p0.y} C${p1.x} ${p1.y} ${p2.x} ${p2.y} ${p3.x} ${p3.y}`, mid: edgePoint(a, b, 0.5) };
 }
 
 /** The box around every position, or null for an empty graph. */

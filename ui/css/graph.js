@@ -52,14 +52,9 @@ export const UI_GRAPH_CSS = `/* ------------------ UI KIT: GRAPH ---------------
 .cloudcanvas-ui-graph-edge.is-related { stroke-dasharray: 6 5; }
 .cloudcanvas-ui-graph-edge.is-depends-on { stroke: ${ACCENT}; stroke-width: 2; }
 .cloudcanvas-ui-graph-arrow { fill: ${ACCENT}; }
-.cloudcanvas-ui-graph-edge-label {
-  fill: var(--cc-text-muted, #94a3b8);
-  font-size: var(--cc-type-xs, 11px);
-  paint-order: stroke;
-  stroke: var(--cc-bg, #0f1117);
-  stroke-width: 3px;
-  stroke-linejoin: round;
-}
+/* A label is a chip on its edge: the surface's colour behind its words, so the line does not run through them. */
+.cloudcanvas-ui-graph-edge-label-back { fill: var(--cc-ui-surface, var(--cc-card-bg, rgba(30, 41, 59, 0.85))); stroke: ${LINE}; stroke-width: 1px; }
+.cloudcanvas-ui-graph-edge-label-text { fill: var(--cc-text-muted, #94a3b8); font-size: var(--cc-type-xs, 11px); }
 .cloudcanvas-ui-graph-draft { fill: none; stroke: ${ACCENT}; stroke-width: 2; stroke-dasharray: 4 4; }
 
 .cloudcanvas-ui-graph-node {

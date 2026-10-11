@@ -6,10 +6,13 @@
  * change they make is reported once it rests (`onViewport({x, y, scale})`),
  * and a `viewport` in the model is taken only when the model changes it.
  *
- * The first view of a graph that has none is the whole of it when that is
- * still readable, else its first root (or the selection) at a readable scale:
- * Fit and `0` show the whole at any scale. Nothing here moves by itself over
- * time, so there is no motion to reduce.
+ * The first view of a graph that has none is the whole of it, scaled down to
+ * a floor of 0.5; where it does not fit even then, the first root stands at
+ * the left, the first level beside it (and the selection, if there is one,
+ * brought into view). It is taken once: not again unless the host asks (Fit,
+ * `0`) or the model's nodes are replaced, and a `viewport` the model gives
+ * always wins. Nothing here moves by itself over time, so there is no motion
+ * to reduce.
  */
 import { clamp } from '../dom.js';
 import { NODE_HEIGHT, NODE_WIDTH, boundsOf } from './layout.js';
@@ -18,7 +21,7 @@ import { NODE_HEIGHT, NODE_WIDTH, boundsOf } from './layout.js';
 const MIN_SCALE = 0.2;
 const MAX_SCALE = 3;
 const FIT_MAX = 1;
-const READABLE = 0.75;
+const FLOOR = 0.5;
 
 /** Screen room (px) a fit leaves around the graph, and a revealed node from the edge. */
 const PAD = 24;
@@ -46,11 +49,18 @@ function applyView(g, report) {
   if (report) scheduleReport(g);
 }
 
-/** The box to frame and the viewport's, or null while either is empty. */
+/** The box to frame - the nodes and the chips of the labels on their edges - and the viewport's, or null while either is empty. */
 function frameOf(g) {
   const box = boundsOf(g.positions);
   const rect = g.viewport.getBoundingClientRect();
-  return box && rect.width > 0 && rect.height > 0 ? { box, rect } : null;
+  if (!box || !(rect.width > 0) || !(rect.height > 0)) return null;
+  for (const chip of g.chips ?? []) {
+    box.left = Math.min(box.left, chip.x - chip.width / 2);
+    box.right = Math.max(box.right, chip.x + chip.width / 2);
+    box.top = Math.min(box.top, chip.y - chip.height / 2);
+    box.bottom = Math.max(box.bottom, chip.y + chip.height / 2);
+  }
+  return { box, rect };
 }
 
 function fitScale({ box, rect }) {
@@ -68,16 +78,20 @@ function fit(g, report) {
   return true;
 }
 
-/** The first view: the whole graph if it is readable so, else the selection (or the first root) at a readable scale. */
+/** The first view: the whole graph if it fits at 0.5 or more, else the first root at the left, at 0.5, the selection brought into view. */
 function start(g) {
   const frame = frameOf(g);
   if (!frame) return;
-  if (fitScale(frame) >= READABLE) { fit(g, false); return; }
-  const anchor = g.positions.get(g.state.selectedId) ?? g.positions.get(g.forest.roots[0]);
-  const k = READABLE;
-  const x = g.state.selectedId === null ? PAD - frame.box.left * k : frame.rect.width / 2 - (anchor.x + NODE_WIDTH / 2) * k;
-  g.view = { k, x, y: frame.rect.height / 2 - (anchor.y + NODE_HEIGHT / 2) * k };
+  if (fitScale(frame) >= FLOOR) { fit(g, false); return; }
+  const { box, rect } = frame;
+  const k = FLOOR;
+  const root = g.positions.get(g.forest.roots[0]);
+  const x = PAD - box.left * k;
+  const whole = (box.bottom - box.top) * k <= rect.height - PAD * 2;
+  const y = whole ? PAD - box.top * k : rect.height / 2 - (root.y + NODE_HEIGHT / 2) * k;
+  g.view = { k, x, y };
   g.fitted = true;
+  if (g.state.selectedId !== null) reveal(g, g.state.selectedId, { report: false });
 }
 
 function zoomAt(g, factor, point) {
@@ -108,9 +122,15 @@ function reveal(g, id, { report }) {
   applyView(g, report);
 }
 
-/** Take the model's `viewport` when it changed: a view restored is not news to the host, so it is not reported. */
-function adopt(g, viewport) {
-  if (!viewport || ![viewport.x, viewport.y, viewport.scale].every(Number.isFinite)) return;
+/**
+ * Take the model's `viewport` when it changed: a view restored is not news to the host, so it is not reported. A model
+ * whose nodes replace the last (`replaced`) and give no viewport is a graph with no view yet: it is fitted again.
+ */
+function adopt(g, viewport, replaced) {
+  if (!viewport || ![viewport.x, viewport.y, viewport.scale].every(Number.isFinite)) {
+    if (replaced) g.fitted = false;
+    return;
+  }
   const key = `${viewport.x},${viewport.y},${viewport.scale}`;
   if (key === g.seen.viewport) return;
   g.seen.viewport = key;
@@ -133,7 +153,7 @@ function observeSize(g) {
 
 /**
  * Give graph `g` its view: `g.applyView`, `g.fit`, `g.zoomAt` and `g.clampScale`, and what the control asks of it.
- * @returns {{start(): void, reveal(id: string, options: {report: boolean}): void, adopt(viewport: object|undefined): void}}
+ * @returns {{start(): void, reveal(id: string, options: {report: boolean}): void, adopt(viewport: object|undefined, replaced: boolean): void}}
  */
 export function createViewModel(g) {
   g.clampScale = (k) => clamp(k, MIN_SCALE, MAX_SCALE);
@@ -141,5 +161,5 @@ export function createViewModel(g) {
   g.fit = ({ report = false } = {}) => fit(g, report);
   g.zoomAt = (factor, point) => zoomAt(g, factor, point);
   observeSize(g);
-  return { start: () => start(g), reveal: (id, options) => reveal(g, id, options), adopt: (viewport) => adopt(g, viewport) };
+  return { start: () => start(g), reveal: (id, options) => reveal(g, id, options), adopt: (viewport, replaced) => adopt(g, viewport, replaced) };
 }

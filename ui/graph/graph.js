@@ -30,6 +30,12 @@
  * hint under the toolbar says what the selection can do, from the
  * callbacks the host gave.
  *
+ * THE FIRST VIEW of a graph given no `viewport` is the whole of it, scaled
+ * down to 0.5 (below that the first root stands at the left, the first level
+ * beside it), and is not taken again unless the host asks (Fit, `0`) or its
+ * nodes are replaced by a model that shares none of them (`./view.js`). An
+ * edge's label is a chip on its edge, kept clear of the others (`./labels.js`).
+ *
  * The nodes are an aria tree (`./node.js`, keys in `./keys.js`), pointer
  * gestures are `./interact.js`, edges `./edges.js` and the minimap
  * `./minimap.js`. The graph has no motion, so a reader who asked for less
@@ -175,7 +181,7 @@ function toolbar(g) {
 }
 
 /** Take what the model says that the reader may also change - the selection, the search, the view - only when the model changed it. */
-function adopt(g, model) {
+function adopt(g, model, replaced) {
   const seen = g.seen;
   const selectedId = model.selectedId ?? null;
   if (selectedId !== seen.selectedId) {
@@ -189,7 +195,7 @@ function adopt(g, model) {
     g.state.query = query;
     g.search.value = query;
   }
-  g.views.adopt(model.viewport);
+  g.views.adopt(model.viewport, replaced);
   const focusId = model.focusId ?? null;
   const reveal = focusId !== seen.focusId && focusId !== null;
   seen.focusId = focusId;
@@ -258,11 +264,12 @@ export function createGraph(host, callbacks = {}) {
     update(model = {}) {
       if (life.dead) return;
       const { nodes, edges } = normalizeGraph(model.nodes ?? [], model.edges ?? []);
+      const replaced = g.state.nodes.length > 0 && !nodes.some((node) => g.byId.has(node.id));
       Object.assign(g.state, { nodes, edges });
       const label = String(model.label ?? 'Relationships');
       root.setAttribute('aria-label', label);
       g.nodeLayer.setAttribute('aria-label', label);
-      const reveal = adopt(g, model);
+      const reveal = adopt(g, model, replaced);
       if (g.drag) return;
       render(g);
       if (reveal !== null) g.views.reveal(reveal, { report: false });

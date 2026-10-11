@@ -4,13 +4,16 @@
  * The graph's edges, drawn as SVG under the nodes: a `parent` edge a solid
  * curve from the parent's right edge to the child's left, a `related` edge a
  * dashed curve, a `depends-on` edge an accent curve with an arrowhead at what
- * it depends on; a label at the middle of its curve. Under a selection the
- * edges off its path dim. While a link is being drawn, a dashed line runs
- * from the node's right edge to the pointer (`drawDraft`), over the nodes,
- * in a layer of its own.
+ * it depends on; a label on its curve - a chip, in the surface's colour, so
+ * no line runs through its words - standing at the curve's middle, or the
+ * nearest place along it where it touches no other label (`./labels.js`).
+ * Under a selection the edges off its path dim. While a link is being drawn,
+ * a dashed line runs from the node's right edge to the pointer (`drawDraft`),
+ * over the nodes, in a layer of its own.
  */
 import { svg } from '../dom.js';
-import { NODE_HEIGHT, NODE_WIDTH, edgeLit, edgePath } from './layout.js';
+import { NODE_HEIGHT, NODE_WIDTH, edgeLit, edgePath, edgePoint } from './layout.js';
+import { placeLabels } from './labels.js';
 import { matchesQuery } from './marks.js';
 
 const PART = 'cloudcanvas-ui-graph';
@@ -30,26 +33,35 @@ function dimmed(g, edge, emphasis) {
   return !matchesQuery(label(edge.from), g.state.query) && !matchesQuery(label(edge.to), g.state.query);
 }
 
+/** An edge's curve, and when it has a label: the words, how it dims, and where along the curve a chip may stand. */
 function edgeShapes(g, edge, emphasis) {
   const from = g.positions.get(edge.from);
   const to = g.positions.get(edge.to);
-  if (!from || !to) return [];
-  const { d, mid } = edgePath(from, to);
+  if (!from || !to) return null;
+  const { d } = edgePath(from, to);
   const dim = dimmed(g, edge, emphasis) ? ' is-dim' : '';
   const path = svg(g.doc, 'path', { d, class: `${PART}-edge is-${edge.kind}${dim}`, 'data-kind': edge.kind });
   if (edge.kind === 'depends-on') path.setAttribute('marker-end', `url(#${g.markerId})`);
-  if (!edge.label) return [path];
-  const text = svg(g.doc, 'text', { x: mid.x, y: mid.y - 4, class: `${PART}-edge-label${dim}`, 'text-anchor': 'middle' });
-  text.textContent = edge.label;
-  return [path, text];
+  return { path, label: edge.label ? { text: edge.label, dim, at: (t) => edgePoint(from, to, t) } : null };
+}
+
+/** The chip of a label: a backing in the surface's colour, the words on it, both centred where the chip stands. */
+function labelNode(g, { text, dim }, chip) {
+  const group = svg(g.doc, 'g', { class: `${PART}-edge-label${dim}` });
+  group.append(svg(g.doc, 'rect', { class: `${PART}-edge-label-back`, x: chip.x - chip.width / 2, y: chip.y - chip.height / 2, width: chip.width, height: chip.height, rx: 4 }));
+  const words = svg(g.doc, 'text', { class: `${PART}-edge-label-text`, x: chip.x, y: chip.y, 'text-anchor': 'middle', 'dominant-baseline': 'central' });
+  words.textContent = text;
+  group.append(words);
+  return group;
 }
 
 /** Draw every edge whose ends are placed, its label over the lines. */
 export function drawEdges(g, emphasis) {
-  const shapes = g.state.edges.map((edge) => edgeShapes(g, edge, emphasis));
-  const lines = shapes.map((pair) => pair[0]).filter(Boolean);
-  const labels = shapes.map((pair) => pair[1]).filter(Boolean);
-  g.svg.replaceChildren(arrowDefs(g), ...lines, ...labels);
+  const shapes = g.state.edges.map((edge) => edgeShapes(g, edge, emphasis)).filter(Boolean);
+  const wanted = shapes.map((shape) => shape.label).filter(Boolean);
+  const chips = placeLabels(wanted);
+  g.chips = chips;
+  g.svg.replaceChildren(arrowDefs(g), ...shapes.map((shape) => shape.path), ...wanted.map((label, at) => labelNode(g, label, chips[at])));
 }
 
 /** The link in progress from node `fromId` to the world point `to`, or none when `to` is null. */
