@@ -18,7 +18,8 @@ export const UI_FORMS_CSS = `
 /* The status is there before it has words, so it takes no room and no gap until it has some. Its words are the page's own ink: a tone's colour is a marker, never the only ink a note has. */
 .cloudcanvas-ui-switch-status { font-size: var(--cc-type-sm, 12px); color: var(--cc-text, #e2e8f0); }
 .cloudcanvas-ui-switch-status:not(:empty) { margin-inline-start: var(--cc-space-2, 8px); }
-.cloudcanvas-ui-switch-status:not(:empty)::before {
+/* The marker a tone is told by: one dot, before the words of a status and of an invalid select's error. It is a :where(), with no specificity of its own, so the rule for each tone that follows it is the one that colours it. */
+:where(.cloudcanvas-ui-switch-status:not(:empty), .cloudcanvas-ui-select[data-invalid] .cloudcanvas-ui-select-hint)::before {
   content: "";
   display: inline-block;
   width: 0.5em;
@@ -42,13 +43,5 @@ export const UI_FORMS_CSS = `
 .cloudcanvas-ui-select-hint { flex-basis: 100%; margin: 0; font-size: var(--cc-type-sm, 12px); color: var(--cc-text, #e2e8f0); }
 .cloudcanvas-ui-select-hint[hidden] { display: none; }
 .cloudcanvas-ui-select[data-invalid] .cloudcanvas-ui-select-control { border-color: var(--cc-tone-danger, #f87171); }
-.cloudcanvas-ui-select[data-invalid] .cloudcanvas-ui-select-hint::before {
-  content: "";
-  display: inline-block;
-  width: 0.5em;
-  height: 0.5em;
-  margin-inline-end: 0.4em;
-  border-radius: var(--cc-radius-pill, 9999px);
-  background: var(--cc-tone-danger, #f87171);
-}
+.cloudcanvas-ui-select[data-invalid] .cloudcanvas-ui-select-hint::before { background: var(--cc-tone-danger, #f87171); }
 `;
