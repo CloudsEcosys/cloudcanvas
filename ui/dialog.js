@@ -10,6 +10,8 @@
  * Close button each call `onClose(reason)` ('escape' | 'backdrop' | 'button'),
  * and the caller answers with `update({ open: false })`. `dismissible: false`
  * silences Escape and the backdrop (a save in flight) but keeps the button.
+ * `closeButton: false` draws no Close button, for a dialog with a way out of its
+ * own (a confirmation's Cancel); Escape and the backdrop still ask to close it.
  *
  * NATIVE FIRST. `showModal()` puts the dialog in the top layer and makes the
  * rest of the page inert, so a screen reader and a pointer both stay inside;
@@ -83,6 +85,7 @@ function bindKeys(life, nodes, state, requestClose) {
 
 function writeModel(nodes, state, model) {
   writeText(nodes.titleText, model.title ?? '');
+  nodes.close.hidden = model.closeButton === false;
   nodes.close.setAttribute('aria-label', String(model.closeLabel ?? 'Close'));
   writeText(nodes.close.firstChild, model.closeLabel ?? 'Close');
   const description = model.description ? String(model.description) : '';
