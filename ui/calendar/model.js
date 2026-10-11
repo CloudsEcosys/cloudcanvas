@@ -40,6 +40,11 @@ export function normalizeEvents(events) {
   return out.sort((a, b) => a.start - b.start || a.id.localeCompare(b.id));
 }
 
+/** The event of `id` in the calendar's model, or null. */
+export function eventById(cal, id) {
+  return cal.state.events.find((event) => event.id === id) ?? null;
+}
+
 /** The event's end, or its implied end: the next midnight for all-day, an hour later for timed. */
 export function endOf(event) {
   if (event.end) return event.end;

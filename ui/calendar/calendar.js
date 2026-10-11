@@ -38,7 +38,7 @@ import { bindCalendar } from './interact.js';
 /** The calendar's default words. */
 export const CALENDAR_LABELS = /* @__PURE__ */ Object.freeze({
   previous: 'Previous', next: 'Next', today: 'Today', allDay: 'All day', views: 'View',
-  month: 'Month', week: 'Week', day: 'Day', hours: 'Hours'
+  month: 'Month', week: 'Week', day: 'Day', hours: 'Hours', resized: 'Now'
 });
 
 function toolbar(cal) {

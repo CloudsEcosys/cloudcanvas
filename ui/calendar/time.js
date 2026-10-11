@@ -68,6 +68,7 @@ function dayColumn(cal, day, events) {
   for (const slot of placed) {
     const chip = eventChip(cal, slot.event, { showTime: true });
     chip.classList.add(`${CAL}-timed`);
+    if (slot.event.movable && typeof cal.callbacks.onMove === 'function') chip.append(el(cal.doc, 'span', { className: `${CAL}-event-handle`, attrs: { 'aria-hidden': 'true' } }));
     placeChip(cal, chip, slot, lanes);
     column.append(chip);
   }
@@ -116,12 +117,18 @@ export function renderTimeGrid(cal, days, events) {
   initialScroll(cal, scroller, grid, events, previous);
 }
 
-/** The time (minutes past midnight) a pointer at `clientY` points to in `column`, snapped. */
-export function minutesAt(cal, column, clientY) {
+/**
+ * The time (minutes past midnight) a pointer at `clientY` points to in `column`, snapped: to the nearest line; or, with
+ * `slot`, to the start of the slot it is in (a slot is one snap long); or, with `edge`, to the nearest line the day's
+ * last may be (the end of an event may be midnight, its start may not).
+ */
+export function minutesAt(cal, column, clientY, { slot = false, edge = false } = {}) {
   const rect = column.getBoundingClientRect();
   const hours = cal.state.hours.end - cal.state.hours.start;
   if (!(rect.height > 0)) return null;
   const raw = cal.state.hours.start * 60 + ((clientY - rect.top) / rect.height) * hours * 60;
   const snap = cal.state.snap;
-  return Math.max(cal.state.hours.start * 60, Math.min(cal.state.hours.end * 60 - snap, Math.round(raw / snap) * snap));
+  const snapped = (slot ? Math.floor(raw / snap) : Math.round(raw / snap)) * snap;
+  const last = cal.state.hours.end * 60 - (edge ? 0 : snap);
+  return Math.max(cal.state.hours.start * 60, Math.min(last, snapped));
 }

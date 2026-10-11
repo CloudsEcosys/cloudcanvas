@@ -8,16 +8,13 @@
  */
 import { trackDrag } from '../drag.js';
 import { addDays, addMinutes, atMinutes, daysBetween, fromDayKey, minutesOfDay, sameDay, shiftAnchor, startOfWeek, viewDays } from './dates.js';
-import { describeEvent, isAllDayLike } from './model.js';
+import { describeEvent, eventById, isAllDayLike } from './model.js';
 import { CAL } from './month.js';
+import { bindResize, resizeKey } from './resize.js';
 import { minutesAt } from './time.js';
 
 const CHIP = `.${CAL}-event`;
 const DAY = `.${CAL}-day, .${CAL}-day-head`;
-
-function eventById(cal, id) {
-  return cal.state.events.find((event) => event.id === id) ?? null;
-}
 
 function pick(cal, key, start) {
   const date = fromDayKey(key);
@@ -128,6 +125,7 @@ function onKeyDown(cal, event) {
   if (event.repeat && (event.key === ' ' || event.key === 'Enter') && event.target.closest?.(CHIP)) { event.preventDefault(); return; }
   if (cal.state.pending?.keyboard) { grabKey(cal, event); return; }
   const chip = event.target.closest?.(CHIP);
+  if (chip && resizeKey(cal, chip, event)) return;
   if (chip && event.key === ' ') {
     event.preventDefault();
     if (startGrab(cal, chip, true)) { cal.focusAfter = { eventId: cal.state.pending.id }; cal.render(); }
@@ -164,7 +162,7 @@ function dropTimes(cal, point) {
 function bindDrag(cal) {
   trackDrag(cal.life, cal.body, {
     selector: `${CHIP}[data-movable]`,
-    canStart: () => !cal.state.pending,
+    canStart: (chip, event) => !cal.state.pending && !event.target.closest?.(`.${CAL}-event-handle`),
     onStart(chip, point) {
       if (!startGrab(cal, chip, false)) return;
       const column = chip.closest(`.${CAL}-column`);
@@ -190,4 +188,5 @@ export function bindCalendar(cal) {
   cal.life.on(cal.body, 'keydown', (event) => onKeyDown(cal, event));
   cal.life.on(cal.body, 'keyup', (event) => { if (event.key === ' ' && event.target.closest?.(CHIP)) event.preventDefault(); });
   bindDrag(cal);
+  bindResize(cal);
 }
