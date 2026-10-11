@@ -18,38 +18,27 @@
  * muted (muted is what any other word means); it is drawn as a marker, and the words stay the page's own ink.
  */
 import { createLife, documentOf, el, textNode, uniqueId, writeText } from './dom.js';
+import { statusSlot, writeStatus } from './row-status.js';
 import { injectUiStyles } from './styles.js';
 
 const CLASS = 'cloudcanvas-ui-switch';
-const TONES = /* @__PURE__ */ new Set(['success', 'warning', 'danger', 'muted']);
 
 /** The row's nodes, the words before the box. */
 function switchNodes(doc) {
   const root = el(doc, 'label', { className: CLASS });
   const text = el(doc, 'span', { className: `${CLASS}-text` });
   const words = el(doc, 'span', { className: `${CLASS}-label`, attrs: { id: uniqueId(CLASS) } });
-  const status = el(doc, 'span', { className: `${CLASS}-status`, attrs: { id: uniqueId(`${CLASS}-status`), role: 'status', 'aria-live': 'polite', 'aria-atomic': 'true' } });
+  const status = statusSlot(doc, `${CLASS}-status`);
   const detail = el(doc, 'span', { className: `${CLASS}-detail`, attrs: { id: uniqueId(`${CLASS}-detail`) } });
   const box = el(doc, 'input', { className: `${CLASS}-box`, attrs: { type: 'checkbox', role: 'switch' } });
-  text.append(words, status, detail);
+  text.append(words, status.node, detail);
   root.append(text, box);
-  return { root, box, words, status, detail, texts: { words: textNode(doc, words), status: textNode(doc, status), detail: textNode(doc, detail) } };
-}
-
-/** Say the status in its region: the tone and how urgently it is read first, so the words arrive into a region already set. */
-function writeStatus(nodes, status) {
-  const words = String(status?.text ?? '').trim();
-  const tone = TONES.has(status?.tone) ? status.tone : 'muted';
-  if (words === '') nodes.status.removeAttribute('data-tone');
-  else nodes.status.setAttribute('data-tone', tone);
-  nodes.status.setAttribute('aria-live', tone === 'danger' && words !== '' ? 'assertive' : 'polite');
-  writeText(nodes.texts.status, words);
-  return words !== '';
+  return { root, box, words, status, detail, texts: { words: textNode(doc, words), detail: textNode(doc, detail) } };
 }
 
 /** Point the box at the parts of the row that describe it: the detail and the status, when each has words. */
 function writeDescribed(nodes, model, hasStatus) {
-  const described = [model.detail ? nodes.detail.id : null, hasStatus ? nodes.status.id : null].filter(Boolean);
+  const described = [model.detail ? nodes.detail.id : null, hasStatus ? nodes.status.node.id : null].filter(Boolean);
   if (described.length > 0) nodes.box.setAttribute('aria-describedby', described.join(' '));
   else nodes.box.removeAttribute('aria-describedby');
 }
@@ -86,7 +75,7 @@ export function createSwitch(host, { onChange } = {}) {
       box.disabled = Boolean(model.disabled);
       box.setAttribute('aria-labelledby', nodes.words.id);
       box.setAttribute('aria-checked', String(shown));
-      writeDescribed(nodes, model, writeStatus(nodes, model.status));
+      writeDescribed(nodes, model, writeStatus(nodes.status, model.status));
     },
     destroy() {
       if (!life.destroy()) return;

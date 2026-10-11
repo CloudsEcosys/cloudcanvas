@@ -10,8 +10,11 @@
  * anchor, or over it when there is no room; it shifts to stay inside the screen and is held to the screen's width,
  * down to 320; and it is kept off what `avoid` names - an element, a rectangle (`{left, top, right, bottom}` or
  * `{x, y, width, height}`) or a list of them, given with the popover or with the model (the model's wins) - by
- * standing on the side that does not cover it. `placement: 'top'` wishes for over the anchor first. It is placed
- * again when the model changes and when the window or the visual viewport is resized or scrolled.
+ * standing on the side that does not cover it. With no side that keeps clear and has room to be read - the anchor is
+ * a button in a bar at the top of the screen, and the tab strip it must not cover is right under it - it stands PAST
+ * what it avoids, a gap below the strip, still at the anchor's start edge. So the anchor is the button that opens it,
+ * and the host needs no element of its own to place it from. `placement: 'top'` wishes for over the anchor first. It
+ * is placed again when the model changes and when the window or the visual viewport is resized or scrolled.
  *
  * IT OPENS BY THE MODEL AND CLOSES ITSELF, as a menu does. Escape (heard in the popover and on the anchor) and a
  * press anywhere outside it close it, and `onClose(reason)` says why: 'escape', 'outside' or 'update' (the model

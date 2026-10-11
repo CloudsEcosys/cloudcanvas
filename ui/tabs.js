@@ -33,6 +33,10 @@
  * whole in a `title`: the tab's, or - where a badge makes the tab's name say
  * more than its label - the label's own, so nothing is said twice.
  *
+ * `icon` on an item is a mark before its label - a kit icon name (`./icons.js`) or an element of the host's own,
+ * drawn once and kept across redraws - hidden from assistive technology, so the tab's name is its label (and its
+ * badge) and nothing more. An item that names none has no slot for one: its label is first in its tab.
+ *
  * `badge` on an item is the kit badge (`./badge.js`) inside its tab, after the
  * label: the model the nav bar takes, or a bare number for the count. What it
  * says is part of the tab's name. An item that names none has none.
@@ -66,6 +70,7 @@
  */
 import { syncBadge } from './badge.js';
 import { createLife, documentOf, el, SR_ONLY_CLASS, textNode, uniqueId, uniqueItems, writeText } from './dom.js';
+import { ICON_NAMES, iconSlot, writeIcon } from './icons.js';
 import { keepFocus, placeChildren } from './render.js';
 import { nextIndex, setTabStop } from './roving.js';
 import { injectUiStyles } from './styles.js';
@@ -98,7 +103,18 @@ function tabView(doc) {
   tab.append(name);
   const close = el(doc, 'button', { className: `${CLASS}-close`, text: '×', attrs: { type: 'button', tabindex: '-1' } });
   row.append(tab, close);
-  return { row, tab, name, label: textNode(doc, name), close, badge: null, layers: null };
+  return { row, tab, name, label: textNode(doc, name), close, icon: null, badge: null, layers: null };
+}
+
+/** The tab's icon: a slot before the label while the item names one, none at all when it does not, so a tab without an icon starts with its label. */
+function writeTabIcon(doc, view, source) {
+  if (source === undefined || source === null || source === '') {
+    view.icon?.remove();
+    return;
+  }
+  view.icon ??= iconSlot(doc, `${CLASS}-icon`);
+  writeIcon(view.icon, source);
+  if (view.icon.parentNode !== view.tab) view.tab.prepend(view.icon);
 }
 
 /** Whether `item`'s tab can be closed: it says so, and it is not pinned. */
@@ -156,6 +172,7 @@ function writeTab(doc, view, item, state) {
   if (item.pinned === true) view.tab.setAttribute('data-pinned', 'true');
   else view.tab.removeAttribute('data-pinned');
   view.tab.disabled = item.disabled === true;
+  writeTabIcon(doc, view, item.icon);
   writeBadge(view, item.badge);
   writeLabel(view, item);
   writeClose(view, item, state.closeLabel);
@@ -291,9 +308,18 @@ function bindTabs(life, root, views, state, fold, callbacks) {
   life.on(root, 'keydown', (event) => onKey(event, views, state, reorder, callbacks));
 }
 
-/** The model's items, checked before anything is drawn: tab ids unique, and each tab's layer ids unique within it. */
+/** An item's icon, checked before anything is drawn: a name the kit draws, an element, or none. */
+function checkedIcon({ icon }) {
+  const known = icon === undefined || icon === null || icon === '' || typeof icon === 'object' || ICON_NAMES.includes(icon);
+  if (!known) throw new TypeError(typeof icon === 'string' ? `The kit has no icon named ${icon}` : 'A tab\'s icon is a kit icon name or an element');
+}
+
+/** The model's items, checked before anything is drawn: tab ids unique, each tab's layer ids unique within it, and its icon one the kit can draw. */
 function tabItems(items) {
-  for (const item of uniqueItems(items, 'tab')) layersOf(item);
+  for (const item of uniqueItems(items, 'tab')) {
+    layersOf(item);
+    checkedIcon(item);
+  }
   return items;
 }
 
@@ -305,7 +331,7 @@ function tabItems(items) {
  *   thing about it that is decided once: `face`, the look it wears (`'line'` unless `'folder'` is asked for)
  * @throws {TypeError} for a face that is neither
  * @returns {{update(model: {label?: string, activeId?: string|null, activation?: 'auto'|'manual', closeLabel?: string,
- *   items?: Array<{id: string, label?: string, panelId?: string, badge?: number|object, closable?: boolean,
+ *   items?: Array<{id: string, label?: string, icon?: string|Element, panelId?: string, badge?: number|object, closable?: boolean,
  *   pinned?: boolean, layers?: Array<{id: string, label?: string}>, disabled?: boolean}>}): void, destroy(): void}}
  */
 export function createTabs(host, callbacks = {}) {

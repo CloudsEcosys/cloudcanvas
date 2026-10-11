@@ -8,6 +8,11 @@
  *   picker.update({ label: 'Digest', value: 'weekly', hint: 'Sent at 8am',
  *     options: [{ value: 'daily', label: 'Every day' }, { value: 'weekly', label: 'Every week' }, { value: 'never', label: 'Never', disabled: true }] });
  *
+ * THE STATUS is the host's word on the setting - "Saving", "Saved", "Could not save" - on a line under the hint:
+ * `status: {text, tone}` as the switch takes it (`./row-status.js`). It is a live region on the page from the first
+ * draw, empty, so the words that arrive are read; it takes no room until it has some; and the control is described by
+ * the hint and then the status when each has words, so a reader who comes to the control later hears the note too.
+ *
  * NATIVE FIRST. The control is the platform's `<select>`, in the kit's field look, so the keys, the picker a phone
  * shows and the reader's name for it are the platform's. The row wraps: on a narrow screen the control stands
  * under its words.
@@ -18,18 +23,20 @@
  * options are redrawn only when they changed, so an open list and the focus are not disturbed by an `update`.
  */
 import { FIELD_CLASS, createLife, documentOf, el, textNode, uniqueId, writeText } from './dom.js';
+import { statusSlot, writeStatus } from './row-status.js';
 import { injectUiStyles } from './styles.js';
 
 const CLASS = 'cloudcanvas-ui-select';
 
-/** The row's nodes: the words, the control, the hint. */
+/** The row's nodes: the words, the control, the hint, and under it the status. */
 function selectNodes(doc) {
   const root = el(doc, 'div', { className: CLASS });
   const control = el(doc, 'select', { className: `${FIELD_CLASS} ${CLASS}-control`, attrs: { id: uniqueId(CLASS) } });
   const label = el(doc, 'label', { className: `${CLASS}-label`, attrs: { for: control.id } });
   const hint = el(doc, 'p', { className: `${CLASS}-hint`, attrs: { id: uniqueId(`${CLASS}-hint`), hidden: true } });
-  root.append(label, control, hint);
-  return { root, control, label, hint, texts: { label: textNode(doc, label), hint: textNode(doc, hint) } };
+  const status = statusSlot(doc, `${CLASS}-status`);
+  root.append(label, control, hint, status.node);
+  return { root, control, label, hint, status, texts: { label: textNode(doc, label), hint: textNode(doc, hint) } };
 }
 
 /** The options of a model, checked before anything is drawn: a list, each with a value no other has. */
@@ -64,13 +71,19 @@ function writeOptions(doc, select, options) {
   select.values = new Map(options.map((option) => [String(option.value), option.value]));
 }
 
-/** Say the hint under the control, and point the control at it only when it has words. */
-function writeHint(nodes, model) {
+/** Point the control at the parts of the row that describe it, the hint and then the status, each only when it has words. */
+function writeDescribed(nodes, hasHint, hasStatus) {
+  const described = [hasHint ? nodes.hint.id : null, hasStatus ? nodes.status.node.id : null].filter(Boolean);
+  if (described.length > 0) nodes.control.setAttribute('aria-describedby', described.join(' '));
+  else nodes.control.removeAttribute('aria-describedby');
+}
+
+/** Say the hint under the control and the status under it, and mark the control invalid when the hint is its error. */
+function writeNotes(nodes, model) {
   const words = String(model.hint ?? '').trim();
   writeText(nodes.texts.hint, words);
   nodes.hint.hidden = words === '';
-  if (words === '') nodes.control.removeAttribute('aria-describedby');
-  else nodes.control.setAttribute('aria-describedby', nodes.hint.id);
+  writeDescribed(nodes, words !== '', writeStatus(nodes.status, model.status));
   if (model.invalid === true) {
     nodes.control.setAttribute('aria-invalid', 'true');
     nodes.root.setAttribute('data-invalid', 'true');
@@ -84,7 +97,8 @@ function writeHint(nodes, model) {
  * @param {HTMLElement} host
  * @param {{onChange?: (value: unknown) => void}} [options]
  * @returns {{update(model: {label: string, value?: unknown, options: Array<{value: unknown, label?: string, disabled?: boolean}>,
- *   disabled?: boolean, invalid?: boolean, hint?: string}): void, destroy(): void}}
+ *   disabled?: boolean, invalid?: boolean, hint?: string, status?: {text?: string, tone?: 'success'|'warning'|'danger'|'muted'}}): void,
+ *   destroy(): void}}
  */
 export function createSelect(host, { onChange } = {}) {
   const doc = documentOf(host);
@@ -109,7 +123,7 @@ export function createSelect(host, { onChange } = {}) {
       select.shown = String(model.value ?? '');
       control.value = select.shown;
       control.disabled = Boolean(model.disabled);
-      writeHint(nodes, model);
+      writeNotes(nodes, model);
     },
     destroy() {
       if (!life.destroy()) return;

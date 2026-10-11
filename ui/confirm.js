@@ -15,6 +15,16 @@
  * host inside a modal dialog of its own keeps the question above that dialog).
  *
  * The promise resolves; it rejects only for a question that cannot be asked: no title, or nowhere to draw it.
+ *
+ * THE HOST CAN CLOSE WHAT IT ASKED: the promise it is given also carries `close(result)`, which answers the question
+ * as a press on Cancel does (`result` is read as a yes or a no, a no when it is left out), takes the dialog off the
+ * page and gives focus back. A host whose own state moves on under an open question - the thing it was about is
+ * gone, a new question replaces it - closes it so a late "yes" never runs on what is no longer there. After the
+ * question was answered, or for one that could not be asked, `close` does nothing; it closes its own question and no other.
+ *
+ *   const asking = confirmDialog({ title: 'Decline this invitation?', confirmLabel: 'Decline', danger: true });
+ *   asking.then((yes) => { if (yes) decline(); });
+ *   onBoundaryChange(() => asking.close());
  */
 import { createDialog } from './dialog.js';
 import { button, createLife, documentOf, el } from './dom.js';
@@ -37,27 +47,34 @@ function choices(doc, life, words, danger, answer) {
   return { row, cancel, confirm };
 }
 
+/** Draw the question and start it; the function returned answers it, once, with the value it is given. */
+function ask(question, resolve) {
+  const words = checkedWords(question);
+  const host = question.host ?? globalThis.document?.body;
+  const doc = documentOf(host);
+  const life = createLife();
+  let dialog = null;
+  const answer = (value) => {
+    if (life.dead) return;
+    dialog.update({ open: false, title: words.heading });
+    dialog.destroy();
+    life.destroy();
+    resolve(value);
+  };
+  dialog = createDialog(host, { onClose: () => answer(false) });
+  const { row, cancel, confirm } = choices(doc, life, words, question.danger === true, answer);
+  dialog.update({ open: true, title: words.heading, description: words.body, closeButton: false, content: row });
+  (question.danger === true ? cancel : confirm).focus();
+  return answer;
+}
+
 /**
  * @param {{title: string, body?: string, confirmLabel?: string, cancelLabel?: string, danger?: boolean, host?: HTMLElement}} question
- * @returns {Promise<boolean>} true for Confirm; false for Cancel, Escape and the backdrop
+ * @returns {Promise<boolean> & {close(result?: boolean): void}} the answer: true for Confirm; false for Cancel, Escape, the
+ *   backdrop and `close()`. `close(result)` is the host's own way to answer the question it asked, as Cancel does for the person
  */
 export function confirmDialog(question = {}) {
-  return new Promise((resolve) => {
-    const words = checkedWords(question);
-    const host = question.host ?? globalThis.document?.body;
-    const doc = documentOf(host);
-    const life = createLife();
-    let dialog = null;
-    const answer = (value) => {
-      if (life.dead) return;
-      dialog.update({ open: false, title: words.heading });
-      dialog.destroy();
-      life.destroy();
-      resolve(value);
-    };
-    dialog = createDialog(host, { onClose: () => answer(false) });
-    const { row, cancel, confirm } = choices(doc, life, words, question.danger === true, answer);
-    dialog.update({ open: true, title: words.heading, description: words.body, closeButton: false, content: row });
-    (question.danger === true ? cancel : confirm).focus();
-  });
+  let answerWith = () => {};
+  const asking = new Promise((resolve) => { answerWith = ask(question, resolve); });
+  return Object.assign(asking, { close: (result = false) => answerWith(Boolean(result)) });
 }

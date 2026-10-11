@@ -88,6 +88,9 @@ export const UI_TABS_CSS = `
   border-bottom: 2px solid transparent;
 }
 .cloudcanvas-ui-tabs-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* The icon is a mark in the tab's own ink; it never shrinks, so the label is what gives way. A kit icon is as large as the label's text, so it makes no tab taller; a host's own element is as large as the host draws it. */
+.cloudcanvas-ui-tabs-icon { display: inline-flex; flex: none; }
+.cloudcanvas-ui-tabs-icon > .cloudcanvas-ui-icon { width: 1em; height: 1em; }
 .cloudcanvas-ui-tabs-tab > .cloudcanvas-ui-badge { flex: none; }
 .cloudcanvas-ui-tabs-tab[aria-selected="true"] { border-bottom-color: var(--cc-accent, #38bdf8); font-weight: var(--cc-weight-semibold, 600); }
 .cloudcanvas-ui-tabs-tab:disabled { opacity: 0.5; cursor: not-allowed; }

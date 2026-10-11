@@ -19,7 +19,7 @@ export const UI_FORMS_CSS = `
 .cloudcanvas-ui-switch-status { font-size: var(--cc-type-sm, 12px); color: var(--cc-text, #e2e8f0); }
 .cloudcanvas-ui-switch-status:not(:empty) { margin-inline-start: var(--cc-space-2, 8px); }
 /* The marker a tone is told by: one dot, before the words of a status and of an invalid select's error. It is a :where(), with no specificity of its own, so the rule for each tone that follows it is the one that colours it. */
-:where(.cloudcanvas-ui-switch-status:not(:empty), .cloudcanvas-ui-select[data-invalid] .cloudcanvas-ui-select-hint)::before {
+:where(.cloudcanvas-ui-switch-status:not(:empty), .cloudcanvas-ui-select-status:not(:empty), .cloudcanvas-ui-select[data-invalid] .cloudcanvas-ui-select-hint)::before {
   content: "";
   display: inline-block;
   width: 0.5em;
@@ -28,11 +28,11 @@ export const UI_FORMS_CSS = `
   border-radius: var(--cc-radius-pill, 9999px);
   background: var(--cc-text-muted, #94a3b8);
 }
-.cloudcanvas-ui-switch-status[data-tone="success"]::before { background: var(--cc-tone-success, #22c55e); }
-.cloudcanvas-ui-switch-status[data-tone="warning"]::before { background: var(--cc-tone-warning, #eab308); }
-.cloudcanvas-ui-switch-status[data-tone="danger"]::before { background: var(--cc-tone-danger, #f87171); }
-.cloudcanvas-ui-switch-status[data-tone="muted"]::before { background: var(--cc-text-muted, #94a3b8); }
-.cloudcanvas-ui-switch-status[aria-live="assertive"] { font-weight: var(--cc-weight-semibold, 600); }
+.cloudcanvas-ui-switch-status[data-tone="success"]::before, .cloudcanvas-ui-select-status[data-tone="success"]::before { background: var(--cc-tone-success, #22c55e); }
+.cloudcanvas-ui-switch-status[data-tone="warning"]::before, .cloudcanvas-ui-select-status[data-tone="warning"]::before { background: var(--cc-tone-warning, #eab308); }
+.cloudcanvas-ui-switch-status[data-tone="danger"]::before, .cloudcanvas-ui-select-status[data-tone="danger"]::before { background: var(--cc-tone-danger, #f87171); }
+.cloudcanvas-ui-switch-status[data-tone="muted"]::before, .cloudcanvas-ui-select-status[data-tone="muted"]::before { background: var(--cc-text-muted, #94a3b8); }
+.cloudcanvas-ui-switch-status[aria-live="assertive"], .cloudcanvas-ui-select-status[aria-live="assertive"] { font-weight: var(--cc-weight-semibold, 600); }
 .cloudcanvas-ui-switch:has(.cloudcanvas-ui-switch-box:disabled) { opacity: 0.6; cursor: default; }
 .cloudcanvas-ui-switch-box:focus-visible { outline: var(--cc-focus-ring-width, 2px) solid var(--cc-focus-ring, var(--cc-accent, #38bdf8)); outline-offset: 2px; }
 
@@ -42,6 +42,9 @@ export const UI_FORMS_CSS = `
 .cloudcanvas-ui-select-control { flex: 0 1 14rem; min-width: 0; max-width: 100%; }
 .cloudcanvas-ui-select-hint { flex-basis: 100%; margin: 0; font-size: var(--cc-type-sm, 12px); color: var(--cc-text, #e2e8f0); }
 .cloudcanvas-ui-select-hint[hidden] { display: none; }
+/* The status is a line of its own under the hint. Empty it is out of the row and not hidden: a region that comes with its words is not reliably read. */
+.cloudcanvas-ui-select-status { flex-basis: 100%; margin: 0; font-size: var(--cc-type-sm, 12px); color: var(--cc-text, #e2e8f0); }
+.cloudcanvas-ui-select-status:empty { position: absolute; flex-basis: auto; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .cloudcanvas-ui-select[data-invalid] .cloudcanvas-ui-select-control { border-color: var(--cc-tone-danger, #f87171); }
 .cloudcanvas-ui-select[data-invalid] .cloudcanvas-ui-select-hint::before { background: var(--cc-tone-danger, #f87171); }
 `;
