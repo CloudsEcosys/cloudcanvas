@@ -41,6 +41,7 @@ import { trackDrag } from './drag.js';
 import { matchesQuery, setDropTarget } from './graph/marks.js';
 import { nextIndex, setTabStop } from './roving.js';
 import { injectUiStyles } from './styles.js';
+import { CONTROL_ATTR } from '../addons/trait.js';
 import { reconcileKeyedList } from '../addons/keyed-list.js';
 
 const CLASS = 'cloudcanvas-ui-tree';
@@ -268,7 +269,8 @@ export function createTree(host, callbacks = {}) {
   const doc = documentOf(host);
   injectUiStyles(doc);
   const life = createLife();
-  const root = el(doc, 'div', { className: CLASS, attrs: { role: 'tree' } });
+  // A control (`data-cc-control`): the canvas under the page leaves this view's drags to it, so a host marks nothing.
+  const root = el(doc, 'div', { className: CLASS, attrs: { role: 'tree', [CONTROL_ATTR]: true } });
   host.append(root);
   const tree = { doc, root, life, callbacks, state: { rows: [], focusId: null, selectedId: null, query: '' } };
   bindTree(tree);

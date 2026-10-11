@@ -199,8 +199,8 @@ function adopt(g, model) {
 
 function surface(g) {
   const { doc } = g;
-  // The viewport pans and zooms by itself, so inside a canvas it says it is a control: its gestures are not the canvas's.
-  g.viewport = el(doc, 'div', { className: `${GRAPH}-viewport`, attrs: { [CONTROL_ATTR]: true } });
+  // The viewport pans and zooms by itself; the root is the control (`data-cc-control`), so its gestures are not the canvas's.
+  g.viewport = el(doc, 'div', { className: `${GRAPH}-viewport` });
   g.world = el(doc, 'div', { className: `${GRAPH}-world` });
   g.svg = svg(doc, 'svg', { class: `${GRAPH}-edges`, 'aria-hidden': 'true', width: 1, height: 1 });
   g.nodeLayer = el(doc, 'div', { className: `${GRAPH}-nodes`, attrs: { role: 'tree' } });
@@ -243,7 +243,8 @@ export function createGraph(host, callbacks = {}) {
   const doc = documentOf(host);
   injectUiStyles(doc);
   const life = createLife();
-  const root = el(doc, 'div', { className: GRAPH, attrs: { role: 'region' } });
+  // A control (`data-cc-control`): the canvas under the page leaves this view's drags to it, so a host marks nothing.
+  const root = el(doc, 'div', { className: GRAPH, attrs: { role: 'region', [CONTROL_ATTR]: true } });
   markAbilities(root, callbacks);
   const g = graphState(doc, life, root, callbacks);
   surface(g);

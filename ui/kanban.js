@@ -33,6 +33,7 @@
  * rests its tab stop there.
  */
 import { createLiveRegion, say } from '../addons/announce.js';
+import { CONTROL_ATTR } from '../addons/trait.js';
 import { reconcileKeyedList } from '../addons/keyed-list.js';
 import { createLife, documentOf, el, itemIdOf, itemNodeOf, markSelected, uniqueId, uniqueItems } from './dom.js';
 import { trackDrag } from './drag.js';
@@ -225,7 +226,8 @@ export function createKanban(host, callbacks = {}) {
   const doc = documentOf(host);
   injectUiStyles(doc);
   const life = createLife();
-  const root = el(doc, 'div', { className: CLASS, attrs: { role: 'group' } });
+  // A control (`data-cc-control`): the canvas under the page leaves this view's drags to it, so a host marks nothing.
+  const root = el(doc, 'div', { className: CLASS, attrs: { role: 'group', [CONTROL_ATTR]: true } });
   const lane = el(doc, 'div', { className: `${CLASS}-lane` });
   root.append(lane);
   host.append(root);

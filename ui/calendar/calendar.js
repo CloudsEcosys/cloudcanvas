@@ -29,6 +29,7 @@
 import { button, clamp, createLife, documentOf, el, textNode, writeText } from '../dom.js';
 import { injectUiStyles } from '../styles.js';
 import { createLiveRegion, say } from '../../addons/announce.js';
+import { CONTROL_ATTR } from '../../addons/trait.js';
 import { CALENDAR_VIEWS, addDays, dayKey, sameDay, shiftAnchor, startOfDay, toDate, viewDays } from './dates.js';
 import { formattersFor, normalizeEvents, titleFor } from './model.js';
 import { CAL, renderMonth } from './month.js';
@@ -170,7 +171,8 @@ function applyModel(cal, model) {
 function createRecord(host, callbacks, labels) {
   const doc = documentOf(host);
   const life = createLife();
-  const root = el(doc, 'div', { className: CAL, attrs: { role: 'region' } });
+  // A control (`data-cc-control`): the canvas under the page leaves this view's drags to it, so a host marks nothing.
+  const root = el(doc, 'div', { className: CAL, attrs: { role: 'region', [CONTROL_ATTR]: true } });
   const today = startOfDay(new Date());
   const cal = { doc, life, root, callbacks, labels: { ...CALENDAR_LABELS, ...labels }, format: null, last: {}, focusAfter: null,
     state: { view: 'month', anchor: today, focusDate: today, events: [], views: [...CALENDAR_VIEWS], pending: null, creating: null, selectedId: null } };

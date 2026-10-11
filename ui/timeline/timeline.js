@@ -55,6 +55,7 @@
  * less gets none.
  */
 import { createLiveRegion, say } from '../../addons/announce.js';
+import { CONTROL_ATTR } from '../../addons/trait.js';
 import { button, createLife, documentOf, el, textNode, uniqueId, writeText } from '../dom.js';
 import { injectUiStyles } from '../styles.js';
 import { toDate } from '../calendar/dates.js';
@@ -219,7 +220,8 @@ export function createTimeline(host, callbacks = {}) {
   const doc = documentOf(host);
   injectUiStyles(doc);
   const life = createLife();
-  const root = el(doc, 'div', { className: TL, attrs: { role: 'region' } });
+  // A control (`data-cc-control`): the canvas under the page leaves this view's drags to it, so a host marks nothing.
+  const root = el(doc, 'div', { className: TL, attrs: { role: 'region', [CONTROL_ATTR]: true } });
   markAbilities(root, callbacks);
   const tl = timelineState(doc, life, root, callbacks);
   root.append(toolbar(tl));
