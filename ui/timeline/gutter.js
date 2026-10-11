@@ -30,7 +30,7 @@ function limitOf(tl) {
 }
 
 /** The gutter's width now: what was set, else what the corner measures, else the stylesheet's. */
-function widthNow(tl) {
+export function widthNow(tl) {
   if (tl.state.gutter !== null) return tl.state.gutter;
   const measured = tl.gutterNode?.parentElement?.getBoundingClientRect().width ?? 0;
   return measured > 0 ? measured : GUTTER_DEFAULT;

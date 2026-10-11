@@ -14,6 +14,7 @@ import { TL } from './model.js';
 import { bindKeys } from './keys.js';
 import { BAR, bars, bindMove } from './move.js';
 import { select } from './select.js';
+import { bindZoom } from './zoom.js';
 
 /**
  * One tab stop among the bars - where the keys placed it, else on the selected bar, else on the first - and the focus the
@@ -58,4 +59,5 @@ export function bindTimeline(tl) {
   bindMove(tl);
   bindCreate(tl);
   bindGutter(tl);
+  bindZoom(tl);
 }
