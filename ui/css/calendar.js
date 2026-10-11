@@ -13,6 +13,9 @@
 
 export const UI_CALENDAR_CSS = `/* ------------------ UI KIT: CALENDAR ------------------ */
 
+/* The line under the toolbar: what the selection can do. */
+.cloudcanvas-ui-calendar-hint { margin: 0; font-size: var(--cc-type-xs, 11px); color: var(--cc-text-muted, #94a3b8); }
+
 /* The handle on a timed event's bottom edge: it resizes, and says so under the pointer. */
 .cloudcanvas-ui-calendar-event-handle { position: absolute; right: 0; bottom: 0; left: 0; height: 6px; cursor: ns-resize; }
 .cloudcanvas-ui-calendar-event-handle::before {

@@ -33,12 +33,15 @@ import { CALENDAR_VIEWS, addDays, dayKey, sameDay, shiftAnchor, startOfDay, toDa
 import { formattersFor, normalizeEvents, titleFor } from './model.js';
 import { CAL, renderMonth } from './month.js';
 import { renderTimeGrid } from './time.js';
+import { paint } from './hint.js';
 import { bindCalendar } from './interact.js';
 
 /** The calendar's default words. */
 export const CALENDAR_LABELS = /* @__PURE__ */ Object.freeze({
   previous: 'Previous', next: 'Next', today: 'Today', allDay: 'All day', views: 'View',
-  month: 'Month', week: 'Week', day: 'Day', hours: 'Hours', resized: 'Now'
+  month: 'Month', week: 'Week', day: 'Day', hours: 'Hours', resized: 'Now',
+  hintNone: 'Select an event to see what it can do', hintCreate: 'drag across empty slots to add one', hintCreateDays: 'drag across days to add one',
+  hintOpen: 'Enter opens', hintMove: 'drag to move', hintResize: 'drag the bottom edge to resize', hintKeys: 'Alt+Shift+Up or Down resizes'
 });
 
 function toolbar(cal) {
@@ -131,7 +134,10 @@ function render(cal) {
   if (state.view === 'month') renderMonth(cal, days, events);
   else renderTimeGrid(cal, days, events);
   writeTabStops(cal);
+  cal.drawing = true;
   restoreFocus(cal);
+  cal.drawing = false;
+  paint(cal);
   return days;
 }
 
@@ -147,9 +153,10 @@ function applyModel(cal, model) {
     state.anchor = startOfDay(date);
     state.focusDate = state.anchor;
   }
-  cal.last = { view: model.view, date: date ? dayKey(date) : cal.last.date };
+  cal.last = { view: model.view, date: date ? dayKey(date) : cal.last.date, selectedId: cal.last.selectedId };
   state.events = normalizeEvents(model.events ?? []);
-  state.selectedId = model.selectedId ?? null;
+  const selectedId = model.selectedId ?? null;
+  if (selectedId !== cal.last.selectedId) { cal.last.selectedId = selectedId; state.selectedId = selectedId; }
   state.weekStartsOn = Number.isInteger(model.weekStartsOn) ? ((model.weekStartsOn % 7) + 7) % 7 : 0;
   state.now = toDate(model.now) ?? new Date();
   state.snap = Number.isInteger(model.snapMinutes) && model.snapMinutes > 0 && model.snapMinutes <= 240 ? model.snapMinutes : 15;
@@ -168,6 +175,9 @@ function createRecord(host, callbacks, labels) {
   const cal = { doc, life, root, callbacks, labels: { ...CALENDAR_LABELS, ...labels }, format: null, last: {}, focusAfter: null,
     state: { view: 'month', anchor: today, focusDate: today, events: [], views: [...CALENDAR_VIEWS], pending: null, creating: null, selectedId: null } };
   root.append(toolbar(cal));
+  cal.hint = el(doc, 'p', { className: `${CAL}-hint` });
+  cal.hintText = textNode(doc, cal.hint);
+  root.append(cal.hint);
   cal.body = el(doc, 'div', { className: `${CAL}-body` });
   root.append(cal.body);
   cal.region = createLiveRegion(root);

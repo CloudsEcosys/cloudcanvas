@@ -10,6 +10,7 @@ import { trackDrag } from '../drag.js';
 import { addDays, addMinutes, atMinutes, daysBetween, fromDayKey, minutesOfDay, sameDay, shiftAnchor, startOfWeek, viewDays } from './dates.js';
 import { describeEvent, eventById, isAllDayLike } from './model.js';
 import { CAL } from './month.js';
+import { select } from './hint.js';
 import { bindRange } from './range.js';
 import { bindResize, resizeKey } from './resize.js';
 import { minutesAt } from './time.js';
@@ -28,7 +29,7 @@ function onClick(cal, event) {
   if (cal.state.pending) return;
   const target = event.target;
   const chip = target.closest?.(CHIP);
-  if (chip) { cal.callbacks.onActivate?.(chip.getAttribute('data-ui-id')); return; }
+  if (chip) { select(cal, chip.getAttribute('data-ui-id')); cal.callbacks.onActivate?.(chip.getAttribute('data-ui-id')); return; }
   const more = target.closest?.(`.${CAL}-more`);
   if (more && cal.state.views.includes('day')) { cal.navigate('day', fromDayKey(more.getAttribute('data-open-day')), { focus: true }); return; }
   const day = target.closest?.(DAY);
@@ -126,7 +127,7 @@ function onKeyDown(cal, event) {
   if (event.repeat && (event.key === ' ' || event.key === 'Enter') && event.target.closest?.(CHIP)) { event.preventDefault(); return; }
   if (cal.state.pending?.keyboard) { grabKey(cal, event); return; }
   const chip = event.target.closest?.(CHIP);
-  if (chip && resizeKey(cal, chip, event)) return;
+  if (chip && (resizeKey(cal, chip, event) || menuKey(cal, chip, event))) return;
   if (chip && event.key === ' ') {
     event.preventDefault();
     if (startGrab(cal, chip, true)) { cal.focusAfter = { eventId: cal.state.pending.id }; cal.render(); }
@@ -183,10 +184,35 @@ function bindDrag(cal) {
   });
 }
 
+/** The menu key and Shift+F10 on an event: its menu, under it. Returns whether the key was this one's. */
+function menuKey(cal, chip, event) {
+  if (typeof cal.callbacks.onMenu !== 'function' || !(event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey))) return false;
+  event.preventDefault();
+  const rect = chip.getBoundingClientRect();
+  cal.callbacks.onMenu(chip.getAttribute('data-ui-id'), { x: rect.left, y: rect.bottom });
+  return true;
+}
+
+/** A right-click on an event: its menu, at the pointer; the empty grid keeps the browser's. */
+function onContextMenu(cal, event) {
+  const chip = event.target.closest?.(CHIP);
+  if (!chip || typeof cal.callbacks.onMenu !== 'function') return;
+  event.preventDefault();
+  cal.callbacks.onMenu(chip.getAttribute('data-ui-id'), { x: event.clientX, y: event.clientY });
+}
+
+/** Focus on an event selects it. */
+function onFocusIn(cal, event) {
+  const chip = event.target.closest?.(CHIP);
+  if (chip && !cal.drawing && !cal.state.pending) select(cal, chip.getAttribute('data-ui-id'));
+}
+
 /** Wire clicks, keys and drags on the calendar body. */
 export function bindCalendar(cal) {
   cal.life.on(cal.body, 'click', (event) => onClick(cal, event));
   cal.life.on(cal.body, 'keydown', (event) => onKeyDown(cal, event));
+  cal.life.on(cal.body, 'contextmenu', (event) => onContextMenu(cal, event));
+  cal.life.on(cal.body, 'focusin', (event) => onFocusIn(cal, event));
   cal.life.on(cal.body, 'keyup', (event) => { if (event.key === ' ' && event.target.closest?.(CHIP)) event.preventDefault(); });
   bindDrag(cal);
   bindResize(cal);

@@ -17,8 +17,9 @@ const MONTH_CHIPS = 3;
 /** One event chip; the grids share it. */
 export function eventChip(cal, event, { showTime }) {
   const { doc, format } = cal;
+  const name = describeEvent(event, format);
   const chip = el(doc, 'button', { className: `${CAL}-event`, attrs: {
-    type: 'button', 'data-ui-id': event.id, 'aria-label': describeEvent(event, format), tabindex: '-1',
+    type: 'button', 'data-ui-id': event.id, 'aria-label': name, title: name, tabindex: '-1',
     'data-tone': event.tone || null, 'data-movable': event.movable ? 'true' : null
   } });
   if (showTime && !isAllDayLike(event)) chip.append(el(doc, 'span', { className: `${CAL}-event-time`, text: format.time.format(event.start) }));
