@@ -10,6 +10,7 @@ import { trackDrag } from '../drag.js';
 import { addDays, addMinutes, atMinutes, daysBetween, fromDayKey, minutesOfDay, sameDay, shiftAnchor, startOfWeek, viewDays } from './dates.js';
 import { describeEvent, eventById, isAllDayLike } from './model.js';
 import { CAL } from './month.js';
+import { bindRange } from './range.js';
 import { bindResize, resizeKey } from './resize.js';
 import { minutesAt } from './time.js';
 
@@ -189,4 +190,5 @@ export function bindCalendar(cal) {
   cal.life.on(cal.body, 'keyup', (event) => { if (event.key === ' ' && event.target.closest?.(CHIP)) event.preventDefault(); });
   bindDrag(cal);
   bindResize(cal);
+  bindRange(cal);
 }

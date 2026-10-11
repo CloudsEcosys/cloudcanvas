@@ -166,7 +166,7 @@ function createRecord(host, callbacks, labels) {
   const root = el(doc, 'div', { className: CAL, attrs: { role: 'region' } });
   const today = startOfDay(new Date());
   const cal = { doc, life, root, callbacks, labels: { ...CALENDAR_LABELS, ...labels }, format: null, last: {}, focusAfter: null,
-    state: { view: 'month', anchor: today, focusDate: today, events: [], views: [...CALENDAR_VIEWS], pending: null, selectedId: null } };
+    state: { view: 'month', anchor: today, focusDate: today, events: [], views: [...CALENDAR_VIEWS], pending: null, creating: null, selectedId: null } };
   root.append(toolbar(cal));
   cal.body = el(doc, 'div', { className: `${CAL}-body` });
   root.append(cal.body);
@@ -203,7 +203,7 @@ export function createCalendar(host, callbacks = {}) {
     update(model = {}) {
       if (cal.life.dead) return;
       applyModel(cal, model);
-      if (!cal.state.pending) cal.render();
+      if (!cal.state.pending && !cal.state.creating) cal.render();
     },
     destroy() {
       if (cal.life.destroy()) cal.root.remove();
