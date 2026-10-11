@@ -31,6 +31,11 @@
  * polite live region beside the tree (`labels.noMatches`), for a screen reader as
  * for the eye. Both are reported or drawn, never applied: the rows stay the model's.
  *
+ * A CUT LABEL IS SAID WHOLE. A row is one line, and a label that does not fit ends in an ellipsis; the row then carries the
+ * whole label as its `title` (the tooltip), and a row whose label fits carries none. It is read where the rows are laid
+ * out: after every update, and whenever the tree's own width changes (a pane opens beside it, a window is resized). The
+ * label is also the row's text, so a screen reader reads it all; the title only says the same words to the eye.
+ *
  * `badge` on an item is the kit badge (`./badge.js`) inside its row, between
  * the label and the count: the model the tabs and the nav bar take - a flag
  * too - or a bare number for the count. What it says is part of the row's
@@ -131,6 +136,7 @@ function rowNode(doc) {
   node.append(el(doc, 'span', { className: `${CLASS}-indent`, attrs: { 'aria-hidden': 'true' } }),
     el(doc, 'span', { className: `${CLASS}-twisty`, attrs: { 'aria-hidden': 'true' } }), label, count);
   node._uiText = { label: textNode(doc, label), count: textNode(doc, count) };
+  node._uiLabel = label;
   node._uiBadge = null;
   return node;
 }
@@ -172,6 +178,31 @@ function dropBadges(rows, root = null) {
   }
 }
 
+/** Whether the sheet cut a row's label: the text is wider than the room it has. A label with no layout (a test document) is not cut. */
+const isCut = (node) => node._uiLabel.scrollWidth > node._uiLabel.clientWidth;
+
+/**
+ * Say the whole label as the row's `title` where it is cut, and nowhere else. Every row is measured before any is written, so the
+ * rows are laid out once, not once for each.
+ */
+function titleCutLabels(root) {
+  const rows = Array.from(root.querySelectorAll(ROW));
+  const cut = rows.map(isCut);
+  rows.forEach((node, at) => {
+    if (cut[at]) node.setAttribute('title', node._uiLabel.textContent);
+    else node.removeAttribute('title');
+  });
+}
+
+/** Watch the tree's own width: a label is cut or not as the room changes, with no update. */
+function watchWidth(tree) {
+  const Observer = tree.doc.defaultView?.ResizeObserver;
+  if (typeof Observer !== 'function') return;
+  const observer = new Observer(() => { if (!tree.life.dead) titleCutLabels(tree.root); });
+  observer.observe(tree.root);
+  tree.life.add(() => observer.disconnect());
+}
+
 /** Give the row `id` the tab stop, and the focus when asked. */
 function moveStop(tree, id, { focus }) {
   const nodes = Array.from(tree.root.querySelectorAll(ROW));
@@ -193,6 +224,7 @@ function draw(tree) {
   });
   dropBadges(before, root);
   moveStop(tree, state.focusId, { focus: had && !root.contains(doc.activeElement) });
+  titleCutLabels(root);
 }
 
 /** What `key` does on the row at `index`: move the focus, report a toggle, activate - or null when the key is not the tree's. */
@@ -288,6 +320,7 @@ export function createTree(host, callbacks = {}) {
   const tree = { doc, root, life, callbacks, state: { rows: [], focusId: null, selectedId: null, query: '', nothingMatches: false } };
   const statusText = textNode(doc, status);
   bindTree(tree);
+  watchWidth(tree);
   if (typeof callbacks.onMove === 'function') bindMove(tree);
   return {
     update(model = {}) {

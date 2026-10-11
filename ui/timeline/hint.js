@@ -16,7 +16,8 @@ function barVerbs(tl, item) {
   const { labels, callbacks: cb } = tl;
   const editable = Boolean(cb.onChange) && item.movable;
   return [cb.onActivate && labels.hintOpen, editable && labels.hintMove, editable && item.end && labels.hintResize,
-    editable && labels.hintKeys, cb.onLink && labels.hintLink, cb.onDelete && labels.hintDelete, cb.onMenu && labels.hintMore, cb.onCreate && labels.hintDraw];
+    editable && labels.hintKeys, cb.onLink && labels.hintLink, cb.onDelete && labels.hintDelete, cb.onMenu && (tl.crowded === item.id ? labels.hintMoreHeld : labels.hintMore),
+    cb.onCreate && labels.hintDraw];
 }
 
 /** The verbs of a group's heading. */

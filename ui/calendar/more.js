@@ -7,12 +7,17 @@
  * chip's own row, or in the day's column (the hour grid) with the chip's own place and lane, and the chip - marked
  * `is-holding-more` - keeps the room at its end for it, so it covers neither the title nor the time nor the grip.
  *
+ * IT TAKES A THIRD OF A CHIP AT MOST. At 390px a chip of the week's all-day strip is about 57px wide, and a finger's 44px button
+ * would leave its title none. A chip too narrow for the button (`roomForMore`, measured with the button where the sheet puts it)
+ * gets none and holds no room for it; the menu is still its right-click, Shift+F10 and a held touch, and the hint says so
+ * (`cal.crowded`). A touch that taps the chip selects it as it always did.
+ *
  * IT WAITS FOR A PRESS TO END. A press on a chip focuses it, which selects it; were the button to stand then, under the
  * pointer, the click that ends the press would be the click of the chip's and the button's common ancestor - the day's list,
  * whose click opens a day - and not the chip's. So while a press is down the button stays where it was, and stands when the
  * press has had its click (or, a press that is no click - a drag - a moment after it).
  */
-import { MORE_CLASS, belowMore, isMore, moreButton, nameMore } from '../item-more.js';
+import { MORE_CLASS, belowMore, isMore, moreButton, nameMore, roomForMore } from '../item-more.js';
 import { CAL } from './month.js';
 
 /** The geometry a timed chip is placed by; the button takes the same, so it is where the chip's end is. */
@@ -39,6 +44,17 @@ function placeInColumn(button, chip) {
 /** How long (ms) after a press that is no click - a drag, a hold - the button stands: a click follows its press at once. */
 const PRESS_MS = 400;
 
+/**
+ * Take the button away from `chip`, which is then not holding room for it. The focus it held, a resize taking it from under the
+ * reader, goes to the chip: the same item, one stop before.
+ */
+function dropMore(cal, chip) {
+  const held = cal.more !== undefined && cal.doc.activeElement === cal.more;
+  cal.more?.remove();
+  chip?.classList.remove('is-holding-more');
+  if (held) chip?.focus({ preventScroll: true });
+}
+
 /** Put the button after the selected event's chip, or take it away. A press that is down leaves it where it is. */
 export function syncMore(cal) {
   const { state } = cal;
@@ -46,8 +62,9 @@ export function syncMore(cal) {
   const chip = taken && state.selectedId !== null ? chipOf(cal, state.selectedId) : null;
   if (cal.pressing && chip) return;
   for (const node of cal.body.querySelectorAll('.is-holding-more')) if (node !== chip) node.classList.remove('is-holding-more');
+  cal.crowded = false;
   if (!chip) {
-    cal.more?.remove();
+    dropMore(cal, null);
     return;
   }
   cal.more ??= moreButton(cal.doc, `${CAL}-more-actions`);
@@ -56,8 +73,11 @@ export function syncMore(cal) {
   const timed = chip.classList.contains(`${CAL}-timed`);
   cal.more.classList.toggle('is-timed', timed);
   if (cal.more.previousElementSibling !== chip) chip.after(cal.more);
-  chip.classList.add('is-holding-more');
   (timed ? placeInColumn : placeInList)(cal.more, chip);
+  // The button is measured where the sheet puts it, which is the only place its size is known (a finger's is 44px, a pointer's 24).
+  cal.crowded = !roomForMore(chip.getBoundingClientRect().width, cal.more.getBoundingClientRect().width);
+  if (cal.crowded) dropMore(cal, chip);
+  else chip.classList.add('is-holding-more');
 }
 
 /** A press on the button: the menu of the event it stands by, under it. True when it was the button's. */

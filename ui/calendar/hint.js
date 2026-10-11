@@ -20,7 +20,7 @@ function eventVerbs(cal, event) {
   const { labels, callbacks: cb } = cal;
   const moves = event.movable && typeof cb.onMove === 'function';
   return [cb.onActivate && labels.hintOpen, moves && labels.hintMove, resizable(cal, event) && labels.hintResize, resizable(cal, event) && labels.hintKeys,
-    cb.onMenu && labels.hintMore];
+    cb.onMenu && (cal.crowded ? labels.hintMoreHeld : labels.hintMore)];
 }
 
 /** What nothing selected says: how to begin, by pointer and by keyboard. */

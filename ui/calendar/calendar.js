@@ -40,7 +40,7 @@ import { button, clamp, createLife, documentOf, el, textNode, writeText } from '
 import { injectUiStyles } from '../styles.js';
 import { createLiveRegion, say } from '../../addons/announce.js';
 import { CONTROL_ATTR } from '../../addons/trait.js';
-import { MORE_WORDS } from '../item-more.js';
+import { MORE_HELD_WORDS, MORE_WORDS } from '../item-more.js';
 import { CALENDAR_VIEWS, addDays, dayKey, sameDay, shiftAnchor, startOfDay, toDate, viewDays } from './dates.js';
 import { formattersFor, normalizeEvents, titleFor } from './model.js';
 import { CAL, renderMonth } from './month.js';
@@ -55,7 +55,7 @@ export const CALENDAR_LABELS = /* @__PURE__ */ Object.freeze({
   month: 'Month', week: 'Week', day: 'Day', hours: 'Hours', resized: 'Now',
   hintNone: 'Select an event to see what it can do', hintCreate: 'drag across empty slots to add one', hintCreateDays: 'drag across days to add one',
   hintOpen: 'Enter opens', hintMove: 'drag to move', hintResize: 'drag the bottom edge to resize', hintKeys: 'Alt+Shift+Up or Down resizes',
-  hintDraw: 'N on a day draws one', hintMore: 'Shift+F10 or right-click for more', more: MORE_WORDS, hintDrawTime: 'Up and Down move the time · Left and Right the day · Enter or Space starts the range · Escape cancels',
+  hintDraw: 'N on a day draws one', hintMore: 'Shift+F10 or right-click for more', hintMoreHeld: MORE_HELD_WORDS, more: MORE_WORDS, hintDrawTime: 'Up and Down move the time · Left and Right the day · Enter or Space starts the range · Escape cancels',
   hintDrawTimeEnd: 'Up and Down set the end · Enter or Space adds the range · Escape cancels',
   hintDrawDays: 'The arrows move the day · Enter or Space starts the range · Escape cancels',
   hintDrawDaysEnd: 'The arrows set the end · Enter or Space adds the range · Escape cancels',
@@ -208,6 +208,15 @@ function createRecord(host, callbacks, labels) {
   return cal;
 }
 
+/** A change of the body's width gives the selected chip's button or takes it, so the selection is painted again (its button and its hint). */
+function watchWidth(cal) {
+  const Observer = cal.doc.defaultView?.ResizeObserver;
+  if (typeof Observer !== 'function') return;
+  const observer = new Observer(() => { if (!cal.life.dead && !cal.pressing && !cal.state.pending && !cal.state.creating) paint(cal); });
+  observer.observe(cal.body);
+  cal.life.add(() => observer.disconnect());
+}
+
 /**
  * @param {HTMLElement} host
  * @param {{onNavigate?: Function, onPick?: Function, onActivate?: Function, onMove?: Function,
@@ -230,6 +239,7 @@ export function createCalendar(host, callbacks = {}) {
   };
   cal.shift = (delta) => cal.navigate(cal.state.view, shiftAnchor(cal.state.view, cal.state.anchor, delta), { focus: false });
   bindCalendar(cal);
+  watchWidth(cal);
   host.append(cal.root);
   return {
     update(model = {}) {

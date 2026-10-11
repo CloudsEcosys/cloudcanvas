@@ -262,7 +262,8 @@ export const UI_CONTROLS_CSS = `${LIVE_REGION_CSS}/* ------------------ UI KIT: 
 .cloudcanvas-ui-badge-flag-shaded { fill: var(--cc-ui-flag-shade, #020617); stop-color: var(--cc-ui-flag-shade, #020617); }
 .cloudcanvas-ui-badge-flag-figure { fill: var(--cc-ui-on-accent, #0f172a); font-variant-numeric: tabular-nums; text-anchor: middle; }
 
-.cloudcanvas-ui-tree { display: grid; gap: 2px; }
+/* One column as wide as the tree, whatever its rows hold: a label the tree has no room for ends in an ellipsis (and is said whole in its row's title), it does not widen the tree. */
+.cloudcanvas-ui-tree { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; }
 .cloudcanvas-ui-tree-row {
   display: flex;
   align-items: center;

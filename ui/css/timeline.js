@@ -289,7 +289,7 @@ export const UI_TIMELINE_CSS = `/* ------------------ UI KIT: TIMELINE ---------
 .cloudcanvas-ui-timeline[data-can-link] .cloudcanvas-ui-timeline-more { left: calc(var(--timeline-x) + var(--timeline-w) + 30px); }
 .cloudcanvas-ui-timeline-more.is-point { left: calc(var(--timeline-x) + 12px); }
 .cloudcanvas-ui-timeline[data-can-link] .cloudcanvas-ui-timeline-more.is-point { left: calc(var(--timeline-x) + 32px); }
-.cloudcanvas-ui-timeline[data-can-menu] .cloudcanvas-ui-timeline-row.is-current .cloudcanvas-ui-timeline-outside { margin-left: var(--item-more-room); }
+.cloudcanvas-ui-timeline[data-can-menu] .cloudcanvas-ui-timeline-row.is-current:not(.is-crowded) .cloudcanvas-ui-timeline-outside { margin-left: var(--item-more-room); }
 .cloudcanvas-ui-timeline-now {
   position: absolute;
   top: 0;
