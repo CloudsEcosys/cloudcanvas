@@ -11,6 +11,7 @@
  * to `--cc-card-bg`), so a host that already themes the canvas themes the kit.
  */
 import { UI_CONTROLS_CSS } from './css/controls.js';
+import { UI_FORMS_CSS } from './css/forms.js';
 import { UI_VIEWS_CSS } from './css/views.js';
 import { UI_GRAPH_CSS } from './css/graph.js';
 import { UI_TIMELINE_CSS } from './css/timeline.js';
@@ -24,7 +25,7 @@ import { UI_TAB_LAYERS_CSS } from './css/tabs-layers.js';
 export const UI_STYLE_ID = 'cloudcanvas-ui-styles';
 
 /** The whole kit sheet, for a host that ships its CSS as a file instead. */
-export const UI_CSS = `${UI_CONTROLS_CSS}${UI_VIEWS_CSS}${UI_CALENDAR_CSS}${UI_GRAPH_CSS}${UI_TIMELINE_CSS}${UI_CONTEXT_CSS}${UI_MENU_CSS}${UI_TABS_CSS}${UI_TAB_LAYERS_CSS}`;
+export const UI_CSS = `${UI_CONTROLS_CSS}${UI_FORMS_CSS}${UI_VIEWS_CSS}${UI_CALENDAR_CSS}${UI_GRAPH_CSS}${UI_TIMELINE_CSS}${UI_CONTEXT_CSS}${UI_MENU_CSS}${UI_TABS_CSS}${UI_TAB_LAYERS_CSS}`;
 
 /**
  * Put the kit sheet in `doc` once. An existing element is returned untouched:

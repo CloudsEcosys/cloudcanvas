@@ -1,36 +1,71 @@
 /**
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
- * Switch: one on/off setting, as a native checkbox with the `switch` role and its words beside it. The whole
- * row is the target (at least 44px tall under a coarse pointer), so the box inside it can stay small.
+ * Switch: one on/off setting, as a native checkbox with the `switch` role and its words beside it. It is a
+ * settings row: the words first and the box last, so a column of switches keeps its boxes in one line at the end.
+ * The whole row is the target (at least 44px tall), so the box inside it can stay small.
  *
  *   const toggle = createSwitch(host, { onChange: (checked) => save(checked) });
- *   toggle.update({ label: 'Reminders', detail: 'Due and upcoming', checked: true });
+ *   toggle.update({ label: 'Reminders', detail: 'Due and upcoming', checked: true, status: { text: 'Saved', tone: 'success' } });
  *
  * Controlled, like the kit's other controls: a press reports the state it asks for through `onChange` and the
  * switch shows the model's state again until the host answers with an `update`, so a refused change puts
  * itself back. `disabled` keeps the row readable and reports nothing.
+ *
+ * THE STATUS is the host's word on the setting - "Saving", "Saved", "Could not save" - beside the name. It is a
+ * live region (`role="status"`, polite; assertive for a `danger` tone) that is on the page from the first draw,
+ * empty, because a region that comes with its words is not reliably read. `tone` is success, warning, danger or
+ * muted (muted is what any other word means); it is drawn as a marker, and the words stay the page's own ink.
  */
 import { createLife, documentOf, el, textNode, uniqueId, writeText } from './dom.js';
 import { injectUiStyles } from './styles.js';
 
 const CLASS = 'cloudcanvas-ui-switch';
+const TONES = /* @__PURE__ */ new Set(['success', 'warning', 'danger', 'muted']);
+
+/** The row's nodes, the words before the box. */
+function switchNodes(doc) {
+  const root = el(doc, 'label', { className: CLASS });
+  const text = el(doc, 'span', { className: `${CLASS}-text` });
+  const words = el(doc, 'span', { className: `${CLASS}-label`, attrs: { id: uniqueId(CLASS) } });
+  const status = el(doc, 'span', { className: `${CLASS}-status`, attrs: { id: uniqueId(`${CLASS}-status`), role: 'status', 'aria-live': 'polite', 'aria-atomic': 'true' } });
+  const detail = el(doc, 'span', { className: `${CLASS}-detail`, attrs: { id: uniqueId(`${CLASS}-detail`) } });
+  const box = el(doc, 'input', { className: `${CLASS}-box`, attrs: { type: 'checkbox', role: 'switch' } });
+  text.append(words, status, detail);
+  root.append(text, box);
+  return { root, box, words, status, detail, texts: { words: textNode(doc, words), status: textNode(doc, status), detail: textNode(doc, detail) } };
+}
+
+/** Say the status in its region: the tone and how urgently it is read first, so the words arrive into a region already set. */
+function writeStatus(nodes, status) {
+  const words = String(status?.text ?? '').trim();
+  const tone = TONES.has(status?.tone) ? status.tone : 'muted';
+  if (words === '') nodes.status.removeAttribute('data-tone');
+  else nodes.status.setAttribute('data-tone', tone);
+  nodes.status.setAttribute('aria-live', tone === 'danger' && words !== '' ? 'assertive' : 'polite');
+  writeText(nodes.texts.status, words);
+  return words !== '';
+}
+
+/** Point the box at the parts of the row that describe it: the detail and the status, when each has words. */
+function writeDescribed(nodes, model, hasStatus) {
+  const described = [model.detail ? nodes.detail.id : null, hasStatus ? nodes.status.id : null].filter(Boolean);
+  if (described.length > 0) nodes.box.setAttribute('aria-describedby', described.join(' '));
+  else nodes.box.removeAttribute('aria-describedby');
+}
 
 /**
  * @param {HTMLElement} host
  * @param {{onChange?: (checked: boolean) => void}} [options]
- * @returns {{update(model: {label: string, checked?: boolean, detail?: string, disabled?: boolean}): void, destroy(): void}}
+ * @returns {{update(model: {label: string, checked?: boolean, detail?: string, disabled?: boolean,
+ *   status?: {text?: string, tone?: 'success'|'warning'|'danger'|'muted'}}): void, destroy(): void}}
  */
 export function createSwitch(host, { onChange } = {}) {
   const doc = documentOf(host);
   injectUiStyles(doc);
   const life = createLife();
-  const root = el(doc, 'label', { className: CLASS });
-  const box = el(doc, 'input', { className: `${CLASS}-box`, attrs: { type: 'checkbox', role: 'switch' } });
-  const words = el(doc, 'span', { className: `${CLASS}-label`, attrs: { id: uniqueId(CLASS) } });
-  const detail = el(doc, 'span', { className: `${CLASS}-detail` });
-  const wordsText = textNode(doc, words), detailText = textNode(doc, detail);
-  root.append(box, words, detail);
+  const nodes = switchNodes(doc);
+  const { root, box } = nodes;
   host.append(root);
   let shown = false;
   life.on(box, 'change', () => {
@@ -44,15 +79,14 @@ export function createSwitch(host, { onChange } = {}) {
       const label = String(model.label ?? '').trim();
       if (label === '') throw new TypeError('A switch needs a label');
       shown = Boolean(model.checked);
-      writeText(wordsText, label);
-      writeText(detailText, String(model.detail ?? ''));
-      detail.hidden = !model.detail;
+      writeText(nodes.texts.words, label);
+      writeText(nodes.texts.detail, String(model.detail ?? ''));
+      nodes.detail.hidden = !model.detail;
       box.checked = shown;
       box.disabled = Boolean(model.disabled);
-      box.setAttribute('aria-labelledby', words.id);
+      box.setAttribute('aria-labelledby', nodes.words.id);
       box.setAttribute('aria-checked', String(shown));
-      if (model.detail) { detail.id = detail.id || uniqueId(`${CLASS}-detail`); box.setAttribute('aria-describedby', detail.id); }
-      else box.removeAttribute('aria-describedby');
+      writeDescribed(nodes, model, writeStatus(nodes, model.status));
     },
     destroy() {
       if (!life.destroy()) return;
