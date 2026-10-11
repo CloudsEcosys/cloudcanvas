@@ -24,11 +24,12 @@ export const UI_CONTROLS_CSS = `${LIVE_REGION_CSS}/* ------------------ UI KIT: 
   border-radius: var(--cc-radius-sm, 6px);
   cursor: pointer;
 }
-.cloudcanvas-ui-button:hover:not(:disabled) { background: var(--cc-btn-bg-hover, rgba(56, 189, 248, 0.22)); }
+.cloudcanvas-ui-button:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--cc-btn-bg-hover, rgba(56, 189, 248, 0.22)); }
 .cloudcanvas-ui-button.is-primary { color: var(--cc-ui-on-accent, #0f172a); background: var(--cc-accent, #38bdf8); }
 /* A danger button keeps the page's ink and says so by its border: the tone's colour is not one ink that clears 4.5:1 on both the dark and the light page. */
 .cloudcanvas-ui-button.is-danger { color: var(--cc-text, #e2e8f0); border-color: var(--cc-tone-danger, #f87171); border-width: 2px; font-weight: var(--cc-weight-semibold, 600); }
-.cloudcanvas-ui-button:disabled { opacity: 0.5; cursor: not-allowed; }
+/* Off is unavailable for now: drawn as disabled is, and still there to be focused and read. */
+.cloudcanvas-ui-button:disabled, .cloudcanvas-ui-button[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
 .cloudcanvas-ui-field {
   box-sizing: border-box;
   min-height: var(--cc-control-min, 28px);

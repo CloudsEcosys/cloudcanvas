@@ -81,18 +81,38 @@ export function writeText(node, value) {
 /** The class every kit button carries, so one rule styles them all. */
 export const BUTTON_CLASS = 'cloudcanvas-ui-button';
 
+/** Whether a control is off: unavailable for now, and still on the page, in the tab order and read out. */
+export function isOff(node) {
+  return node.getAttribute('aria-disabled') === 'true';
+}
+
+/**
+ * Turn a control off or on again. `disabled` would take the focus from a control that was just pressed and drop the
+ * reader at the top of the page; off says `aria-disabled` instead, so the control keeps focus and its place, is
+ * read as unavailable, is drawn so (`./css/controls.js`), and reports no press (`button`).
+ */
+export function setOff(node, off) {
+  if (off) node.setAttribute('aria-disabled', 'true');
+  else node.removeAttribute('aria-disabled');
+}
+
 /**
  * A `<button type="button">` in the kit's look (`cloudcanvas-ui-button`, plus
  * `className`). `onClick` is bound with `signal` when one is given, so a
- * control's life removes it.
+ * control's life removes it. `off` makes it unavailable for now and leaves it
+ * focusable (`setOff` changes it later): its press is not reported while it is
+ * off. `disabled` is the other thing - not focusable, not read as a control.
  */
-export function button(doc, { label, className = '', ariaLabel, title, disabled = false, onClick, signal, attrs } = {}) {
+export function button(doc, { label, className = '', ariaLabel, title, disabled = false, off = false, onClick, signal, attrs } = {}) {
   const node = el(doc, 'button', { className: className ? `${BUTTON_CLASS} ${className}` : BUTTON_CLASS, text: label, attrs });
   node.type = 'button';
   if (ariaLabel) node.setAttribute('aria-label', ariaLabel);
   if (title) node.title = title;
   node.disabled = Boolean(disabled);
-  if (typeof onClick === 'function') node.addEventListener('click', onClick, signal ? { signal } : undefined);
+  setOff(node, off);
+  if (typeof onClick === 'function') {
+    node.addEventListener('click', (event) => { if (!isOff(node)) onClick(event); }, signal ? { signal } : undefined);
+  }
   return node;
 }
 

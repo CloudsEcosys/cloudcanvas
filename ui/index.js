@@ -12,7 +12,7 @@
  */
 
 export {
-  BUTTON_CLASS, FIELD_CLASS, SR_ONLY_CLASS, documentOf, el, button, input, textNode, writeText, clamp, uniqueItems, focusablesIn, uniqueId,
+  BUTTON_CLASS, FIELD_CLASS, SR_ONLY_CLASS, documentOf, el, button, isOff, setOff, input, textNode, writeText, clamp, uniqueItems, focusablesIn, uniqueId,
   createLife, itemIdOf
 } from './dom.js';
 export { setValue, setLabel, show, keepFocus, placeChildren, rowCache } from './render.js';
