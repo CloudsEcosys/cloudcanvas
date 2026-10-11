@@ -42,8 +42,9 @@
  * `{query}` filled in) and to a screen reader, and fades nothing.
  *
  * THE FIRST VIEW of a graph given no `viewport` is the whole of it, scaled
- * down to 0.5 (below that the first root stands at the left, the first level
- * beside it), and is not taken again unless the host asks (Fit, `0`) or its
+ * down to 0.8 (a title is still 10px; below that the first root stands at the
+ * left at 0.8, the first level beside it, the rest a pan away and Fit one
+ * press), and is not taken again unless the host asks (Fit, `0`) or its
  * nodes are replaced by a model that shares none of them (`./view.js`). An
  * edge's label is a chip on its edge, kept clear of the others (`./labels.js`).
  *

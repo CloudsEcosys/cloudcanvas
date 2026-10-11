@@ -118,7 +118,7 @@ export const TIMELINE_LABELS = /* @__PURE__ */ Object.freeze({
   hintMove: 'drag to move', hintResize: 'drag an edge to resize', hintKeys: 'Alt+arrows move a day, Alt+Shift+arrows resize',
   hintLink: 'drag the dot to link', hintDelete: 'Delete removes', hintAdd: '+ or Insert to add one here', hintFold: 'Space folds',
   hintMore: 'Shift+F10 or right-click for more', hintMoreHeld: MORE_HELD_WORDS, more: MORE_WORDS,
-  hintUnlink: 'Delete removes the link', clamped: 'shown wider than it lasts', link: 'Drag to another bar to link them', dependsOn: 'depends on', collapse: 'Collapse {group}', expand: 'Expand {group}', hidden: '{count} hidden',
+  clamped: 'shown wider than it lasts', link: 'Drag to another bar to link them', dependsOn: 'depends on', collapse: 'Collapse {group}', expand: 'Expand {group}', hidden: '{count} hidden',
   summary: '{group}, {count} items', summaryOne: '{group}, 1 item',
   hintDraw: 'N draws a span', hintDrawing: 'Left and Right move the day · Up and Down the row · Enter or Space starts the span · Escape cancels',
   hintSpanning: 'Left and Right set the end · Enter or Space adds the span · Escape cancels', drawStart: 'Drawing a span in {group}: {date}.',
@@ -226,7 +226,6 @@ function adopt(tl, model) {
   if (selectedId !== seen.selectedId) {
     seen.selectedId = selectedId;
     state.selectedId = selectedId;
-    state.selectedLink = null;
   }
   const gutter = Number.isFinite(model.gutter) ? model.gutter : null;
   if (gutter !== seen.gutter) {
@@ -259,7 +258,7 @@ function applyModel(tl, model) {
 /** Say on the root which gestures the host takes, so the sheet shows their affordances and cursors. */
 function markAbilities(root, callbacks) {
   for (const [name, callback] of [['data-can-move', 'onChange'], ['data-can-create', 'onCreate'], ['data-can-link', 'onLink'],
-    ['data-can-fold', 'onToggleGroup'], ['data-can-unlink', 'onUnlink'], ['data-can-menu', 'onMenu']]) {
+    ['data-can-fold', 'onToggleGroup'], ['data-can-menu', 'onMenu']]) {
     if (typeof callbacks[callback] === 'function') root.setAttribute(name, '');
   }
 }
@@ -268,7 +267,7 @@ function timelineState(doc, life, root, callbacks) {
   return { doc, life, root, callbacks, id: uniqueId(TL), labels: { ...TIMELINE_LABELS, ...callbacks.labels }, format: null, lastScale: undefined,
     byId: new Map(), groups: new Map(), seen: { selectedId: undefined, gutter: undefined, focusId: undefined }, reach: { before: 0, after: 0, room: 0 }, reveal: null,
     asked: null, held: null, away: false, looking: false,
-    state: { scale: 'week', items: [], now: new Date(), pending: null, creating: null, linking: null, cursor: null, focusId: null, selectedId: null, selectedLink: null, gutter: null } };
+    state: { scale: 'week', items: [], now: new Date(), pending: null, creating: null, linking: null, cursor: null, focusId: null, selectedId: null, gutter: null } };
 }
 
 /**

@@ -20,18 +20,16 @@ export function paint(tl) {
     markSelected(node, node.getAttribute('data-ui-id') === selectedId);
   }
   for (const row of tl.sheet.querySelectorAll(`.${TL}-row`)) row.classList.toggle('is-current', row.getAttribute('data-row-id') === selectedId);
-  tl.paintLinks?.();
   syncMore(tl);
   const hint = hintOf(tl);
   writeText(tl.hintText, hint);
   tl.hint.hidden = hint === '';
 }
 
-/** Make `id` the selection (null clears it), and no link. */
+/** Make `id` the selection (null clears it). */
 export function select(tl, id) {
   const { state } = tl;
-  if (state.selectedId === id && state.selectedLink === null) return;
+  if (state.selectedId === id) return;
   state.selectedId = id;
-  state.selectedLink = null;
   paint(tl);
 }

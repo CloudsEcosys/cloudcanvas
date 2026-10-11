@@ -390,9 +390,11 @@ export const UI_CONTROLS_CSS = `${LIVE_REGION_CSS}/* ------------------ UI KIT: 
 .cloudcanvas-ui-combobox {
   position: absolute;
   z-index: var(--cc-z-ui-raised, 2);
+  display: flex;
+  flex-direction: column;
   max-width: min(24rem, calc(100vw - 2rem));
   max-height: 16rem;
-  overflow: auto;
+  overflow: hidden;
   padding: var(--cc-space-1, 4px);
   background: var(--cc-ui-surface, var(--cc-card-bg, rgba(30, 41, 59, 0.85)));
   border: 1px solid var(--cc-card-border, rgba(255, 255, 255, 0.1));
@@ -400,6 +402,9 @@ export const UI_CONTROLS_CSS = `${LIVE_REGION_CSS}/* ------------------ UI KIT: 
   box-shadow: var(--cc-shadow-2, 0 12px 32px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.09));
   backdrop-filter: blur(var(--cc-card-blur, 12px));
 }
+/* The list is what scrolls, not the popup around it: the field controls the list (aria-controls), the one scroller a keyboard need not reach, since the field is operated through aria-activedescendant. The popup's max-height, the kit's or a host's, is what the list gives way to. */
+.cloudcanvas-ui-combobox > .cloudcanvas-ui-results { display: flex; flex-direction: column; min-height: 0; }
+.cloudcanvas-ui-combobox .cloudcanvas-ui-results-list { min-height: 0; overflow: auto; }
 
 @media (pointer: coarse) {
   :is(.cloudcanvas-ui-button, .cloudcanvas-ui-field, .cloudcanvas-ui-breadcrumbs-open,

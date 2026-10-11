@@ -19,6 +19,12 @@
  * open, is the host's. The list shows only while it is open and has something
  * to offer, and a closed list offers nothing to a screen reader either. A press
  * on the list is swallowed, so the field keeps its focus and its caret.
+ *
+ * A LONG LIST SCROLLS in the listbox, not in the popup around it: the field
+ * controls the listbox, which is the one scroller a keyboard need not reach
+ * (the field is operated through `aria-activedescendant`), so a screen-reader
+ * check for a scroller with no key to it passes. The popup's `max-height` - the
+ * kit's, or a host's - is what the listbox gives way to.
  */
 import { createLife, documentOf, el } from './dom.js';
 import { createResults } from './results.js';

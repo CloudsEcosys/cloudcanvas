@@ -35,12 +35,11 @@ function startVerbs(tl) {
 
 /** The hint for the timeline's selection, or '' when it has nothing to say. */
 export function hintOf(tl) {
-  const { selectedId, selectedLink } = tl.state;
+  const { selectedId } = tl.state;
   const drawing = drawHint(tl);
   if (drawing !== null) return drawing;
   let verbs = startVerbs(tl);
-  if (selectedLink) verbs = [tl.callbacks.onUnlink && tl.labels.hintUnlink];
-  else if (tl.byId.has(selectedId)) verbs = barVerbs(tl, tl.byId.get(selectedId));
+  if (tl.byId.has(selectedId)) verbs = barVerbs(tl, tl.byId.get(selectedId));
   else if (tl.groups.has(selectedId)) verbs = groupVerbs(tl, selectedId);
   return verbs.filter(Boolean).join(' · ');
 }

@@ -154,14 +154,14 @@ export const UI_GRAPH_CSS = `/* ------------------ UI KIT: GRAPH ---------------
 }
 .cloudcanvas-ui-graph[data-can-link] .cloudcanvas-ui-graph-handle { display: block; }
 .cloudcanvas-ui-graph-node:is(:hover, :focus-visible, .is-selected) .cloudcanvas-ui-graph-handle { opacity: 1; }
-/* A mouse gets a whole target of what is drawn small: the fold toggle (24x16) and the link handle (12) reach 24px on the screen, kept within the node's own room. The reach of the handle starts at its own edge and runs out from the node. */
+/* A mouse gets a whole target of what is drawn small: the fold toggle (24x16) and the link handle (12) reach 24px on the screen, kept within the node's own room - 30 world units tall, so a map at the first view's least scale, 0.8, still has them whole. The reach of the handle starts at its own edge and runs out from the node. */
 :where(.cloudcanvas-ui-graph[data-can-fold]) .cloudcanvas-ui-graph-toggle::after {
   content: "";
   position: absolute;
   top: 50%;
   left: 50%;
   width: ${reach('40px')};
-  height: ${reach('24px')};
+  height: ${reach('30px')};
   translate: -50% -50%;
 }
 .cloudcanvas-ui-graph-handle::after {
@@ -170,7 +170,7 @@ export const UI_GRAPH_CSS = `/* ------------------ UI KIT: GRAPH ---------------
   top: 50%;
   left: -2px;
   width: ${reach('40px')};
-  height: ${reach('28px')};
+  height: ${reach('30px')};
   translate: 0 -50%;
 }
 

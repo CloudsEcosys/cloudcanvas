@@ -10,7 +10,7 @@
  *
  * WHAT A GESTURE DOES IS SAID BEFORE IT IS MADE: the root says which ones the
  * host takes (`data-can-move`, `data-can-create`, `data-can-link`,
- * `data-can-fold`, `data-can-unlink`), so what can be moved has the grab
+ * `data-can-fold`), so what can be moved has the grab
  * cursor, a handle that resizes the resize cursor, and a handle that is only
  * there to be dragged is drawn when it can be used: on hover, on focus and on
  * the selected row.
@@ -254,7 +254,7 @@ export const UI_TIMELINE_CSS = `/* ------------------ UI KIT: TIMELINE ---------
 .cloudcanvas-ui-timeline-row:is(:hover, :focus-within, .is-current) .cloudcanvas-ui-timeline-link { opacity: 1; }
 .cloudcanvas-ui-timeline-bar.is-drop-target { outline: 2px dashed var(--cc-ui-drop, ${ACCENT}); outline-offset: 2px; }
 
-/* The dependencies: connectors in a layer of their own over the bars, which the pointer passes through except at a line - and the handle a link is dragged from stands above it, where a connector starts. */
+/* The dependencies: connectors in a layer of their own over the bars, a picture the pointer passes through everywhere - the bars are the pointer's, and so is the handle a link is dragged from, which stands above the layer where a connector starts. */
 .cloudcanvas-ui-timeline-links {
   position: absolute;
   top: 0;
@@ -266,11 +266,6 @@ export const UI_TIMELINE_CSS = `/* ------------------ UI KIT: TIMELINE ---------
   pointer-events: none;
 }
 .cloudcanvas-ui-timeline-connector-line { fill: none; stroke: var(--cc-connector, rgba(56, 189, 248, 0.6)); stroke-width: 1.5; }
-.cloudcanvas-ui-timeline-connector-hit { fill: none; stroke: ${ACCENT}; stroke-opacity: 0; stroke-width: 12; }
-.cloudcanvas-ui-timeline[data-can-unlink] .cloudcanvas-ui-timeline-connector { cursor: pointer; }
-.cloudcanvas-ui-timeline[data-can-unlink] .cloudcanvas-ui-timeline-connector-hit { pointer-events: stroke; }
-.cloudcanvas-ui-timeline-connector:is(:hover, .is-selected) .cloudcanvas-ui-timeline-connector-line { stroke: ${ACCENT}; stroke-width: 2.5; }
-.cloudcanvas-ui-timeline-connector:focus-visible { outline: ${RING}; outline-offset: 2px; }
 .cloudcanvas-ui-timeline-arrow { fill: ${ACCENT}; }
 .cloudcanvas-ui-timeline-draft-link { fill: none; stroke: ${ACCENT}; stroke-width: 2; stroke-dasharray: 6 5; }
 
@@ -353,8 +348,8 @@ export const UI_TIMELINE_CSS = `/* ------------------ UI KIT: TIMELINE ---------
   /* A row is one whole target tall, and so is its track: a bar's grab area and the link handle's reach lie within it. */
   .cloudcanvas-ui-timeline-row { min-height: var(--cc-control-min-coarse, 44px); }
   .cloudcanvas-ui-timeline-track { height: var(--cc-control-min-coarse, 44px); }
-  /* The axis is a target tall too, for the separator on its corner. A row's title in the gutter, and the title beside a short bar, are the bar's: the whole height of the row. */
-  .cloudcanvas-ui-timeline-axis { height: var(--cc-control-min-coarse, 44px); }
+  /* The axis is a target tall too, for the separator on its corner: 44px of content and its 1px rule below, whichever box a host sizes by. A row's title in the gutter, and the title beside a short bar, are the bar's: the whole height of the row. */
+  .cloudcanvas-ui-timeline-axis { box-sizing: content-box; height: var(--cc-control-min-coarse, 44px); }
   .cloudcanvas-ui-timeline-tick { display: flex; align-items: center; }
   .cloudcanvas-ui-timeline-label { align-self: stretch; line-height: var(--cc-control-min-coarse, 44px); }
   .cloudcanvas-ui-timeline-outside { min-width: var(--cc-control-min-coarse, 44px); line-height: var(--cc-control-min-coarse, 44px); }

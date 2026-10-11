@@ -4,16 +4,21 @@
  * Dependencies, drawn and made. An item that `depends` on others has a
  * connector from each dependency's end to its own start: an elbow with an
  * arrowhead at the dependent, in a layer of SVG over the rows (the pair is
- * where the bars stand, measured). A host that takes `onUnlink` gets
- * connectors a press selects and Delete removes - `onUnlink(fromId, toId)`,
- * from the dependency to the dependent - and one that does not, a picture.
+ * where the bars stand, measured).
+ *
+ * A CONNECTOR IS A PICTURE. It has no role, name, tab stop or press of its own
+ * and the layer is hidden from assistive technology: what it says is said by
+ * the bar it ends at ("..., depends on Brief"), and a link is taken away by
+ * the item's own menu, which reaches the pointer, the keyboard and a finger
+ * alike. It once took a press and Delete from the pointer alone, said "button"
+ * to a screen reader that could do nothing with it, and its hit stroke took the
+ * press from every bar its line crossed.
  *
  * A link is made from the handle beside a bar's right edge (`onLink`, given):
  * dragged to another bar - or its title - it reports `onLink(fromId, toId)`,
  * a line following the pointer and the bar it would link to lit. However the
- * drag ends the bar it began on has the focus (the handle holds none). The pair is
- * the one `onUnlink` reports for the connector that link draws; what a link
- * means (which depends on which) is the host's.
+ * drag ends the bar it began on has the focus (the handle holds none). What a
+ * link means (which depends on which) is the host's.
  */
 import { itemIdOf, svg } from '../dom.js';
 import { trackDrag } from '../drag.js';
@@ -21,7 +26,6 @@ import { TL } from './model.js';
 import { bars } from './move.js';
 
 const LINKS = `${TL}-links`;
-const CONNECTOR = `.${TL}-connector`;
 /** The room a connector leaves a bar before it turns. */
 const GAP = 12;
 
@@ -45,15 +49,8 @@ function pairsOf(tl, places) {
 }
 
 function connectorNode(tl, [from, to], places) {
-  const interactive = typeof tl.callbacks.onUnlink === 'function';
   const group = svg(tl.doc, 'g', { class: `${TL}-connector`, 'data-from': from, 'data-to': to });
-  if (interactive) {
-    const name = `${tl.byId.get(to).title} ${tl.labels.dependsOn} ${tl.byId.get(from).title}`;
-    for (const [attribute, value] of [['role', 'button'], ['tabindex', '-1'], ['aria-label', name]]) group.setAttribute(attribute, value);
-  }
-  const d = elbowPath(places.get(from).end, places.get(to).start);
-  group.append(svg(tl.doc, 'path', { class: `${TL}-connector-hit`, d }),
-    svg(tl.doc, 'path', { class: `${TL}-connector-line`, d, 'marker-end': `url(#${tl.id}-arrow)` }));
+  group.append(svg(tl.doc, 'path', { class: `${TL}-connector-line`, d: elbowPath(places.get(from).end, places.get(to).start), 'marker-end': `url(#${tl.id}-arrow)` }));
   return group;
 }
 
@@ -67,50 +64,15 @@ function arrowDefs(tl) {
 
 /** The layer the connectors are drawn in, empty: `drawLinks` fills it once the sheet is on the page and its bars can be measured. */
 export function linksLayer(tl) {
-  const interactive = typeof tl.callbacks.onUnlink === 'function';
-  tl.links = svg(tl.doc, 'svg', { class: LINKS, width: 1, height: 1, ...(interactive ? {} : { 'aria-hidden': 'true' }) });
+  tl.links = svg(tl.doc, 'svg', { class: LINKS, width: 1, height: 1, 'aria-hidden': 'true' });
   return tl.links;
 }
 
-/** Draw a connector for every dependency whose two bars are drawn. A selected link that is no longer one is let go. */
+/** Draw a connector for every dependency whose two bars are drawn. */
 export function drawLinks(tl) {
   const layerBox = tl.links.getBoundingClientRect();
   const places = new Map(bars(tl).map((bar) => [bar.getAttribute('data-ui-id'), placeOf(layerBox, bar)]));
-  const pairs = pairsOf(tl, places);
-  tl.links.replaceChildren(arrowDefs(tl), ...pairs.map((pair) => connectorNode(tl, pair, places)));
-  const chosen = tl.state.selectedLink;
-  if (chosen && !pairs.some(([from, to]) => from === chosen.from && to === chosen.to)) tl.state.selectedLink = null;
-  tl.paintLinks();
-}
-
-/** Mark the selected connector, and only it. */
-export function paintLinks(tl) {
-  const chosen = tl.state.selectedLink;
-  for (const node of tl.links?.querySelectorAll(CONNECTOR) ?? []) {
-    const selected = Boolean(chosen) && node.getAttribute('data-from') === chosen.from && node.getAttribute('data-to') === chosen.to;
-    node.classList.toggle('is-selected', selected);
-    if (selected) node.setAttribute('aria-current', 'true');
-    else node.removeAttribute('aria-current');
-  }
-}
-
-function selectLink(tl, node) {
-  tl.state.selectedId = null;
-  tl.state.selectedLink = { from: node.getAttribute('data-from'), to: node.getAttribute('data-to') };
-  tl.paint();
-  node.focus?.({ preventScroll: true });
-}
-
-function onLinkKey(tl, node, event) {
-  const { from, to } = { from: node.getAttribute('data-from'), to: node.getAttribute('data-to') };
-  if ((event.key === 'Delete' || event.key === 'Backspace') && tl.callbacks.onUnlink) {
-    event.preventDefault();
-    tl.callbacks.onUnlink(from, to);
-  } else if (event.key === 'Escape' && tl.state.selectedLink) {
-    event.preventDefault();
-    tl.state.selectedLink = null;
-    tl.paint();
-  }
+  tl.links.replaceChildren(arrowDefs(tl), ...pairsOf(tl, places).map((pair) => connectorNode(tl, pair, places)));
 }
 
 /** The bar a point is over - its face or its title - other than `fromId`, or null. */
@@ -153,17 +115,8 @@ function endLink(tl, point) {
   tl.render();
 }
 
-/** Wire the pointer's drag from a handle and the keys and presses on connectors. */
+/** Wire the pointer's drag from a handle. */
 export function bindLinks(tl) {
-  tl.paintLinks = () => paintLinks(tl);
-  tl.life.on(tl.sheet, 'click', (event) => {
-    const node = event.target.closest?.(CONNECTOR);
-    if (node && typeof tl.callbacks.onUnlink === 'function') selectLink(tl, node);
-  });
-  tl.life.on(tl.sheet, 'keydown', (event) => {
-    const node = event.target.closest?.(CONNECTOR);
-    if (node) onLinkKey(tl, node, event);
-  });
   trackDrag(tl.life, tl.sheet, {
     selector: `.${TL}-link`,
     canStart: () => typeof tl.callbacks.onLink === 'function' && !tl.state.pending && !tl.state.creating,

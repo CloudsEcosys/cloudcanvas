@@ -6,13 +6,16 @@
  * change they make is reported once it rests (`onViewport({x, y, scale})`),
  * and a `viewport` in the model is taken only when the model changes it.
  *
- * The first view of a graph that has none is the whole of it, scaled down to
- * a floor of 0.5; where it does not fit even then, the first root stands at
- * the left, the first level beside it (and the selection, if there is one,
- * brought into view by the least pan, so the root keeps its place as far as the
- * selection allows). It is taken once: not again unless the host asks (Fit,
- * `0`) or the model's nodes are replaced, and a `viewport` the model gives
- * always wins.
+ * The first view of a graph that has none is READABLE: the whole of it, scaled
+ * down to 0.8 at the least (a node's 13px title is then drawn at 10px, and the
+ * fold pill and link handle are drawn at four fifths of their size, not half);
+ * where it does not fit even then, the first root stands at the left, level
+ * with the middle of its first level beside it, at 0.8 - the rest is a pan or
+ * a zoom away, the minimap says where the view is, and Fit still shows it all
+ * (and the selection, if there is one, is brought into view by the least pan,
+ * so the root keeps its place as far as the selection allows). It is taken
+ * once: not again unless the host asks (Fit, `0`) or the model's nodes are
+ * replaced, and a `viewport` the model gives always wins.
  *
  * WHILE IT IS STILL THAT VIEW - the one the graph drew itself, by that first
  * view or by Fit, and not a pan, a zoom, a node brought into view or a view
@@ -25,11 +28,11 @@
 import { clamp } from '../dom.js';
 import { NODE_HEIGHT, NODE_WIDTH, boundsOf } from './layout.js';
 
-/** The nearest and farthest a reader may zoom, the nearest a fit goes, and the farthest a first view goes before it gives up showing the whole. */
+/** The nearest and farthest a reader may zoom, the nearest a fit goes, and the least a first view is scaled to before it gives up showing the whole: a 13px title is drawn at 10px. */
 const MIN_SCALE = 0.2;
 const MAX_SCALE = 3;
 const FIT_MAX = 1;
-const FLOOR = 0.5;
+const READABLE = 0.8;
 
 /** Screen room (px) a fit leaves around the graph, and a revealed node from the edge. */
 const PAD = 24;
@@ -106,13 +109,13 @@ function fit(g, report) {
   return true;
 }
 
-/** The first view: the whole graph if it fits at 0.5 or more, else the first root at the left, at 0.5, the selection brought into view. */
+/** The first view: the whole graph if it fits at 0.8 or more, else the first root at the left, at 0.8, the selection brought into view. */
 function start(g) {
   const frame = frameOf(g);
   if (!frame) return;
-  if (fitScale(frame) >= FLOOR) { fit(g, false); return; }
+  if (fitScale(frame) >= READABLE) { fit(g, false); return; }
   const { box, rect } = frame;
-  const k = FLOOR;
+  const k = READABLE;
   const root = g.positions.get(g.forest.roots[0]);
   const x = PAD - box.left * k;
   const whole = (box.bottom - box.top) * k <= rect.height - PAD * 2;
