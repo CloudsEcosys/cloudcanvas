@@ -293,6 +293,11 @@ export const UI_CONTROLS_CSS = `${LIVE_REGION_CSS}/* ------------------ UI KIT: 
 .cloudcanvas-ui-tree-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cloudcanvas-ui-tree-count { flex: none; font-size: var(--cc-type-xs, 11px); color: var(--cc-text-muted, #94a3b8); }
 .cloudcanvas-ui-tree-row > .cloudcanvas-ui-badge { flex: none; }
+.cloudcanvas-ui-tree[data-movable] .cloudcanvas-ui-tree-row { cursor: grab; }
+.cloudcanvas-ui-tree.is-drag-active { cursor: grabbing; }
+.cloudcanvas-ui-tree-row.is-dragging { pointer-events: none; opacity: 0.6; }
+.cloudcanvas-ui-tree-row.is-drop-target { outline: 2px dashed var(--cc-ui-drop, var(--cc-accent, #38bdf8)); outline-offset: -2px; }
+.cloudcanvas-ui-tree-row.is-unmatched { opacity: 0.45; }
 
 .cloudcanvas-ui-switch { display: grid; grid-template-columns: auto 1fr; align-items: center; column-gap: var(--cc-space-2, 8px); min-height: 2.75rem; font: inherit; color: inherit; cursor: pointer; }
 .cloudcanvas-ui-switch-box { margin: 0; width: 1.25rem; height: 1.25rem; accent-color: var(--cc-accent, #38bdf8); cursor: inherit; }

@@ -1,82 +1,149 @@
 /**
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
- * The relationship graph's geometry, pure: a layered auto-layout for nodes the
- * caller did not place, the point where an edge meets a node's box, the bounds
- * a fit frames, and the nearest node in an arrow's direction.
+ * The graph's geometry, pure. The model is checked (`normalizeGraph`): node
+ * ids unique, every edge given a kind - `parent`, `related` (the kind of an
+ * edge that names none) or `depends-on` - and an edge whose end is not in the
+ * model dropped, since the host draws what it has read so far. The `parent`
+ * edges make a forest (`forestOf`): a node's parent is the first edge that
+ * names one, a node with none in the model is a root, and a loop of parents is
+ * cut at its first node. The forest is laid out left to right
+ * (`layoutGraph`): a column per depth, a row per leaf in the model's order,
+ * each parent centred on its children, each root's tree stacked under the
+ * last. `related` and `depends-on` edges never move a node. Every node is
+ * one size, so a position is a node's top-left corner.
  */
 
-/** Node box size in world units, and the spacing of the auto-layout grid. */
-export const NODE_WIDTH = 144;
-export const NODE_HEIGHT = 40;
-export const LAYER_GAP = 220;
-export const ROW_GAP = 72;
+/** Node box size in world units, the pitch of the columns and rows, and the extra room between two roots' trees. */
+export const NODE_WIDTH = 208;
+export const NODE_HEIGHT = 68;
+export const LAYER_GAP = 288;
+export const ROW_GAP = 84;
+export const ROOT_GAP = 28;
 
-/** Every node and edge checked: unique string ids; edges between known nodes. */
+/** The kinds of edge the graph draws; an edge that names another, or none, is `related`. */
+export const EDGE_KINDS = Object.freeze(['parent', 'related', 'depends-on']);
+
+const text = (value) => (value === undefined || value === null ? '' : String(value));
+
+/** A node's time: `{iso, text, title?}` drawn as a `<time>`, or a bare string drawn as its text; anything else is none. */
+function timeOf(time) {
+  if (typeof time === 'string') return time.trim() === '' ? null : { iso: '', text: time, title: '' };
+  if (!time || typeof time !== 'object' || !time.text) return null;
+  return { iso: text(time.iso), text: String(time.text), title: text(time.title ?? time.iso) };
+}
+
+function nodeOf(node, ids) {
+  const id = node?.id;
+  if (typeof id !== 'string' || id.trim() === '' || ids.has(id)) throw new TypeError(`Invalid or duplicate graph node id: ${String(id)}`);
+  ids.add(id);
+  const count = Number(node.childCount);
+  return { id, label: text(node.label ?? id), detail: text(node.detail), status: text(node.status), tone: text(node.tone),
+    time: timeOf(node.time), childCount: Number.isInteger(count) && count > 0 ? count : null, collapsed: Boolean(node.collapsed) };
+}
+
+/** The model checked: unique string ids; each edge with its kind, or dropped when an end is missing or it loops on one node. */
 export function normalizeGraph(nodes, edges) {
   if (!Array.isArray(nodes) || !Array.isArray(edges)) throw new TypeError('Graph nodes and edges must be arrays');
   const ids = new Set();
-  const clean = nodes.map((node) => {
-    const id = node?.id;
-    if (typeof id !== 'string' || id.trim() === '' || ids.has(id)) throw new TypeError(`Invalid or duplicate graph node id: ${String(id)}`);
-    ids.add(id);
-    const placed = Number.isFinite(node.x) && Number.isFinite(node.y);
-    return { id, label: String(node.label ?? id), tone: node.tone ? String(node.tone) : '', detail: node.detail ? String(node.detail) : '',
-      x: placed ? node.x : null, y: placed ? node.y : null };
-  });
-  const links = edges.map((edge, index) => {
-    if (!ids.has(edge?.from) || !ids.has(edge?.to)) throw new TypeError(`Graph edge ${index} names an unknown node`);
-    return { id: String(edge.id ?? `${edge.from}->${edge.to}#${index}`), from: edge.from, to: edge.to, label: edge.label ? String(edge.label) : '' };
+  const clean = nodes.map((node) => nodeOf(node, ids));
+  const links = [];
+  edges.forEach((edge, index) => {
+    if (!ids.has(edge?.from) || !ids.has(edge?.to) || edge.from === edge.to) return;
+    const kind = EDGE_KINDS.includes(edge.kind) ? edge.kind : 'related';
+    links.push({ id: String(edge.id ?? `${edge.from}->${edge.to}#${index}`), from: edge.from, to: edge.to, kind, label: text(edge.label) });
   });
   return { nodes: clean, edges: links };
 }
 
-/** Depth of each node from the roots (no incoming edge), breadth first; cycles start at their first node. */
-function depths(nodes, edges) {
-  const incoming = new Map(nodes.map((node) => [node.id, 0]));
-  const out = new Map(nodes.map((node) => [node.id, []]));
-  for (const edge of edges) {
-    if (edge.from === edge.to) continue;
-    incoming.set(edge.to, incoming.get(edge.to) + 1);
-    out.get(edge.from).push(edge.to);
+/** Free every loop of parents at its first node in the model's order, which becomes a root. */
+function cutLoops(nodes, parent) {
+  const order = new Map(nodes.map((node, index) => [node.id, index]));
+  for (const node of nodes) {
+    const path = [];
+    const seen = new Set();
+    let at = node.id;
+    while (parent.has(at) && !seen.has(at)) { seen.add(at); path.push(at); at = parent.get(at); }
+    if (!seen.has(at)) continue;
+    const loop = path.slice(path.indexOf(at));
+    parent.delete(loop.reduce((first, id) => (order.get(id) < order.get(first) ? id : first)));
   }
-  const depth = new Map();
-  const walk = (roots) => {
-    const queue = roots.filter((id) => !depth.has(id));
-    for (const id of queue) depth.set(id, 0);
-    for (let head = 0; head < queue.length; head += 1) {
-      const level = depth.get(queue[head]);
-      const fresh = out.get(queue[head]).filter((next) => !depth.has(next));
-      for (const next of fresh) { depth.set(next, level + 1); queue.push(next); }
-    }
+}
+
+/**
+ * The forest the `parent` edges make.
+ * @returns {{parent: Map<string, string>, children: Map<string, string[]>, roots: string[]}}
+ */
+export function forestOf(nodes, edges) {
+  const parent = new Map();
+  for (const edge of edges) if (edge.kind === 'parent' && !parent.has(edge.to)) parent.set(edge.to, edge.from);
+  cutLoops(nodes, parent);
+  const children = new Map(nodes.map((node) => [node.id, []]));
+  const roots = [];
+  for (const node of nodes) (parent.has(node.id) ? children.get(parent.get(node.id)) : roots).push(node.id);
+  return { parent, children, roots };
+}
+
+/** The forest's nodes depth first, each with its level and its place among its siblings: the order a reader walks. */
+export function treeRows(forest) {
+  const rows = [];
+  const walk = (ids, level, parentId) => ids.forEach((id, index) => {
+    rows.push({ id, level, position: index + 1, size: ids.length, parentId });
+    walk(forest.children.get(id), level + 1, id);
+  });
+  walk(forest.roots, 1, null);
+  return rows;
+}
+
+/** Positions for the forest: a column per depth, a row per leaf, a parent centred on its children, roots stacked. */
+export function layoutForest(forest) {
+  const positions = new Map();
+  let cursor = 0;
+  const place = (id, depth) => {
+    const kids = forest.children.get(id);
+    for (const kid of kids) place(kid, depth + 1);
+    const y = kids.length === 0 ? cursor : (positions.get(kids[0]).y + positions.get(kids.at(-1)).y) / 2;
+    if (kids.length === 0) cursor += ROW_GAP;
+    positions.set(id, { x: depth * LAYER_GAP, y });
   };
-  walk(nodes.filter((node) => incoming.get(node.id) === 0).map((node) => node.id));
-  for (const node of nodes) if (!depth.has(node.id)) walk([node.id]);
-  return depth;
+  forest.roots.forEach((root, index) => {
+    if (index > 0) cursor += ROOT_GAP;
+    place(root, 0);
+  });
+  return positions;
 }
 
-/** Positions for every node: the caller's where given, a layered grid otherwise. */
+/** Positions for every node of a checked model (`normalizeGraph`): the left-to-right tree its `parent` edges make. */
 export function layoutGraph(nodes, edges) {
-  const depth = depths(nodes, edges);
-  const rows = new Map();
-  return new Map(nodes.map((node) => {
-    if (node.x !== null) return [node.id, { x: node.x, y: node.y }];
-    const layer = depth.get(node.id);
-    const row = rows.get(layer) ?? 0;
-    rows.set(layer, row + 1);
-    return [node.id, { x: layer * LAYER_GAP, y: row * ROW_GAP }];
-  }));
+  return layoutForest(forestOf(nodes, edges));
 }
 
-/** Where the segment from `a`'s centre towards `b`'s centre leaves `b`'s box (for an arrowhead on its border). */
-export function edgeEnd(from, to) {
-  const cx = to.x + NODE_WIDTH / 2;
-  const cy = to.y + NODE_HEIGHT / 2;
-  const dx = from.x + NODE_WIDTH / 2 - cx;
-  const dy = from.y + NODE_HEIGHT / 2 - cy;
-  if (dx === 0 && dy === 0) return { x: cx, y: cy };
-  const scale = Math.min(Math.abs((NODE_WIDTH / 2) / (dx || 1e-9)), Math.abs((NODE_HEIGHT / 2) / (dy || 1e-9)));
-  return { x: cx + dx * Math.min(1, scale), y: cy + dy * Math.min(1, scale) };
+const round = (value) => Math.round(value * 10) / 10;
+
+/** The anchors and bend of a line from box `a` to box `b`: facing sides when they stand apart, both right sides within a column. */
+function anchorsOf(a, b) {
+  const ay = a.y + NODE_HEIGHT / 2;
+  const by = b.y + NODE_HEIGHT / 2;
+  if (b.x >= a.x + NODE_WIDTH) {
+    const bend = Math.max(24, (b.x - a.x - NODE_WIDTH) / 2);
+    return [{ x: a.x + NODE_WIDTH, y: ay }, { x: a.x + NODE_WIDTH + bend, y: ay }, { x: b.x - bend, y: by }, { x: b.x, y: by }];
+  }
+  if (b.x + NODE_WIDTH <= a.x) {
+    const bend = Math.max(24, (a.x - b.x - NODE_WIDTH) / 2);
+    return [{ x: a.x, y: ay }, { x: a.x - bend, y: ay }, { x: b.x + NODE_WIDTH + bend, y: by }, { x: b.x + NODE_WIDTH, y: by }];
+  }
+  const out = Math.max(a.x, b.x) + NODE_WIDTH + 40 + Math.abs(by - ay) / 4;
+  return [{ x: a.x + NODE_WIDTH, y: ay }, { x: out, y: ay }, { x: out, y: by }, { x: b.x + NODE_WIDTH, y: by }];
+}
+
+/**
+ * The curve from box `a` to box `b` as an SVG path, and its middle (where a label sits).
+ * @returns {{d: string, mid: {x: number, y: number}}}
+ */
+export function edgePath(a, b) {
+  const [p0, p1, p2, p3] = anchorsOf(a, b).map((point) => ({ x: round(point.x), y: round(point.y) }));
+  const mid = { x: round((p0.x + 3 * p1.x + 3 * p2.x + p3.x) / 8), y: round((p0.y + 3 * p1.y + 3 * p2.y + p3.y) / 8) };
+  return { d: `M${p0.x} ${p0.y} C${p1.x} ${p1.y} ${p2.x} ${p2.y} ${p3.x} ${p3.y}`, mid };
 }
 
 /** The box around every position, or null for an empty graph. */
@@ -88,19 +155,36 @@ export function boundsOf(positions) {
   return { left: Math.min(...xs), top: Math.min(...ys), right: Math.max(...xs) + NODE_WIDTH, bottom: Math.max(...ys) + NODE_HEIGHT };
 }
 
-/** The node an arrow key reaches from `id`: the nearest one in that direction, favouring the straight line. */
-export function nearestInDirection(positions, id, key) {
-  const from = positions.get(id);
-  const axis = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[key];
-  if (!from || !axis) return null;
-  let best = null;
-  for (const [other, point] of positions) {
-    const dx = point.x - from.x;
-    const dy = point.y - from.y;
-    const along = dx * axis[0] + dy * axis[1];
-    if (other === id || along <= 0) continue;
-    const score = along + 2 * Math.abs(dx * axis[1] - dy * axis[0]);
-    if (!best || score < best.score) best = { id: other, score };
+/**
+ * What a selection lights: the node, the way up to its root (`path`), and every node an edge joins it to.
+ * @returns {{path: Set<string>, lit: Set<string>}|null} null with nothing selected
+ */
+export function emphasisOf(selectedId, forest, edges) {
+  if (selectedId === null || !forest.children.has(selectedId)) return null;
+  const path = new Set([selectedId]);
+  for (let at = forest.parent.get(selectedId); at !== undefined; at = forest.parent.get(at)) path.add(at);
+  const lit = new Set(path);
+  for (const edge of edges) {
+    if (edge.from === selectedId) lit.add(edge.to);
+    if (edge.to === selectedId) lit.add(edge.from);
   }
-  return best?.id ?? null;
+  return { path, lit };
+}
+
+/** Whether an edge stays lit under a selection: it touches the selected node, or it is a parent edge on the way up. */
+export function edgeLit(edge, selectedId, emphasis) {
+  if (edge.from === selectedId || edge.to === selectedId) return true;
+  return edge.kind === 'parent' && emphasis.path.has(edge.from) && emphasis.path.has(edge.to);
+}
+
+/** The node an arrow, Home or End reaches from `id` along the tree, or null where there is none. */
+export function treeStep(forest, rows, id, key) {
+  if (key === 'Home') return rows[0]?.id ?? null;
+  if (key === 'End') return rows.at(-1)?.id ?? null;
+  const parentId = forest.parent.get(id);
+  if (key === 'ArrowLeft') return parentId ?? null;
+  if (key === 'ArrowRight') return forest.children.get(id)?.[0] ?? null;
+  const siblings = parentId === undefined ? forest.roots : forest.children.get(parentId);
+  const step = { ArrowUp: -1, ArrowDown: 1 }[key];
+  return step === undefined ? null : siblings[siblings.indexOf(id) + step] ?? null;
 }

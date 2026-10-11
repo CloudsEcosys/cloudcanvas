@@ -23,6 +23,12 @@
  * cut at its first item. Only a repeated id is refused. `count` is shown beside
  * the label (zero is a count); `tone` is written as `data-tone` for the sheet.
  *
+ * MOVE AND SEARCH. With `onMove`, a row dragged onto another row reports
+ * `onMove(id, parentId)` (the row under the pointer is lit as the target; let
+ * go anywhere else and nothing is asked); without it a row is never picked
+ * up. A `query` in the model dims the rows whose label does not hold it, case
+ * aside. Both are reported or drawn, never applied: the rows stay the model's.
+ *
  * `badge` on an item is the kit badge (`./badge.js`) inside its row, between
  * the label and the count: the model the tabs and the nav bar take - a flag
  * too - or a bare number for the count. What it says is part of the row's
@@ -31,6 +37,8 @@
  */
 import { syncBadge } from './badge.js';
 import { createLife, documentOf, el, textNode, uniqueItems, writeText } from './dom.js';
+import { trackDrag } from './drag.js';
+import { matchesQuery, setDropTarget } from './graph/marks.js';
 import { nextIndex, setTabStop } from './roving.js';
 import { injectUiStyles } from './styles.js';
 import { reconcileKeyedList } from '../addons/keyed-list.js';
@@ -139,6 +147,7 @@ function writeRow(node, row, state) {
   if (item.tone) node.setAttribute('data-tone', String(item.tone));
   else node.removeAttribute('data-tone');
   node.style.setProperty('--tree-level', String(row.level - 1));
+  node.classList.toggle('is-unmatched', !matchesQuery(item.label ?? row.id, state.query));
   writeText(node._uiText.label, item.label ?? row.id);
   writeText(node._uiText.count, counted ? item.count : '');
   node._uiText.count.parentNode.hidden = !counted;
@@ -219,10 +228,41 @@ function bindTree(tree) {
 }
 
 /**
+ * A row dragged onto another asks for that row as its parent (`onMove(id, parentId)`): the row in hand is
+ * marked, the row under the pointer lit, and a release anywhere else asks nothing.
+ */
+function bindMove(tree) {
+  const { root, doc, callbacks } = tree;
+  let drag = null;
+  root.setAttribute('data-movable', '');
+  trackDrag(tree.life, root, {
+    selector: ROW,
+    onStart(row) {
+      drag = { id: row.getAttribute('data-ui-id'), row, target: null };
+      row.classList.add('is-dragging');
+    },
+    onMove(point) {
+      if (!drag) return;
+      const hit = doc.elementFromPoint?.(point.x, point.y)?.closest?.(ROW) ?? null;
+      setDropTarget(drag, hit && root.contains(hit) && hit !== drag.row ? hit : null);
+    },
+    onEnd(point) {
+      if (!drag) return;
+      const { id, row, target } = drag;
+      setDropTarget(drag, null);
+      drag = null;
+      row.classList.remove('is-dragging');
+      if (point && target) callbacks.onMove(id, target.getAttribute('data-ui-id'));
+    }
+  });
+}
+
+/**
  * @param {HTMLElement} host
- * @param {{onActivate?: (id: string) => void, onToggle?: (id: string, expanded: boolean) => void}} [callbacks]
+ * @param {{onActivate?: (id: string) => void, onToggle?: (id: string, expanded: boolean) => void,
+ *   onMove?: (id: string, parentId: string) => void}} [callbacks]
  * @returns {{update(model: {label?: string, items?: Array<{id: string, parentId?: string, label?: string, count?: number,
- *   badge?: number|object, tone?: string}>, expanded?: string[], selectedId?: string}): void, destroy(): void}}
+ *   badge?: number|object, tone?: string}>, expanded?: string[], selectedId?: string, query?: string}): void, destroy(): void}}
  */
 export function createTree(host, callbacks = {}) {
   const doc = documentOf(host);
@@ -230,8 +270,9 @@ export function createTree(host, callbacks = {}) {
   const life = createLife();
   const root = el(doc, 'div', { className: CLASS, attrs: { role: 'tree' } });
   host.append(root);
-  const tree = { doc, root, life, callbacks, state: { rows: [], focusId: null, selectedId: null } };
+  const tree = { doc, root, life, callbacks, state: { rows: [], focusId: null, selectedId: null, query: '' } };
   bindTree(tree);
+  if (typeof callbacks.onMove === 'function') bindMove(tree);
   return {
     update(model = {}) {
       if (life.dead) return;
@@ -239,6 +280,7 @@ export function createTree(host, callbacks = {}) {
       const selectedId = model.selectedId ?? null;
       if (selectedId !== null && selectedId !== tree.state.selectedId) tree.state.focusId = selectedId;
       tree.state.selectedId = selectedId;
+      tree.state.query = String(model.query ?? '');
       tree.state.rows = visibleRows(children, new Set((model.expanded ?? []).map(String)));
       tree.state.focusId = tabStopId(tree.state, children);
       root.setAttribute('aria-label', String(model.label ?? 'Tree'));

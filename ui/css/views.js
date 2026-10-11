@@ -1,9 +1,10 @@
 /**
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
- * The UI kit's view rules: kanban, calendar, timeline and graph, and the tones
- * they share with the chips and the tree: a tone colours the leading edge, the
- * meaning tones (success, warning, danger) and the eight category tones alike.
+ * The UI kit's view rules: kanban, calendar and timeline, what the graph
+ * shares with them (its own rules are `./graph.js`), and the tones they share
+ * with the chips and the tree: a tone colours the leading edge, the meaning
+ * tones (success, warning, danger) and the eight category tones alike.
  * Geometry that changes per element arrives as inline custom properties
  * written through the CSSOM (`--calendar-top`, `--timeline-x`, `--graph-x`,
  * ...); every size a theme may want is a `--cc-ui-*` token with its default in
@@ -295,45 +296,6 @@ export const UI_VIEWS_CSS = `/* ------------------ UI KIT: VIEWS ---------------
   pointer-events: none;
   background: var(--cc-tone-danger, #f87171);
 }
-
-/* Graph */
-.cloudcanvas-ui-graph { display: grid; gap: var(--cc-space-2, 8px); }
-.cloudcanvas-ui-graph-toolbar { display: flex; gap: var(--cc-space-1, 4px); }
-.cloudcanvas-ui-graph-viewport {
-  position: relative;
-  height: var(--cc-ui-graph-height, 24rem);
-  overflow: hidden;
-  touch-action: none;
-  background: var(--cc-scope-bg, rgba(0, 0, 0, 0.2));
-  border: 1px solid ${LINE};
-  border-radius: var(--cc-radius-md, 10px);
-  cursor: grab;
-}
-.cloudcanvas-ui-graph-viewport.is-panning { cursor: grabbing; }
-:is(.cloudcanvas-ui-graph-world, .cloudcanvas-ui-graph-edges, .cloudcanvas-ui-graph-nodes) { position: absolute; top: 0; left: 0; transform-origin: 0 0; overflow: visible; }
-.cloudcanvas-ui-graph-edge { stroke: var(--cc-connector, rgba(56, 189, 248, 0.6)); stroke-width: 1.5; }
-.cloudcanvas-ui-graph-arrow { fill: var(--cc-connector, rgba(56, 189, 248, 0.6)); }
-.cloudcanvas-ui-graph-edge-label { fill: var(--cc-text-muted, #94a3b8); font-size: var(--cc-type-xs, 11px); }
-.cloudcanvas-ui-graph-node {
-  position: absolute;
-  top: 0;
-  left: 0;
-  box-sizing: border-box;
-  translate: var(--graph-x) var(--graph-y);
-  padding: 0 var(--cc-space-2, 8px);
-  font: inherit;
-  font-size: var(--cc-type-sm, 12px);
-  color: var(--cc-text, #e2e8f0);
-  background: var(--cc-card-bg, rgba(30, 41, 59, 0.85));
-  border: 1px solid var(--cc-card-border, rgba(255, 255, 255, 0.1));
-  border-left: 4px solid var(--cc-accent, #38bdf8);
-  border-radius: var(--cc-radius-md, 10px);
-  box-shadow: var(--cc-shadow-1, 0 4px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06));
-  cursor: pointer;
-}
-/* A node cuts nothing itself: its label does. */
-.cloudcanvas-ui-graph-node-label { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.cloudcanvas-ui-graph-node.is-selected { border-color: var(--cc-accent, #38bdf8); }
 
 @media (max-width: 40rem) {
   .cloudcanvas-ui-kanban-lane { grid-auto-columns: 85%; }
