@@ -17,6 +17,8 @@
  *
  * EVERY BAR AND MILESTONE DRAWS ITS TITLE: inside the bar when it is wide
  * enough, else beside it; the full title is its tooltip and leads its name.
+ * The name gives the first and the LAST day the bar covers ("Oct 1 to Oct 3");
+ * what `onChange` reports as its end is the midnight after that day.
  * The column of titles at the left (the gutter) is resized by the separator on
  * the axis' corner (`onGutter(px)`; the model's `gutter` restores it). The
  * scale (day | week | month) is kept between updates; a model `scale` that

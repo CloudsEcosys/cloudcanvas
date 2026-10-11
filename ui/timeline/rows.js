@@ -12,6 +12,7 @@
  * some of it (it then ends in an ellipsis), else beside it, as a milestone's
  * is. Either way the full title is in the bar's name and its tooltip.
  */
+import { addDays, startOfDay } from '../calendar/dates.js';
 import { el } from '../dom.js';
 import { gutterHandle } from './gutter.js';
 import { TL, barOf, tickDates, xOf } from './model.js';
@@ -19,10 +20,21 @@ import { TL, barOf, tickDates, xOf } from './model.js';
 /** A bar narrower than this (px) draws its title beside it: inside, nothing of it would read. */
 export const INSIDE_MIN_PX = 56;
 
+/**
+ * The days a bar covers, as a reader counts them: the first day, and the last when it is another. A bar's end is
+ * exclusive - the midnight after its last day - so an end at midnight is the day before, and an end during a day is
+ * that day.
+ */
+function daysWords({ start, end }, date) {
+  const midnight = startOfDay(end);
+  const last = end.getTime() === midnight.getTime() ? addDays(end, -1) : midnight;
+  return last > startOfDay(start) ? `${date(start)} to ${date(last)}` : date(start);
+}
+
 /** How a bar reads to a screen reader, and what its tooltip says: title, dates, that it is drawn wider than it lasts, status, progress. */
 export function describeItem(tl, item) {
   const date = (value) => tl.format.format(value);
-  const when = item.end ? `${date(item.start)} to ${date(item.end)}` : `${date(item.start)}, ${tl.labels.milestone}`;
+  const when = item.end ? daysWords(item, date) : `${date(item.start)}, ${tl.labels.milestone}`;
   const clamped = item.end && barOf(item, tl.domain, tl.state.scale).clamped ? `, ${tl.labels.clamped}` : '';
   const status = item.status ? `, ${item.status}` : '';
   const done = item.progress === null ? '' : `, ${Math.round(item.progress * 100)}% ${tl.labels.done}`;
