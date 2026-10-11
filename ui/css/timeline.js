@@ -203,7 +203,7 @@ export const UI_TIMELINE_CSS = `/* ------------------ UI KIT: TIMELINE ---------
   opacity: 0;
   cursor: crosshair;
 }
-.cloudcanvas-ui-timeline-link.is-point { left: calc(var(--timeline-x) + 14px); }
+.cloudcanvas-ui-timeline-link.is-point { left: calc(var(--timeline-x) + 16px); }
 .cloudcanvas-ui-timeline-row:is(:hover, :focus-within, .is-current) .cloudcanvas-ui-timeline-link { opacity: 1; }
 .cloudcanvas-ui-timeline-bar.is-drop-target { outline: 2px dashed var(--cc-ui-drop, ${ACCENT}); outline-offset: 2px; }
 
@@ -277,7 +277,21 @@ export const UI_TIMELINE_CSS = `/* ------------------ UI KIT: TIMELINE ---------
   }
   .cloudcanvas-ui-timeline-handle::after { right: 0; }
   .cloudcanvas-ui-timeline-handle-start::after { left: 0; }
-  .cloudcanvas-ui-timeline-link::after { content: ""; position: absolute; top: 50%; left: 50%; width: var(--cc-control-min-coarse, 44px); height: var(--cc-control-min-coarse, 44px); translate: -50% -50%; }
+  /*
+   * THE LINK HANDLE'S REACH lies past the bar's right end - the whole 44px of it, starting at the bar's edge (a milestone's
+   * right corner) - never over the bar: the middle of every bar is the bar's, to tap, to hold and to drag. Where a bar is
+   * narrower than two targets the handle is there only for the item that is selected or focused; its title, drawn beside
+   * it, stands clear of the reach.
+   */
+  .cloudcanvas-ui-timeline-link::after { content: ""; position: absolute; top: 50%; left: -6px; width: var(--cc-control-min-coarse, 44px); height: var(--cc-control-min-coarse, 44px); translate: 0 -50%; }
+  .cloudcanvas-ui-timeline-link.is-point::after { left: 0; }
+  .cloudcanvas-ui-timeline-link.is-narrow { pointer-events: none; }
+  .cloudcanvas-ui-timeline-row:is(.is-current, :focus-within) .cloudcanvas-ui-timeline-link.is-narrow { pointer-events: auto; }
+  .cloudcanvas-ui-timeline[data-can-link] .cloudcanvas-ui-timeline-outside { left: calc(var(--timeline-x) + var(--timeline-w) + var(--cc-control-min-coarse, 44px) + 8px); }
+  .cloudcanvas-ui-timeline[data-can-link] .cloudcanvas-ui-timeline-outside.is-point { left: calc(var(--timeline-x) + var(--cc-control-min-coarse, 44px) + 20px); }
   .cloudcanvas-ui-timeline[data-can-link] .cloudcanvas-ui-timeline-row.is-current .cloudcanvas-ui-timeline-link { opacity: 1; }
+  /* A row is one whole target tall, and so is its track: a bar's grab area and the link handle's reach lie within it. */
+  .cloudcanvas-ui-timeline-row { min-height: var(--cc-control-min-coarse, 44px); }
+  .cloudcanvas-ui-timeline-track { height: var(--cc-control-min-coarse, 44px); }
 }
 `;

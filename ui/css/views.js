@@ -232,9 +232,7 @@ export const UI_VIEWS_CSS = `/* ------------------ UI KIT: VIEWS ---------------
 @media (pointer: coarse) {
   :is(.cloudcanvas-ui-calendar-day, .cloudcanvas-ui-calendar-day-head) { min-height: 2.25rem; }
   :is(.cloudcanvas-ui-kanban-label[data-ui-id], .cloudcanvas-ui-timeline-group-label) { min-height: var(--cc-control-min-coarse, 44px); }
-  /* Room for one whole target: a timeline row, the all-day strip, and a day of the month under its number. */
-  .cloudcanvas-ui-timeline-row { min-height: var(--cc-control-min-coarse, 44px); }
-  .cloudcanvas-ui-timeline-track { height: var(--cc-control-min-coarse, 44px); }
+  /* Room for one whole target: the all-day strip, and a day of the month under its number. A timeline row sets its own height, in ./timeline.js: its rule comes later in the sheet. */
   .cloudcanvas-ui-calendar-allday-cell { min-height: calc(var(--cc-control-min-coarse, 44px) + 2 * var(--cc-space-1, 4px)); }
   .cloudcanvas-ui-calendar-cell { min-height: 5.75rem; }
 

@@ -72,10 +72,14 @@ function outsideTitle(tl, item, geometry) {
   return node;
 }
 
+/** A bar narrower than this (px) is narrower than two 44px targets: under a finger its link handle is there only while its item is selected or focused. */
+export const NARROW_PX = 88;
+
 /** The handle a link is dragged from, beside the bar's right edge; it stands for no item, so a press on it opens nothing. */
 function linkHandle(tl, item, geometry) {
   const node = el(tl.doc, 'span', { className: `${TL}-link`, attrs: { 'aria-hidden': 'true', 'data-link-from': item.id, title: tl.labels.link } });
   node.classList.toggle('is-point', geometry.point);
+  node.classList.toggle('is-narrow', geometry.width < NARROW_PX);
   writeGeometry(node, geometry);
   return node;
 }

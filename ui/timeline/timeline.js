@@ -29,7 +29,11 @@
  * on the month scale) is drawn at that width, starting where it starts, and its
  * name says `shown wider than it lasts`; `onChange` reports its true times. Under
  * a finger it has a 44px grab area of padding round it, and the handles at its
- * ends give way to its body when it is too short for three targets.
+ * ends give way to its body when it is too short for three targets. The link
+ * handle's 44px reach lies past the bar's right end, never over the bar, so the
+ * middle of every bar is its own (a tap opens it, a hold is held on it, a drag
+ * moves it); for a bar narrower than two targets (88px) the handle is there only
+ * while its item is selected or focused.
  *
  * A ROW'S LABEL BELONGS TO ITS BAR: a press on the label beside a bar is a
  * press on that bar, and `itemIdOf` answers with the bar's item for either.
