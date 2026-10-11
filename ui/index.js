@@ -22,6 +22,7 @@ export { UI_TOKENS } from './tokens.js';
 export { trackDrag, DRAG_START_PX, TOUCH_DRAG_DELAY_MS, TOUCH_DRAG_START_PX } from './drag.js';
 
 export { createDialog } from './dialog.js';
+export { confirmDialog } from './confirm.js';
 export { createContextActions } from './context-actions.js';
 export { createContextWindow } from './context-window.js';
 export { createDrawer } from './drawer.js';
