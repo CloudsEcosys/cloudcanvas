@@ -230,11 +230,20 @@ export const UI_VIEWS_CSS = `/* ------------------ UI KIT: VIEWS ---------------
   .cloudcanvas-ui-calendar-cell { min-height: 4rem; }
 }
 @media (pointer: coarse) {
-  :is(.cloudcanvas-ui-calendar-day, .cloudcanvas-ui-calendar-day-head) { min-height: 2.25rem; }
+  /*
+   * A button a view's toolbar draws is 44px wide as it is tall: the glyphs (zoom, previous, next) and the short words (Fit).
+   * A day's number and a day's heading keep what is drawn - the number's circle, the heading's fill - and the rest of the
+   * 44px is transparent border round it, which is part of the button and takes the press; a "more" link is as tall as a finger.
+   */
+  :is(.cloudcanvas-ui-graph-toolbar, .cloudcanvas-ui-calendar-toolbar, .cloudcanvas-ui-timeline-toolbar) .cloudcanvas-ui-button { min-width: var(--cc-control-min-coarse, 44px); }
+  .cloudcanvas-ui-calendar-day { min-width: var(--cc-control-min-coarse, 44px); min-height: var(--cc-control-min-coarse, 44px); padding: 0; border: calc((var(--cc-control-min-coarse, 44px) - 1.75rem) / 2) solid transparent; }
+  .cloudcanvas-ui-calendar-day-head { min-height: var(--cc-control-min-coarse, 44px); border-block: calc((var(--cc-control-min-coarse, 44px) - 2.25rem) / 2) solid transparent; }
+  :is(.cloudcanvas-ui-calendar-cell.is-today .cloudcanvas-ui-calendar-day, .cloudcanvas-ui-calendar-day-head.is-today) { background-clip: padding-box; }
+  .cloudcanvas-ui-calendar-more { min-height: var(--cc-control-min-coarse, 44px); }
   :is(.cloudcanvas-ui-kanban-label[data-ui-id], .cloudcanvas-ui-timeline-group-label) { min-height: var(--cc-control-min-coarse, 44px); }
   /* Room for one whole target: the all-day strip, and a day of the month under its number. A timeline row sets its own height, in ./timeline.js: its rule comes later in the sheet. */
   .cloudcanvas-ui-calendar-allday-cell { min-height: calc(var(--cc-control-min-coarse, 44px) + 2 * var(--cc-space-1, 4px)); }
-  .cloudcanvas-ui-calendar-cell { min-height: 5.75rem; }
+  .cloudcanvas-ui-calendar-cell { min-height: 6.25rem; }
 
   /* The 44px targets of what is drawn smaller: see the head of this file. */
   :is(.cloudcanvas-ui-calendar, .cloudcanvas-ui-timeline, .cloudcanvas-ui-graph) { --target: var(--cc-control-min-coarse, 44px); --target-under: -1; }

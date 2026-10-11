@@ -55,5 +55,7 @@ export const UI_CALENDAR_CSS = `/* ------------------ UI KIT: CALENDAR ---------
 
 @media (pointer: coarse) {
   .cloudcanvas-ui-calendar-event-handle { height: 14px; }
+  /* The handle's reach runs on from it, down over the ground below the event and out over its edge: under every event, so a neighbour below keeps its own. */
+  .cloudcanvas-ui-calendar-event-handle::after { content: ""; position: absolute; top: 0; right: 0; left: -3px; z-index: var(--target-under); height: var(--cc-control-min-coarse, 44px); }
 }
 `;

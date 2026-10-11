@@ -101,6 +101,7 @@ export const UI_TIMELINE_CSS = `/* ------------------ UI KIT: TIMELINE ---------
   left: 0;
   z-index: var(--cc-z-ui-raised, 2);
   flex: none;
+  box-sizing: border-box;
   width: var(--timeline-gutter);
   padding: 0 var(--cc-space-2, 8px);
   overflow: hidden;
@@ -293,5 +294,10 @@ export const UI_TIMELINE_CSS = `/* ------------------ UI KIT: TIMELINE ---------
   /* A row is one whole target tall, and so is its track: a bar's grab area and the link handle's reach lie within it. */
   .cloudcanvas-ui-timeline-row { min-height: var(--cc-control-min-coarse, 44px); }
   .cloudcanvas-ui-timeline-track { height: var(--cc-control-min-coarse, 44px); }
+  /* The axis is a target tall too, for the separator on its corner. A row's title in the gutter, and the title beside a short bar, are the bar's: the whole height of the row. */
+  .cloudcanvas-ui-timeline-axis { height: var(--cc-control-min-coarse, 44px); }
+  .cloudcanvas-ui-timeline-tick { display: flex; align-items: center; }
+  .cloudcanvas-ui-timeline-label { align-self: stretch; line-height: var(--cc-control-min-coarse, 44px); }
+  .cloudcanvas-ui-timeline-outside { min-width: var(--cc-control-min-coarse, 44px); line-height: var(--cc-control-min-coarse, 44px); }
 }
 `;
