@@ -19,6 +19,13 @@
  * right edge, never over the node, and only for a node that is pointed at,
  * focused or selected: the fold pill is the pill's, a node's middle is the node's.
  *
+ * THE "MORE" BUTTON of the selected node (`../item-more.js`, `../graph/more.js`)
+ * stands at the node's top right corner, and the selected node keeps the room
+ * for it at the end of its title: it covers neither the title, the link handle
+ * nor the fold toggle. Drawn at the graph's zoom like the node it is on, it
+ * has the reach of a whole target on the screen (24px; 44px under a finger),
+ * as the toggle and the handle do: what they draw small, they take at full size.
+ *
  * Nothing here moves: dimming, emphasis and a spring back are instant, so
  * there is no motion to turn off for a reader who asked for less.
  */
@@ -26,6 +33,8 @@
 const LINE = 'var(--cc-ui-grid-line, var(--cc-card-border, rgba(255, 255, 255, 0.1)))';
 const ACCENT = 'var(--cc-accent, #38bdf8)';
 const TARGET = 'max(100%, calc(var(--cc-control-min-coarse, 44px) / var(--graph-k, 1)))';
+/** A whole target (24px) on the screen at any zoom, never past what the node can spare (`room`, in world units) so the reach stays out of its neighbours. */
+const reach = (room) => `max(100%, min(calc(24px / var(--graph-k, 1)), ${room}))`;
 
 export const UI_GRAPH_CSS = `/* ------------------ UI KIT: GRAPH ------------------ */
 
@@ -145,6 +154,40 @@ export const UI_GRAPH_CSS = `/* ------------------ UI KIT: GRAPH ---------------
 }
 .cloudcanvas-ui-graph[data-can-link] .cloudcanvas-ui-graph-handle { display: block; }
 .cloudcanvas-ui-graph-node:is(:hover, :focus-visible, .is-selected) .cloudcanvas-ui-graph-handle { opacity: 1; }
+/* A mouse gets a whole target of what is drawn small: the fold toggle (24x16) and the link handle (12) reach 24px on the screen, kept within the node's own room. The reach of the handle starts at its own edge and runs out from the node. */
+:where(.cloudcanvas-ui-graph[data-can-fold]) .cloudcanvas-ui-graph-toggle::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: ${reach('40px')};
+  height: ${reach('24px')};
+  translate: -50% -50%;
+}
+.cloudcanvas-ui-graph-handle::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: -2px;
+  width: ${reach('40px')};
+  height: ${reach('28px')};
+  translate: 0 -50%;
+}
+
+/* The "more" button of the selected node: its top right corner, the title keeping its room. Its reach is its own. */
+.cloudcanvas-ui-graph-more { top: 3px; right: 3px; }
+.cloudcanvas-ui-graph-more::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: ${reach('36px')};
+  height: ${reach('36px')};
+  translate: -50% -50%;
+}
+/* Drawn at the graph's zoom it would shrink to a dot on a map zoomed out to the 0.5 a big one opens at: it holds 16px on the screen, up to 36 of the graph's own units. */
+.cloudcanvas-ui-graph-node { --item-more-size: min(max(1.5rem, calc(16px / var(--graph-k, 1))), 2.25rem); --item-more-room: calc(var(--item-more-size) + 4px); }
+.cloudcanvas-ui-graph[data-can-menu] .cloudcanvas-ui-graph-node.is-selected .cloudcanvas-ui-graph-node-label { padding-right: var(--item-more-room); }
 
 .cloudcanvas-ui-graph-node.is-selected {
   box-shadow: var(--cc-ui-selected-ring, inset 0 0 0 2px ${ACCENT}), var(--cc-shadow-1, 0 4px 16px rgba(0, 0, 0, 0.4));
@@ -197,5 +240,8 @@ export const UI_GRAPH_CSS = `/* ------------------ UI KIT: GRAPH ---------------
   .cloudcanvas-ui-graph-handle { pointer-events: none; }
   .cloudcanvas-ui-graph-node:is(:hover, :focus-visible, .is-selected) .cloudcanvas-ui-graph-handle { pointer-events: auto; }
   .cloudcanvas-ui-graph-handle::after { left: 7px; translate: 0 -50%; }
+  /* The button is drawn at 24px and reaches a finger's 44px, which the room at a node's corner allows. */
+  .cloudcanvas-ui-graph-more::after { width: max(100%, min(calc(var(--cc-control-min-coarse, 44px) / var(--graph-k, 1)), 52px)); height: max(100%, min(calc(var(--cc-control-min-coarse, 44px) / var(--graph-k, 1)), 52px)); }
+  .cloudcanvas-ui-graph-node { --item-more-room: calc(var(--item-more-size) + 14px); }
 }
 `;

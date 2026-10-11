@@ -34,6 +34,13 @@
  * hint under the toolbar says what the selection can do, from the
  * callbacks the host gave.
  *
+ * THE MENU IS SEEN, NOT ONLY KNOWN. Given `onMenu`, the selected node wears a
+ * "more" button that asks for the very menu a right-click, the menu key or
+ * Shift+F10 asks for (`./more.js`, `../item-more.js`), and every hint line
+ * says where the rest is. `+` or Insert add a child; Tab is never taken. A
+ * search no node's title holds says so in the hint line (`labels.noMatches`,
+ * `{query}` filled in) and to a screen reader, and fades nothing.
+ *
  * THE FIRST VIEW of a graph given no `viewport` is the whole of it, scaled
  * down to 0.5 (below that the first root stands at the left, the first level
  * beside it), and is not taken again unless the host asks (Fit, `0`) or its
@@ -50,11 +57,13 @@ import { reconcileKeyedList } from '../../addons/keyed-list.js';
 import { CONTROL_ATTR } from '../../addons/trait.js';
 import { button, createLife, documentOf, el, input, markSelected, svg, textNode, uniqueId, writeText } from '../dom.js';
 import { injectUiStyles } from '../styles.js';
+import { MORE_WORDS } from '../item-more.js';
 import { drawEdges } from './edges.js';
 import { bindGraph } from './interact.js';
 import { emphasisOf, forestOf, layoutForest, normalizeGraph, treeRows } from './layout.js';
 import { matchesQuery } from './marks.js';
 import { createMinimap } from './minimap.js';
+import { syncMore } from './more.js';
 import { nodeElement, writeNode } from './node.js';
 import { createViewModel } from './view.js';
 
@@ -65,26 +74,38 @@ export const GRAPH_LABELS = /* @__PURE__ */ Object.freeze({
   zoomIn: 'Zoom in', zoomOut: 'Zoom out', fit: 'Fit', search: 'Search the map', searchPlaceholder: 'Search',
   child: '1 child', children: '{count} children', dependsOn: 'depends on', neededBy: 'needed by', relatedTo: 'related to',
   expand: 'Show children', collapse: 'Hide children', link: 'Drag to another node to link them',
-  matches: '{count} matching', noMatches: 'Nothing matches',
-  hintNone: 'Select a node to see what it can do · drag the background to pan · / searches',
-  hintOpen: 'Enter opens', hintAdd: '+ adds a child', hintCollapse: 'Space collapses', hintExpand: 'Space expands',
-  hintMove: 'drag onto a node to move it', hintLink: 'drag the dot to link', hintDelete: 'Delete removes'
+  matches: '{count} matching', noMatches: 'Nothing matches “{query}”', more: MORE_WORDS,
+  hintNone: 'Select a node to see what it can do · drag the background to pan', hintSearch: '/ searches',
+  hintOpen: 'Enter opens', hintAdd: '+ or Insert to add a child', hintCollapse: 'Space collapses', hintExpand: 'Space expands',
+  hintMove: 'drag onto a node to move it', hintLink: 'drag the dot to link', hintDelete: 'Delete removes',
+  hintMore: 'Shift+F10 or right-click for more'
 });
 
-/** What the hint says for the selection: the verbs the host gave callbacks for. */
+/** Whether a search is typed and no node's title holds it: the hint says so, and nothing is faded for it. */
+function nothingMatches(g) {
+  const { query, nodes } = g.state;
+  return query.trim() !== '' && !nodes.some((node) => matchesQuery(node.label, query));
+}
+
+const noMatchWords = (g) => g.labels.noMatches.replace('{query}', g.state.query.trim());
+
+/** What the hint says: that a search found nothing, else for the selection the verbs the host gave callbacks for. */
 function hintOf(g) {
   const { labels, callbacks: cb } = g;
   const id = g.state.selectedId;
-  if (id === null) return labels.hintNone;
+  if (nothingMatches(g)) return noMatchWords(g);
+  if (id === null) return [labels.hintNone, cb.onMenu && labels.hintMore, labels.hintSearch].filter(Boolean).join(' · ');
   const folds = cb.onToggle && g.countOf(id) > 0;
   return [cb.onActivate && labels.hintOpen, cb.onAdd && labels.hintAdd,
     folds && (g.byId.get(id).collapsed ? labels.hintExpand : labels.hintCollapse),
-    cb.onDropOn && labels.hintMove, cb.onConnect && labels.hintLink, cb.onDelete && labels.hintDelete].filter(Boolean).join(' · ');
+    cb.onDropOn && labels.hintMove, cb.onConnect && labels.hintLink, cb.onDelete && labels.hintDelete,
+    cb.onMenu && labels.hintMore].filter(Boolean).join(' · ');
 }
 
 /** Draw what the selection and the search say: emphasis and dimming, the edges, the hint. The selected node is marked as every kit view marks one, and is the tree's selected item. */
 function paint(g) {
   const { selectedId, query } = g.state;
+  const faded = !nothingMatches(g);
   g.emphasis = emphasisOf(selectedId, g.forest, g.state.edges);
   for (const element of g.nodeLayer.children) {
     const id = element.getAttribute('data-ui-id');
@@ -94,8 +115,9 @@ function paint(g) {
     else element.setAttribute('aria-selected', String(selected));
     element.classList.toggle('is-path', Boolean(g.emphasis) && !selected && g.emphasis.path.has(id));
     element.classList.toggle('is-dim', Boolean(g.emphasis) && !g.emphasis.lit.has(id));
-    element.classList.toggle('is-unmatched', !matchesQuery(g.byId.get(id).label, query));
+    element.classList.toggle('is-unmatched', faded && !matchesQuery(g.byId.get(id).label, query));
   }
+  syncMore(g);
   drawEdges(g, g.emphasis);
   const hint = hintOf(g);
   writeText(g.hintText, hint);
@@ -160,7 +182,7 @@ function onSearch(g, text) {
   g.state.query = text;
   paint(g);
   const count = g.state.nodes.filter((node) => matchesQuery(node.label, text)).length;
-  if (text.trim() !== '') g.say(count === 0 ? g.labels.noMatches : g.labels.matches.replace('{count}', String(count)));
+  if (text.trim() !== '') g.say(count === 0 ? noMatchWords(g) : g.labels.matches.replace('{count}', String(count)));
   g.callbacks.onQuery?.(text);
 }
 
@@ -254,14 +276,14 @@ function surface(g) {
 
 /** Say on the root which gestures the host takes, so the sheet shows their affordances and cursors. */
 function markAbilities(root, callbacks) {
-  for (const [name, callback] of [['data-can-move', 'onDropOn'], ['data-can-link', 'onConnect'], ['data-can-fold', 'onToggle']]) {
+  for (const [name, callback] of [['data-can-move', 'onDropOn'], ['data-can-link', 'onConnect'], ['data-can-fold', 'onToggle'], ['data-can-menu', 'onMenu']]) {
     if (typeof callbacks[callback] === 'function') root.setAttribute(name, '');
   }
 }
 
 function graphState(doc, life, root, callbacks) {
   const g = { doc, life, root, callbacks, labels: { ...GRAPH_LABELS, ...callbacks.labels }, markerId: uniqueId(`${GRAPH}-arrow`),
-    view: { x: 0, y: 0, k: 1 }, fitted: false, positions: new Map(), byId: new Map(), forest: forestOf([], []), rows: [], emphasis: null,
+    view: { x: 0, y: 0, k: 1 }, fitted: false, auto: null, positions: new Map(), byId: new Map(), forest: forestOf([], []), rows: [], emphasis: null,
     drag: null, draft: null, panned: false, state: { nodes: [], edges: [], selectedId: null, focusId: null, query: '' },
     seen: { selectedId: undefined, query: undefined, focusId: undefined, viewport: undefined }, wait: { selectedId: null, focusId: null } };
   g.countOf = (id) => g.byId.get(id)?.childCount ?? g.forest.children.get(id)?.length ?? 0;

@@ -11,6 +11,7 @@
  */
 import { markSelected, writeText } from '../dom.js';
 import { eventById } from './model.js';
+import { syncMore } from './more.js';
 import { CAL } from './month.js';
 import { resizable } from './resize.js';
 
@@ -18,13 +19,14 @@ import { resizable } from './resize.js';
 function eventVerbs(cal, event) {
   const { labels, callbacks: cb } = cal;
   const moves = event.movable && typeof cb.onMove === 'function';
-  return [cb.onActivate && labels.hintOpen, moves && labels.hintMove, resizable(cal, event) && labels.hintResize, resizable(cal, event) && labels.hintKeys];
+  return [cb.onActivate && labels.hintOpen, moves && labels.hintMove, resizable(cal, event) && labels.hintResize, resizable(cal, event) && labels.hintKeys,
+    cb.onMenu && labels.hintMore];
 }
 
 /** What nothing selected says: how to begin, by pointer and by keyboard. */
 function startVerbs(cal) {
   const add = cal.state.view === 'month' ? cal.labels.hintCreateDays : cal.labels.hintCreate;
-  return [cal.labels.hintNone, cal.callbacks.onPick && add, cal.callbacks.onPick && cal.labels.hintDraw];
+  return [cal.labels.hintNone, cal.callbacks.onPick && add, cal.callbacks.onMenu && cal.labels.hintMore, cal.callbacks.onPick && cal.labels.hintDraw];
 }
 
 /** The keys of the step a drawing is at: in the month or the hours, before its anchor or after. */
@@ -42,9 +44,10 @@ export function hintOf(cal) {
   return verbs.filter(Boolean).join(' · ');
 }
 
-/** Mark the selection on every chip that draws it, and write the hint. */
+/** Mark the selection on every chip that draws it, stand the "more" button by it, and write the hint. */
 export function paint(cal) {
   for (const chip of cal.body.querySelectorAll(`.${CAL}-event`)) markSelected(chip, chip.getAttribute('data-ui-id') === cal.state.selectedId);
+  syncMore(cal);
   const hint = hintOf(cal);
   writeText(cal.hintText, hint);
   cal.hint.hidden = hint === '';

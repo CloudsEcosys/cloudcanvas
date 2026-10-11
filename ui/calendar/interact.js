@@ -11,6 +11,7 @@
 import { trackDrag } from '../drag.js';
 import { addDays, addMinutes, atMinutes, daysBetween, fromDayKey, minutesOfDay, sameDay, shiftAnchor, startOfWeek, viewDays } from './dates.js';
 import { describeEvent, eventById, isAllDayLike } from './model.js';
+import { bindMore, pressMore } from './more.js';
 import { CAL } from './month.js';
 import { isDrawKey } from '../draw-keys.js';
 import { bindDraw, drawKey, sayDraw, startDraw } from './draw.js';
@@ -32,6 +33,7 @@ function pick(cal, key, start) {
 function onClick(cal, event) {
   if (cal.state.pending) return;
   const target = event.target;
+  if (pressMore(cal, target)) return;
   const chip = target.closest?.(CHIP);
   if (chip) { select(cal, chip.getAttribute('data-ui-id')); cal.callbacks.onActivate?.(chip.getAttribute('data-ui-id')); return; }
   const more = target.closest?.(`.${CAL}-more`);
@@ -230,4 +232,5 @@ export function bindCalendar(cal) {
   bindDrag(cal);
   bindResize(cal);
   bindRange(cal);
+  bindMore(cal);
 }

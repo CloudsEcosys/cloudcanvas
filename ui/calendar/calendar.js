@@ -18,6 +18,11 @@
  * `selectedId` marks the event a host has selected, on every day it is drawn:
  * for the eye and for assistive technology (`aria-current`). Focus is not moved.
  *
+ * THE MENU IS SEEN, NOT ONLY KNOWN. Given `onMenu`, the selected event has a
+ * "more" button at its chip's end that asks for the very menu a right-click, the
+ * menu key or Shift+F10 asks for (`./more.js`, `../item-more.js`), and every
+ * hint line says where the rest is; it is not drawn while an event is in hand.
+ *
  * KEYBOARD. Day buttons are one tab stop: arrows move a day (Up/Down a week in
  * the month), Page keys a period, Home/End the week's ends, Enter picks the day.
  * Tab reaches the focused day's events; Enter opens one, Space picks it up,
@@ -35,6 +40,7 @@ import { button, clamp, createLife, documentOf, el, textNode, writeText } from '
 import { injectUiStyles } from '../styles.js';
 import { createLiveRegion, say } from '../../addons/announce.js';
 import { CONTROL_ATTR } from '../../addons/trait.js';
+import { MORE_WORDS } from '../item-more.js';
 import { CALENDAR_VIEWS, addDays, dayKey, sameDay, shiftAnchor, startOfDay, toDate, viewDays } from './dates.js';
 import { formattersFor, normalizeEvents, titleFor } from './model.js';
 import { CAL, renderMonth } from './month.js';
@@ -49,7 +55,7 @@ export const CALENDAR_LABELS = /* @__PURE__ */ Object.freeze({
   month: 'Month', week: 'Week', day: 'Day', hours: 'Hours', resized: 'Now',
   hintNone: 'Select an event to see what it can do', hintCreate: 'drag across empty slots to add one', hintCreateDays: 'drag across days to add one',
   hintOpen: 'Enter opens', hintMove: 'drag to move', hintResize: 'drag the bottom edge to resize', hintKeys: 'Alt+Shift+Up or Down resizes',
-  hintDraw: 'N on a day draws one', hintDrawTime: 'Up and Down move the time · Left and Right the day · Enter or Space starts the range · Escape cancels',
+  hintDraw: 'N on a day draws one', hintMore: 'Shift+F10 or right-click for more', more: MORE_WORDS, hintDrawTime: 'Up and Down move the time · Left and Right the day · Enter or Space starts the range · Escape cancels',
   hintDrawTimeEnd: 'Up and Down set the end · Enter or Space adds the range · Escape cancels',
   hintDrawDays: 'The arrows move the day · Enter or Space starts the range · Escape cancels',
   hintDrawDaysEnd: 'The arrows set the end · Enter or Space adds the range · Escape cancels',
@@ -135,6 +141,7 @@ function render(cal) {
   const { state } = cal;
   // Every node is redrawn: a draw that names no focus of its own (a host update, a pointer drag) keeps it on what held it.
   if (cal.focusAfter === null) cal.focusAfter = heldFocus(cal);
+  const heldMore = cal.more !== undefined && cal.doc.activeElement === cal.more;
   const days = viewDays(state.view, state.anchor, state.weekStartsOn);
   if (!days.some((day) => sameDay(day, state.focusDate))) state.focusDate = startOfDay(state.view === 'month' ? state.anchor : days[0]);
   cal.title = titleFor(state.view, days, cal.format);
@@ -151,6 +158,7 @@ function render(cal) {
   restoreFocus(cal);
   cal.drawing = false;
   paint(cal);
+  if (heldMore) cal.more.focus({ preventScroll: true });
   return days;
 }
 

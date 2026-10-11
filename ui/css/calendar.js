@@ -7,6 +7,13 @@
  * calendar's rules - its grids, its chips, their tones and their 44px
  * targets under a finger - are in `./views.js`.
  *
+ * THE "MORE" BUTTON of the selected event (`../item-more.js`, `./more.js`) stands
+ * at its chip's end, in the chip's own row of the day's list or at the chip's own
+ * place in the day's column, and the chip keeps the room for it: the button is
+ * its chip's neighbour, never a part of it (a chip is a button), and covers
+ * neither its title, its time nor its grip. A list that holds one is the
+ * button's containing block, its row the chip's own row of the grid.
+ *
  * Nothing here moves: a grip appears and a band is drawn, none of it is
  * animated, so there is no motion to turn off for a reader who asked for less.
  */
@@ -33,6 +40,17 @@ export const UI_CALENDAR_CSS = `/* ------------------ UI KIT: CALENDAR ---------
   opacity: 0;
 }
 .cloudcanvas-ui-calendar-event:is(:hover, :focus-visible, .is-selected, .is-grabbed) .cloudcanvas-ui-calendar-event-handle::before { opacity: 0.7; }
+
+/* The "more" button of the selected event, and the room its chip keeps for it. */
+:is(.cloudcanvas-ui-calendar-events, .cloudcanvas-ui-calendar-allday-cell) { position: relative; }
+.cloudcanvas-ui-calendar-event.is-holding-more { padding-right: var(--item-more-room); }
+:is(.cloudcanvas-ui-calendar-events, .cloudcanvas-ui-calendar-allday-cell) > .cloudcanvas-ui-calendar-more-actions { grid-column: 1 / 2; top: 50%; right: 3px; translate: 0 -50%; }
+.cloudcanvas-ui-calendar-more-actions.is-timed {
+  top: calc(var(--calendar-top) * var(--cc-ui-hour-height, 48px) / 60 + 2px);
+  right: auto;
+  left: calc((var(--calendar-lane) + 1) * 100% / var(--calendar-lanes) - var(--item-more-size) - 3px);
+  translate: none;
+}
 
 /* The range being made: a band of slots with their times in it down a column; the days of a month or the strip, lit. Its words are the page's text: the band is a wash over the page, and a bar's text colour is for a bar's accent fill. */
 .cloudcanvas-ui-calendar-draft {

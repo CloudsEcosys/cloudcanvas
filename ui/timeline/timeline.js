@@ -74,6 +74,12 @@
  * fought (`./reveal.js`). An ask whose item is not drawn yet waits for it, and one
  * within its own width of an edge of the sheet is brought to the middle too.
  *
+ * THE MENU IS SEEN, NOT ONLY KNOWN. Given `onMenu`, the selected bar has a "more"
+ * button beyond it that asks for the very menu a right-click, the menu key or
+ * Shift+F10 asks for (`./more.js`, `../item-more.js`), and every hint line says
+ * where the rest is; the title of the selected row beside its bar moves past
+ * the button, and the button is not drawn while a bar is in hand.
+ *
  * WHERE THE READER IS, by date: `visibleStart()` says the moment at the left
  * edge of the track and the rows' offset, and `scrollToDate(date, { top })`
  * puts the sheet there, once, reaching the date. A sheet with no box (its host
@@ -91,6 +97,7 @@ import { CONTROL_ATTR } from '../../addons/trait.js';
 import { button, createLife, documentOf, el, textNode, uniqueId, writeText } from '../dom.js';
 import { injectUiStyles } from '../styles.js';
 import { toDate } from '../calendar/dates.js';
+import { MORE_CLASS, MORE_WORDS } from '../item-more.js';
 import { applyGutter } from './gutter.js';
 import { bindTimeline } from './interact.js';
 import { TL, TIMELINE_SCALES, normalizeItems, widthOf, xOf } from './model.js';
@@ -109,7 +116,8 @@ export const TIMELINE_LABELS = /* @__PURE__ */ Object.freeze({
   pickedUp: 'Picked up {title}. Left and Right move it a day, Shift resizes, Space drops it, Escape cancels.',
   hintNone: 'Select a bar to see what it can do', hintCreate: 'drag on a row to add one', hintOpen: 'Enter opens',
   hintMove: 'drag to move', hintResize: 'drag an edge to resize', hintKeys: 'Alt+arrows move a day, Alt+Shift+arrows resize',
-  hintLink: 'drag the dot to link', hintDelete: 'Delete removes', hintAdd: '+ adds one here', hintFold: 'Space folds',
+  hintLink: 'drag the dot to link', hintDelete: 'Delete removes', hintAdd: '+ or Insert to add one here', hintFold: 'Space folds',
+  hintMore: 'Shift+F10 or right-click for more', more: MORE_WORDS,
   hintUnlink: 'Delete removes the link', clamped: 'shown wider than it lasts', link: 'Drag to another bar to link them', dependsOn: 'depends on', collapse: 'Collapse {group}', expand: 'Expand {group}', hidden: '{count} hidden',
   summary: '{group}, {count} items', summaryOne: '{group}, 1 item',
   hintDraw: 'N draws a span', hintDrawing: 'Left and Right move the day · Up and Down the row · Enter or Space starts the span · Escape cancels',
@@ -147,7 +155,7 @@ function writeScales(tl) {
 /** What holds focus in the sheet before a redraw: a bar, the heading of a group that stands for an item (by its id), or the separator. */
 function heldFocus(tl) {
   const held = tl.sheet.contains(tl.doc.activeElement) ? tl.doc.activeElement : null;
-  return { bar: Boolean(held?.closest(`.${TL}-bar`)), gutter: Boolean(held?.closest(`.${TL}-gutter-handle`)),
+  return { bar: Boolean(held?.closest(`.${TL}-bar`)), gutter: Boolean(held?.closest(`.${TL}-gutter-handle`)), more: Boolean(held?.closest(`.${MORE_CLASS}`)),
     groupId: held?.closest(`.${TL}-group-label`)?.getAttribute('data-ui-id') ?? null };
 }
 
@@ -196,6 +204,7 @@ function render(tl) {
   tl.writeTabStops();
   paint(tl);
   heading?.focus({ preventScroll: true });
+  if (held.more) tl.more?.focus({ preventScroll: true });
   if (held.gutter) tl.gutterNode?.focus({ preventScroll: true });
   tl.drawing = false;
   if (tl.reveal !== null && !tl.busy() && revealItem(tl, tl.reveal)) tl.reveal = null;
@@ -250,7 +259,7 @@ function applyModel(tl, model) {
 /** Say on the root which gestures the host takes, so the sheet shows their affordances and cursors. */
 function markAbilities(root, callbacks) {
   for (const [name, callback] of [['data-can-move', 'onChange'], ['data-can-create', 'onCreate'], ['data-can-link', 'onLink'],
-    ['data-can-fold', 'onToggleGroup'], ['data-can-unlink', 'onUnlink']]) {
+    ['data-can-fold', 'onToggleGroup'], ['data-can-unlink', 'onUnlink'], ['data-can-menu', 'onMenu']]) {
     if (typeof callbacks[callback] === 'function') root.setAttribute(name, '');
   }
 }

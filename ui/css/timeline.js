@@ -20,6 +20,17 @@
  * group's summary on its heading's row is drawn as a bar of what is folded
  * away: the page's text on the sheet's surface, a dashed outline.
  *
+ * A MOUSE GETS A WHOLE TARGET (24px) of what is drawn small: the gutter's
+ * separator (6px), the link handle (12px) and the ends of a bar (10px), each
+ * by a reach of its own that keeps clear of the others - the ends reach inward
+ * and never past a third of the bar, so the middle stays the bar's; the link
+ * handle's reach starts at the bar's edge. A finger gets 44px, below.
+ *
+ * THE "MORE" BUTTON of the selected bar (`../item-more.js`, `../timeline/more.js`)
+ * stands beyond the bar, after its link handle, where a title drawn beside the
+ * bar would begin; the title of the selected row moves past it, so it covers
+ * neither the bar's title nor a handle.
+ *
  * Nothing here moves: a handle appears, a band is drawn, a bar is placed;
  * none of it is animated, so there is no motion to turn off for a reader who
  * asked for less.
@@ -59,6 +70,8 @@ export const UI_TIMELINE_CSS = `/* ------------------ UI KIT: TIMELINE ---------
 .cloudcanvas-ui-timeline-gutter-handle { position: absolute; top: 0; right: -3px; bottom: 0; width: 6px; cursor: col-resize; touch-action: none; border-radius: var(--cc-radius-sm, 6px); }
 .cloudcanvas-ui-timeline-gutter-handle::after { content: ""; position: absolute; top: 6px; bottom: 6px; left: 2px; width: 2px; border-radius: var(--cc-radius-sm, 6px); background: var(--cc-text-muted, #94a3b8); opacity: 0.5; }
 .cloudcanvas-ui-timeline-gutter-handle:is(:hover, :focus-visible, .is-grabbed)::after { background: ${ACCENT}; opacity: 1; }
+/* The separator is drawn 6px wide and takes a mouse 24px: it stands on the axis alone, so its reach has no neighbour to take a press from. */
+.cloudcanvas-ui-timeline-gutter-handle::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 24px; translate: -50% 0; }
 .cloudcanvas-ui-timeline-gutter-handle:focus-visible { outline: ${RING}; outline-offset: 0; }
 
 /* A group's heading: a row of its own, level 1 of the treegrid. */
@@ -236,6 +249,8 @@ export const UI_TIMELINE_CSS = `/* ------------------ UI KIT: TIMELINE ---------
   cursor: crosshair;
 }
 .cloudcanvas-ui-timeline-link.is-point { left: calc(var(--timeline-x) + 16px); }
+/* A mouse gets 24px of the handle: from the bar's edge, a whole target, clear of the title drawn beside it. */
+.cloudcanvas-ui-timeline-link::after { content: ""; position: absolute; top: 50%; left: -6px; width: 24px; height: 24px; translate: 0 -50%; }
 .cloudcanvas-ui-timeline-row:is(:hover, :focus-within, .is-current) .cloudcanvas-ui-timeline-link { opacity: 1; }
 .cloudcanvas-ui-timeline-bar.is-drop-target { outline: 2px dashed var(--cc-ui-drop, ${ACCENT}); outline-offset: 2px; }
 
@@ -264,6 +279,17 @@ export const UI_TIMELINE_CSS = `/* ------------------ UI KIT: TIMELINE ---------
 .cloudcanvas-ui-timeline-handle { right: 0; border-radius: 0 var(--cc-radius-sm, 6px) var(--cc-radius-sm, 6px) 0; }
 .cloudcanvas-ui-timeline-handle-start { left: 0; border-radius: var(--cc-radius-sm, 6px) 0 0 var(--cc-radius-sm, 6px); }
 .cloudcanvas-ui-timeline-row:is(:hover, :focus-within, .is-current) :is(.cloudcanvas-ui-timeline-handle, .cloudcanvas-ui-timeline-handle-start) { opacity: 0.75; }
+/* A mouse gets 24px of each end: inward from the bar's edge, never past a third of what is inside its borders (4px at the start, 1px at the end), so its middle is its own to move - a bar of half an hour is 20px wide, and its body is still its body; the handle is as tall as the bar. */
+:is(.cloudcanvas-ui-timeline-handle, .cloudcanvas-ui-timeline-handle-start)::after { content: ""; position: absolute; top: 50%; width: min(24px, calc((var(--timeline-w) - 5px) / 3)); height: max(100%, 24px); translate: 0 -50%; }
+.cloudcanvas-ui-timeline-handle::after { right: 0; }
+.cloudcanvas-ui-timeline-handle-start::after { left: 0; }
+
+/* The "more" button of the selected bar: where a title beside the bar would begin, which the selected row's title gives way to. */
+.cloudcanvas-ui-timeline-more { top: 50%; left: calc(var(--timeline-x) + var(--timeline-w) + 22px); translate: 0 -50%; }
+.cloudcanvas-ui-timeline[data-can-link] .cloudcanvas-ui-timeline-more { left: calc(var(--timeline-x) + var(--timeline-w) + 30px); }
+.cloudcanvas-ui-timeline-more.is-point { left: calc(var(--timeline-x) + 12px); }
+.cloudcanvas-ui-timeline[data-can-link] .cloudcanvas-ui-timeline-more.is-point { left: calc(var(--timeline-x) + 32px); }
+.cloudcanvas-ui-timeline[data-can-menu] .cloudcanvas-ui-timeline-row.is-current .cloudcanvas-ui-timeline-outside { margin-left: var(--item-more-room); }
 .cloudcanvas-ui-timeline-now {
   position: absolute;
   top: 0;
@@ -321,6 +347,8 @@ export const UI_TIMELINE_CSS = `/* ------------------ UI KIT: TIMELINE ---------
   .cloudcanvas-ui-timeline-row:is(.is-current, :focus-within) .cloudcanvas-ui-timeline-link.is-narrow { pointer-events: auto; }
   .cloudcanvas-ui-timeline[data-can-link] .cloudcanvas-ui-timeline-outside { left: calc(var(--timeline-x) + var(--timeline-w) + var(--cc-control-min-coarse, 44px) + 8px); }
   .cloudcanvas-ui-timeline[data-can-link] .cloudcanvas-ui-timeline-outside.is-point { left: calc(var(--timeline-x) + var(--cc-control-min-coarse, 44px) + 20px); }
+  .cloudcanvas-ui-timeline[data-can-link] .cloudcanvas-ui-timeline-more { left: calc(var(--timeline-x) + var(--timeline-w) + var(--cc-control-min-coarse, 44px) + 8px); }
+  .cloudcanvas-ui-timeline[data-can-link] .cloudcanvas-ui-timeline-more.is-point { left: calc(var(--timeline-x) + var(--cc-control-min-coarse, 44px) + 20px); }
   .cloudcanvas-ui-timeline[data-can-link] .cloudcanvas-ui-timeline-row.is-current .cloudcanvas-ui-timeline-link { opacity: 1; }
   /* A row is one whole target tall, and so is its track: a bar's grab area and the link handle's reach lie within it. */
   .cloudcanvas-ui-timeline-row { min-height: var(--cc-control-min-coarse, 44px); }

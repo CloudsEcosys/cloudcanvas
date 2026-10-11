@@ -301,6 +301,9 @@ export const UI_CONTROLS_CSS = `${LIVE_REGION_CSS}/* ------------------ UI KIT: 
 .cloudcanvas-ui-tree-row.is-dragging { pointer-events: none; opacity: 0.6; }
 .cloudcanvas-ui-tree-row.is-drop-target { outline: 2px dashed var(--cc-ui-drop, var(--cc-accent, #38bdf8)); outline-offset: -2px; }
 .cloudcanvas-ui-tree-row.is-unmatched { opacity: 0.45; }
+/* What a search that found nothing says, beside the rows: a polite live region, in the words the tree holds; empty, it takes no room. */
+.cloudcanvas-ui-tree-status:empty { padding: 0; }
+.cloudcanvas-ui-tree-status { margin: 0; padding: var(--cc-space-1, 4px) var(--cc-space-2, 8px); font-family: var(--cc-font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif); font-size: var(--cc-type-xs, 11px); color: var(--cc-text-muted, #94a3b8); }
 
 .cloudcanvas-ui-progress { display: grid; gap: var(--cc-space-1, 4px); }
 .cloudcanvas-ui-progress-label { font-size: var(--cc-type-sm, 12px); color: var(--cc-text-muted, #94a3b8); }

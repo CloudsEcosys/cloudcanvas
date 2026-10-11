@@ -11,6 +11,7 @@
 import { markSelected, writeText } from '../dom.js';
 import { hintOf } from './hint.js';
 import { TL } from './model.js';
+import { syncMore } from './more.js';
 
 /** Mark the selection on every bar, heading and row the sheet draws, and write the hint. */
 export function paint(tl) {
@@ -20,6 +21,7 @@ export function paint(tl) {
   }
   for (const row of tl.sheet.querySelectorAll(`.${TL}-row`)) row.classList.toggle('is-current', row.getAttribute('data-row-id') === selectedId);
   tl.paintLinks?.();
+  syncMore(tl);
   const hint = hintOf(tl);
   writeText(tl.hintText, hint);
   tl.hint.hidden = hint === '';

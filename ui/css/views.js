@@ -41,6 +41,13 @@
  * WHAT CUTS ITS OWN TEXT cannot have a target that reaches past it. So a
  * graph node's label is cut in a box of its own, on any pointer, and under a
  * finger a chip leaves the cutting to its time and its title.
+ *
+ * THE "MORE" BUTTON (`../item-more.js`) is the one control the three views
+ * share: a small round button, the kit's ellipsis, on the selected item. Each
+ * view's sheet places it and keeps the room for it; this one says what it looks
+ * like and how big it is (`--item-more-size`: 24px, a whole target under a
+ * finger where the view has room for one - the graph keeps the size and widens
+ * the reach).
  */
 
 const FONT = 'var(--cc-font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif)';
@@ -52,6 +59,26 @@ export const UI_VIEWS_CSS = `/* ------------------ UI KIT: VIEWS ---------------
   font-family: ${FONT};
   color: var(--cc-text, #e2e8f0);
 }
+:is(.cloudcanvas-ui-calendar, .cloudcanvas-ui-timeline, .cloudcanvas-ui-graph) { --item-more-size: 1.5rem; --item-more-room: calc(var(--item-more-size) + 6px); }
+.cloudcanvas-ui-item-more {
+  position: absolute;
+  z-index: var(--cc-z-ui-raised, 2);
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  width: var(--item-more-size);
+  height: var(--item-more-size);
+  padding: 0;
+  font: inherit;
+  color: var(--cc-text, #e2e8f0);
+  background: var(--cc-ui-surface, var(--cc-card-bg, rgba(30, 41, 59, 0.85)));
+  border: 1px solid ${LINE};
+  border-radius: var(--cc-radius-pill, 9999px);
+  cursor: pointer;
+}
+.cloudcanvas-ui-item-more > .cloudcanvas-ui-icon { width: 1rem; height: 1rem; }
+.cloudcanvas-ui-item-more:is(:hover, :focus-visible) { background: var(--cc-btn-bg-hover, rgba(56, 189, 248, 0.22)); }
+.cloudcanvas-ui-item-more:focus-visible { outline: var(--cc-focus-ring-width, 2px) solid var(--cc-focus-ring, var(--cc-accent, #38bdf8)); outline-offset: var(--cc-focus-ring-offset, 2px); }
 :is(.cloudcanvas-ui-kanban-card, .cloudcanvas-ui-calendar-event, .cloudcanvas-ui-timeline-bar, .cloudcanvas-ui-graph-node)[data-tone="success"] { border-left-color: var(--cc-tone-success, #22c55e); }
 :is(.cloudcanvas-ui-kanban-card, .cloudcanvas-ui-calendar-event, .cloudcanvas-ui-timeline-bar, .cloudcanvas-ui-graph-node)[data-tone="warning"] { border-left-color: var(--cc-tone-warning, #eab308); }
 :is(.cloudcanvas-ui-kanban-card, .cloudcanvas-ui-calendar-event, .cloudcanvas-ui-timeline-bar, .cloudcanvas-ui-graph-node)[data-tone="danger"] { border-left-color: var(--cc-tone-danger, #f87171); }
@@ -247,6 +274,8 @@ export const UI_VIEWS_CSS = `/* ------------------ UI KIT: VIEWS ---------------
 
   /* The 44px targets of what is drawn smaller: see the head of this file. */
   :is(.cloudcanvas-ui-calendar, .cloudcanvas-ui-timeline, .cloudcanvas-ui-graph) { --target: var(--cc-control-min-coarse, 44px); --target-under: -1; }
+  :is(.cloudcanvas-ui-calendar, .cloudcanvas-ui-timeline) { --item-more-size: var(--cc-control-min-coarse, 44px); }
+  .cloudcanvas-ui-item-more > .cloudcanvas-ui-icon { width: 1.25rem; height: 1.25rem; }
   .cloudcanvas-ui-graph-node { --target: calc(var(--cc-control-min-coarse, 44px) / var(--graph-k, 1)); }
   .cloudcanvas-ui-calendar-month { isolation: isolate; }
   .cloudcanvas-ui-calendar-day { position: relative; z-index: var(--cc-z-ui-raised, 2); }

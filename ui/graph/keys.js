@@ -9,8 +9,12 @@
  * adds a child (`onAdd`), Delete or Backspace removes (`onDelete`), Space
  * folds or opens (`onToggle`), the menu key or Shift+F10 asks for the menu
  * under the node (`onMenu`), `/` goes to the search box and `0` fits. A verb
- * the host gave no callback for leaves its key to the host.
+ * the host gave no callback for leaves its key to the host. Tab is never taken:
+ * a widget whose focus roves must not trap the key that leaves it. The "more"
+ * button inside the selected node (`./more.js`) is a button, and its keys are
+ * its own.
  */
+import { isMore } from '../item-more.js';
 import { treeStep } from './layout.js';
 import { NODE_CLASS } from './node.js';
 
@@ -55,7 +59,7 @@ function verbOf(g, id, event, element) {
 /** Handle a key pressed on one of the graph's nodes. */
 export function onGraphKey(g, event) {
   const element = event.target.closest?.(`.${NODE_CLASS}`);
-  if (!element || !g.nodeLayer.contains(element) || event.altKey || event.ctrlKey || event.metaKey) return;
+  if (!element || !g.nodeLayer.contains(element) || isMore(event.target) || event.altKey || event.ctrlKey || event.metaKey) return;
   const id = element.getAttribute('data-ui-id');
   if (!g.byId.has(id)) return;
   if (MOVES.has(event.key)) {

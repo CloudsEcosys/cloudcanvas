@@ -9,10 +9,18 @@
  * The first view of a graph that has none is the whole of it, scaled down to
  * a floor of 0.5; where it does not fit even then, the first root stands at
  * the left, the first level beside it (and the selection, if there is one,
- * brought into view). It is taken once: not again unless the host asks (Fit,
+ * brought into view by the least pan, so the root keeps its place as far as the
+ * selection allows). It is taken once: not again unless the host asks (Fit,
  * `0`) or the model's nodes are replaced, and a `viewport` the model gives
- * always wins. Nothing here moves by itself over time, so there is no motion
- * to reduce.
+ * always wins.
+ *
+ * WHILE IT IS STILL THAT VIEW - the one the graph drew itself, by that first
+ * view or by Fit, and not a pan, a zoom, a node brought into view or a view
+ * the model gave - it follows the width of its host: a pane that opens beside
+ * it takes the width, and the map is fitted to what is left, so its root is not
+ * left under the edge. A view the reader made is theirs and stays as it is, and
+ * a node in hand is never refitted under the pointer. Nothing here moves by
+ * itself over time, so there is no motion to reduce.
  */
 import { clamp } from '../dom.js';
 import { NODE_HEIGHT, NODE_WIDTH, boundsOf } from './layout.js';
@@ -72,6 +80,20 @@ function fitScale({ box, rect }) {
   return Math.min((rect.width - PAD * 2) / (box.right - box.left), (rect.height - PAD * 2) / (box.bottom - box.top));
 }
 
+/**
+ * Say that the view now is the one the graph drew itself, at this width. It is that view until anything moves it: the
+ * view is compared, so no gesture has to remember to say it is the reader's.
+ */
+function markAuto(g, width) {
+  g.auto = { x: g.view.x, y: g.view.y, k: g.view.k, width };
+}
+
+/** Whether the view is still the one the graph drew itself; with `width`, whether the host's width has changed since. */
+function followsWidth(g, width) {
+  const auto = g.auto;
+  return auto !== null && auto.width !== width && auto.x === g.view.x && auto.y === g.view.y && auto.k === g.view.k;
+}
+
 function fit(g, report) {
   const frame = frameOf(g);
   if (!frame) return false;
@@ -79,6 +101,7 @@ function fit(g, report) {
   const k = clamp(fitScale(frame), MIN_SCALE, FIT_MAX);
   g.view = { k, x: (rect.width - (box.right - box.left) * k) / 2 - box.left * k, y: (rect.height - (box.bottom - box.top) * k) / 2 - box.top * k };
   g.fitted = true;
+  markAuto(g, rect.width);
   applyView(g, report);
   return true;
 }
@@ -96,7 +119,8 @@ function start(g) {
   const y = whole ? PAD - box.top * k : rect.height / 2 - (root.y + NODE_HEIGHT / 2) * k;
   g.view = { k, x, y };
   g.fitted = true;
-  if (g.state.selectedId !== null) reveal(g, g.state.selectedId, { report: false });
+  if (g.state.selectedId !== null) reveal(g, g.state.selectedId, { report: false, nearest: true });
+  markAuto(g, rect.width);
 }
 
 function zoomAt(g, factor, point) {
@@ -110,8 +134,14 @@ function zoomAt(g, factor, point) {
   applyView(g, true);
 }
 
-/** Pan just enough that node `id` is inside the viewport: an axis it is off is centred on it. */
-function reveal(g, id, { report }) {
+/** How far to move something `size` wide that starts at `at`, to stand inside `room` less the margin, by the least: toward the start edge first. */
+const nudge = (at, size, room) => (at < MARGIN ? MARGIN - at : room - MARGIN - (at + size));
+
+/**
+ * Pan just enough that node `id` is inside the viewport: an axis it is off is centred on it - or, with `nearest`, moved by the
+ * least that brings it in, so what stands beside it (the first view's root at the left) is left where it is as far as it can be.
+ */
+function reveal(g, id, { report, nearest = false }) {
   const point = g.positions.get(id);
   const rect = g.viewport.getBoundingClientRect();
   if (!point || !(rect.width > 0) || !(rect.height > 0)) return;
@@ -119,8 +149,8 @@ function reveal(g, id, { report }) {
   let { x, y } = g.view;
   const left = point.x * k + x;
   const top = point.y * k + y;
-  if (left < MARGIN || left + NODE_WIDTH * k > rect.width - MARGIN) x = rect.width / 2 - (point.x + NODE_WIDTH / 2) * k;
-  if (top < MARGIN || top + NODE_HEIGHT * k > rect.height - MARGIN) y = rect.height / 2 - (point.y + NODE_HEIGHT / 2) * k;
+  if (left < MARGIN || left + NODE_WIDTH * k > rect.width - MARGIN) x = nearest ? x + nudge(left, NODE_WIDTH * k, rect.width) : rect.width / 2 - (point.x + NODE_WIDTH / 2) * k;
+  if (top < MARGIN || top + NODE_HEIGHT * k > rect.height - MARGIN) y = nearest ? y + nudge(top, NODE_HEIGHT * k, rect.height) : rect.height / 2 - (point.y + NODE_HEIGHT / 2) * k;
   if (x === g.view.x && y === g.view.y) return;
   g.view = { k, x, y };
   g.fitted = true;
@@ -149,7 +179,7 @@ function observeSize(g) {
   if (typeof Observer !== 'function') return;
   const observer = new Observer(() => {
     if (g.life.dead || g.drag) return;
-    if (!g.fitted) start(g);
+    if (!g.fitted || followsWidth(g, g.viewport.getBoundingClientRect().width)) start(g);
     applyView(g, false);
   });
   observer.observe(g.viewport);

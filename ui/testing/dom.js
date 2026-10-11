@@ -20,7 +20,9 @@
  *
  * `style.setProperty` and `clientWidth` are here for the Gantt: the axis width
  * and the now-line are custom properties the sheet carries, and "Today" needs
- * a viewport to centre on.
+ * a viewport to centre on. `style.getPropertyValue` and `style.removeProperty`
+ * are here for the "more" button of the timeline and the calendar, which stands
+ * where its item does by the geometry the item carries.
  *
  * WHAT THE CLOUDCANVAS UI KIT ASKS OF A DOCUMENT is here too, and
  * `tests/kit-mount.test.js` is what holds it there: a node answers with its
@@ -205,8 +207,12 @@ function kin(node) {
  * @returns {any}
  */
 function surface() {
-  /** @type {Record<string, string> & {setProperty: (k: string, v: string) => void}} */
-  const style = { setProperty(k, v) { style[k] = v; } };
+  /** @type {Record<string, any>} */
+  const style = {
+    setProperty(k, v) { style[k] = v; },
+    getPropertyValue: (k) => (typeof style[k] === 'string' ? style[k] : ''),
+    removeProperty(k) { const was = style.getPropertyValue(k); delete style[k]; return was; }
+  };
   return {
     hidden: false,
     scrollTop: 0,

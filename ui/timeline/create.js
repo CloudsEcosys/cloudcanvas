@@ -82,6 +82,7 @@ export function bindCreate(tl) {
       track.append(band);
       tl.state.creating = { track, band, groupId: track.getAttribute('data-group-id'), span: null, from: 0 };
       tl.state.creating.from = dayUnder(tl, tl.state.creating, point);
+      tl.paint();
     },
     onMove(point) {
       follow(point);

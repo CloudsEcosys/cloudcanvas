@@ -135,6 +135,7 @@ function startLink(tl, handle) {
   const draft = svg(tl.doc, 'path', { class: `${TL}-draft-link`, d: `M${from.x} ${from.y}` });
   tl.links.append(draft);
   tl.state.linking = { fromId, from, draft, target: null };
+  tl.paint();
 }
 
 /**

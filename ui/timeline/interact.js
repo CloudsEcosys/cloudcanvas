@@ -21,6 +21,7 @@ import { bindGutter } from './gutter.js';
 import { TL } from './model.js';
 import { bindKeys } from './keys.js';
 import { bindLinks } from './links.js';
+import { pressMore } from './more.js';
 import { BAR, bars, bindMove } from './move.js';
 import { bindPlace } from './place.js';
 import { bindReach } from './reach.js';
@@ -48,6 +49,7 @@ const SUMMARY = Object.freeze({ summary: true });
 const isSummary = (part) => part.classList.contains(`${TL}-summary`);
 
 function onClick(tl, event) {
+  if (pressMore(tl, event.target)) return;
   const toggle = event.target.closest?.(`.${TL}-group-toggle`);
   if (toggle) { tl.fold(toggle.getAttribute('data-group-id'), toggle.getAttribute('aria-expanded') === 'true'); return; }
   const part = itemNodeOf(event.target, tl.sheet);

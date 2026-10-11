@@ -18,9 +18,11 @@
  */
 import { PINCH_ZOOM_K, WHEEL_ZOOM_K, isDiscreteWheel, normalizeWheelDeltas, wheelZoomFactor } from '../../addons/pan.js';
 import { trackDrag } from '../drag.js';
+import { isMore } from '../item-more.js';
 import { drawDraft, drawEdges } from './edges.js';
 import { onGraphKey } from './keys.js';
 import { setDropTarget } from './marks.js';
+import { pressMore, syncMore } from './more.js';
 import { HANDLE_CLASS, NODE_CLASS, TOGGLE_CLASS, placeNode } from './node.js';
 
 const NODE = `.${NODE_CLASS}`;
@@ -28,7 +30,7 @@ const MINIMAP = '.cloudcanvas-ui-graph-minimap';
 
 /** What a press on `target` drags: the node (`move`), a link from it (`link`), or nothing the graph may ask about. */
 function dragModeOf(g, target) {
-  if (!target.closest?.(NODE) || target.closest(`.${TOGGLE_CLASS}`)) return null;
+  if (!target.closest?.(NODE) || target.closest(`.${TOGGLE_CLASS}`) || isMore(target)) return null;
   if (target.closest(`.${HANDLE_CLASS}`)) return g.callbacks.onConnect ? 'link' : null;
   return g.callbacks.onDropOn ? 'move' : null;
 }
@@ -49,6 +51,7 @@ function startDrag(g, element, point, mode) {
   const id = element.getAttribute('data-ui-id');
   g.drag = { mode, id, element, press: point, origin: { ...g.positions.get(id) }, target: null };
   if (mode === 'move') element.classList.add('is-dragging');
+  syncMore(g);
 }
 
 function moveDrag(g, point) {
@@ -134,7 +137,7 @@ function bindPan(g) {
   g.life.on(g.viewport, 'pointerdown', (event) => {
     const target = event.target;
     if (event.button !== 0 || g.drag || target.closest?.(MINIMAP) || pointers.size >= 2) return;
-    if (target.closest?.(NODE) && (dragModeOf(g, target) !== null || target.closest(`.${TOGGLE_CLASS}`))) return;
+    if (target.closest?.(NODE) && (dragModeOf(g, target) !== null || target.closest(`.${TOGGLE_CLASS}`) || isMore(target))) return;
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     gesture = { ...gestureOf(g, pointers), moved: pointers.size > 1 };
   });
@@ -174,6 +177,7 @@ function bindWheel(g) {
 }
 
 function onPress(g, event) {
+  if (pressMore(g, event.target)) return;
   const element = event.target.closest?.(NODE);
   if (!element || !g.nodeLayer.contains(element) || !g.byId.has(element.getAttribute('data-ui-id'))) return;
   const id = element.getAttribute('data-ui-id');

@@ -27,7 +27,9 @@
  * `onMove(id, parentId)` (the row under the pointer is lit as the target; let
  * go anywhere else and nothing is asked); without it a row is never picked
  * up. A `query` in the model dims the rows whose label does not hold it, case
- * aside. Both are reported or drawn, never applied: the rows stay the model's.
+ * aside; a query that no item holds dims nothing and says so, in words, in a
+ * polite live region beside the tree (`labels.noMatches`), for a screen reader as
+ * for the eye. Both are reported or drawn, never applied: the rows stay the model's.
  *
  * `badge` on an item is the kit badge (`./badge.js`) inside its row, between
  * the label and the count: the model the tabs and the nav bar take - a flag
@@ -46,6 +48,9 @@ import { reconcileKeyedList } from '../addons/keyed-list.js';
 
 const CLASS = 'cloudcanvas-ui-tree';
 const ROW = '[role="treeitem"]';
+
+/** The tree's words; `{query}` is what was searched for. A host's own are given as `labels`. */
+const TREE_LABELS = Object.freeze({ noMatches: 'Nothing matches “{query}”' });
 
 /** Each item under the parent it names when that parent is in the list (and is not itself); `null` holds the roots. */
 function childrenByParent(items) {
@@ -116,6 +121,9 @@ function tabStopId(state, children) {
   return shown.has(state.selectedId) ? state.selectedId : state.rows[0]?.id ?? null;
 }
 
+/** Whether a search is typed: a blank one is none. */
+const searched = (query) => query.trim() !== '';
+
 function rowNode(doc) {
   const node = el(doc, 'button', { className: `${CLASS}-row`, attrs: { type: 'button', role: 'treeitem', tabindex: '-1' } });
   const label = el(doc, 'span', { className: `${CLASS}-label` });
@@ -148,7 +156,7 @@ function writeRow(node, row, state) {
   if (item.tone) node.setAttribute('data-tone', String(item.tone));
   else node.removeAttribute('data-tone');
   node.style.setProperty('--tree-level', String(row.level - 1));
-  node.classList.toggle('is-unmatched', !matchesQuery(item.label ?? row.id, state.query));
+  node.classList.toggle('is-unmatched', !state.nothingMatches && !matchesQuery(item.label ?? row.id, state.query));
   writeText(node._uiText.label, item.label ?? row.id);
   writeText(node._uiText.count, counted ? item.count : '');
   node._uiText.count.parentNode.hidden = !counted;
@@ -261,7 +269,7 @@ function bindMove(tree) {
 /**
  * @param {HTMLElement} host
  * @param {{onActivate?: (id: string) => void, onToggle?: (id: string, expanded: boolean) => void,
- *   onMove?: (id: string, parentId: string) => void}} [callbacks]
+ *   onMove?: (id: string, parentId: string) => void, labels?: {noMatches?: string}}} [callbacks]
  * @returns {{update(model: {label?: string, items?: Array<{id: string, parentId?: string, label?: string, count?: number,
  *   badge?: number|object, tone?: string}>, expanded?: string[], selectedId?: string, query?: string}): void, destroy(): void}}
  */
@@ -272,7 +280,13 @@ export function createTree(host, callbacks = {}) {
   // A control (`data-cc-control`): the canvas under the page leaves this view's drags to it, so a host marks nothing.
   const root = el(doc, 'div', { className: CLASS, attrs: { role: 'tree', [CONTROL_ATTR]: true } });
   host.append(root);
-  const tree = { doc, root, life, callbacks, state: { rows: [], focusId: null, selectedId: null, query: '' } };
+  // A polite live region of its own beside the tree - a tree holds only its items - there before it says anything. It is no
+  // `role="status"`: a host that looks for the first status of its own page must not find the tree's.
+  const status = el(doc, 'p', { className: `${CLASS}-status`, attrs: { 'aria-live': 'polite' } });
+  host.append(status);
+  const labels = { ...TREE_LABELS, ...callbacks.labels };
+  const tree = { doc, root, life, callbacks, state: { rows: [], focusId: null, selectedId: null, query: '', nothingMatches: false } };
+  const statusText = textNode(doc, status);
   bindTree(tree);
   if (typeof callbacks.onMove === 'function') bindMove(tree);
   return {
@@ -283,6 +297,8 @@ export function createTree(host, callbacks = {}) {
       if (selectedId !== null && selectedId !== tree.state.selectedId) tree.state.focusId = selectedId;
       tree.state.selectedId = selectedId;
       tree.state.query = String(model.query ?? '');
+      tree.state.nothingMatches = searched(tree.state.query) && !(model.items ?? []).some((item) => matchesQuery(item.label ?? item.id, tree.state.query));
+      writeText(statusText, tree.state.nothingMatches ? labels.noMatches.replace('{query}', tree.state.query.trim()) : '');
       tree.state.rows = visibleRows(children, new Set((model.expanded ?? []).map(String)));
       tree.state.focusId = tabStopId(tree.state, children);
       root.setAttribute('aria-label', String(model.label ?? 'Tree'));
@@ -292,6 +308,7 @@ export function createTree(host, callbacks = {}) {
       if (!life.destroy()) return;
       dropBadges(Array.from(root.querySelectorAll(ROW)));
       root.remove();
+      status.remove();
     }
   };
 }
