@@ -8,10 +8,11 @@
  * can be dragged across any row on any day the axis shows, not only near a
  * bar - and a reader can scroll to a day nothing is scheduled on.
  *
- * A redraw that moves the axis' start (the margin changed with the sheet's
+ * A redraw that moves the axis' start (the margin grew with the sheet's
  * width, or an item before it arrived) scrolls the sheet by as much, so the
  * dates under the reader stay under the reader; the first draw is scrolled to
- * where the items begin. The axis is left alone while a bar, a band or a link
+ * where the items begin. The margin never shrinks with the sheet: it is the
+ * widest sheet's, so a sheet that narrows moves nothing. The axis is left alone while a bar, a band or a link
  * is in hand, and takes up the scroll when the hand is let go.
  *
  * A sheet with no width (hidden, or a test DOM without layout) has no margin.
@@ -29,9 +30,14 @@ const MIN_GROWTH_DAYS = 14;
 /** The track's width (px) the sheet shows at its narrowest gutter. */
 const roomOf = (tl) => Math.max(0, tl.sheet.clientWidth - GUTTER_MIN);
 
-/** The days a sheet's width holds at the scale: the margin on each side, and the step one extension adds. */
+/**
+ * The days the widest sheet there has been holds at the scale: the margin on each side, and the step one extension adds.
+ * A sheet that narrows (a host's pane opening beside it) keeps the margin it had, so the axis does not move under a
+ * pixel offset read before: the dates shown are the same ones.
+ */
 function stepOf(tl) {
-  const room = roomOf(tl);
+  tl.reach.room = Math.max(tl.reach.room, roomOf(tl));
+  const { room } = tl.reach;
   return room === 0 ? 0 : Math.max(MIN_GROWTH_DAYS, Math.ceil(room / TIMELINE_SCALES[tl.state.scale].perDay));
 }
 

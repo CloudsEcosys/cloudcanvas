@@ -7,7 +7,10 @@
  * sheet on the axis it is off, as the graph brings a node (`focusId`). The
  * track's room is what the gutter leaves; the axis stands over the rows at the
  * top. A sheet with no size (hidden, or a test DOM without layout) scrolls
- * nothing.
+ * nothing. A request for the middle counts a part as in view only while it is
+ * clear of both edges by its own width - never less than a link handle's reach,
+ * never more than a quarter of the room - so what is brought is not left flush
+ * against an edge with its title and its handle cut off.
  */
 import { clamp } from '../dom.js';
 import { widthNow } from './gutter.js';
@@ -16,6 +19,9 @@ import { groupSpan } from './rows.js';
 
 /** Half a milestone's width (px): the diamond stands this far either side of its day. */
 const POINT = 7;
+
+/** The least room (px) a part brought to the middle keeps from an edge: a link handle's reach, which lies past a bar's end. */
+const CLEAR_MIN = 44;
 
 /** The farthest the sheet scrolls across: the axis and the gutter, less what it shows. */
 export function maxScrollLeft(tl) {
@@ -28,12 +34,16 @@ function aim(from, room, [start, end], centre) {
   return start < from || (centre && end - start > room) ? start : end - room;
 }
 
+/** The room a part keeps from the edges for the middle to count it as in view: its own width, within the limits, and nothing for a plain reveal. */
+const clearOf = (width, room, centre) => (centre ? Math.min(Math.max(width, CLEAR_MIN), room / 4) : 0);
+
 /** Scroll the sheet across so px `left` to `right` of the axis are in view; whether it scrolled. */
 export function revealDays(tl, left, right, { centre = false } = {}) {
   const { sheet } = tl;
   const room = (sheet.clientWidth || 0) - widthNow(tl);
   const from = sheet.scrollLeft;
-  if (!(room > 0) || !tl.domain || (left >= from && right <= from + room)) return false;
+  const clear = clearOf(right - left, room, centre);
+  if (!(room > 0) || !tl.domain || (left - clear >= from && right + clear <= from + room)) return false;
   sheet.scrollLeft = clamp(aim(from, room, [left, right], centre), 0, maxScrollLeft(tl));
   tl.windowMoved();
   return sheet.scrollLeft !== from;
@@ -60,7 +70,8 @@ function faceOf(tl, kind, id) {
 
 /**
  * Bring item `id` into view, to the middle of the sheet on an axis it is off: its bar; or, when it has none - it is folded
- * away, or `id` is a group's - its group's heading, across the days the group covers.
+ * away, or `id` is a group's - its group's heading, across the days the group covers. Whether there was anything drawn to
+ * bring: an item that is not drawn yet is the caller's to ask for again.
  */
 export function revealItem(tl, id) {
   const item = tl.byId.get(id) ?? null;
@@ -69,13 +80,14 @@ export function revealItem(tl, id) {
     const { left, width, point } = barOf(item, tl.domain, tl.state.scale);
     revealDays(tl, point ? left - POINT : left, point ? left + POINT : left + width, { centre: true });
     revealRow(tl, bar.closest(`.${TL}-row`), { centre: true });
-    return;
+    return true;
   }
   const groupId = item ? item.groupId : id;
   const member = tl.state.items.find((one) => one.groupId === groupId);
   const heading = groupId !== null && member ? faceOf(tl, 'group-label', groupId)?.closest(`.${TL}-group`) : null;
-  if (!heading) return;
+  if (!heading) return false;
   const { left, width } = groupSpan(tl, member);
   revealDays(tl, left, left + width, { centre: true });
   revealRow(tl, heading, { centre: true });
+  return true;
 }

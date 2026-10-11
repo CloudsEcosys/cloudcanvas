@@ -10,7 +10,8 @@
  *
  * A link is made from the handle beside a bar's right edge (`onLink`, given):
  * dragged to another bar - or its title - it reports `onLink(fromId, toId)`,
- * a line following the pointer and the bar it would link to lit. The pair is
+ * a line following the pointer and the bar it would link to lit. However the
+ * drag ends the bar it began on has the focus (the handle holds none). The pair is
  * the one `onUnlink` reports for the connector that link draws; what a link
  * means (which depends on which) is the host's.
  */
@@ -136,11 +137,17 @@ function startLink(tl, handle) {
   tl.state.linking = { fromId, from, draft, target: null };
 }
 
+/**
+ * The handle cannot hold focus, so the press on it left the focus on whatever can (a host's pane), where the keys of the sheet
+ * - Ctrl/Cmd-Z among them - are not heard. However the drag ended, the bar it began on has it back, and nothing scrolls.
+ */
 function endLink(tl, point) {
   const { fromId, draft, target } = tl.state.linking;
   tl.state.linking = null;
   draft.remove();
   light(tl, null);
+  tl.state.focusId = fromId;
+  tl.focusAfter = 'keep';
   if (point !== null && target) tl.callbacks.onLink(fromId, target);
   tl.render();
 }

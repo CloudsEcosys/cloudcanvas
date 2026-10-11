@@ -23,7 +23,8 @@
  * the axis' corner (`onGutter(px)`; the model's `gutter` restores it). The
  * scale (day | week | month) is kept between updates; a model `scale` that
  * changes wins. A redraw keeps focus on the bar, the heading or the separator
- * that held it and scrolls nothing.
+ * that held it and scrolls nothing. The scale buttons keep the day at the middle of
+ * the window where it was, and Ctrl and the wheel the day under the pointer (`./zoom.js`).
  *
  * A BAR IS DRAWN AT LEAST 1.25REM WIDE: one that lasts less (half an hour, a day
  * on the month scale) is drawn at that width, starting where it starts, and its
@@ -44,8 +45,9 @@
  * (`onActivate(id)`), carrying the group's id. Two groups of one name and
  * different ids are two groups.
  *
- * THE AXIS REACHES WHERE THE READER CAN LOOK. It covers the items and today, a
- * sheet's width of days beyond them on each side, and more each time the reader
+ * THE AXIS REACHES WHERE THE READER CAN LOOK. It covers the items and today, the
+ * widest sheet's width of days beyond them on each side (a sheet that narrows
+ * moves nothing), and more each time the reader
  * scrolls near either end: a span (`onCreate({groupId, start, end})`) is dragged
  * across the empty part of any row, a group's heading included - folded or
  * not - on any day the axis shows, whatever is on the row. See `./reach.js`.
@@ -69,7 +71,8 @@
  * do not carry (`./interact.js`). `focusId`, as the graph's, brings its item
  * into view ONCE when it changes - its bar, or the heading of the folded group it is in
  * - and gives it the tab stop; the reader's scrolling after it is never
- * fought (`./reveal.js`).
+ * fought (`./reveal.js`). An ask whose item is not drawn yet waits for it, and one
+ * within its own width of an edge of the sheet is brought to the middle too.
  *
  * A SPAN IS DRAWN BY KEYBOARD as by a drag: N on a bar or a heading, a date
  * cursor on its row, Enter or Space to anchor and to add (`./draw.js`). A
@@ -184,8 +187,7 @@ function render(tl) {
   heading?.focus({ preventScroll: true });
   if (held.gutter) tl.gutterNode?.focus({ preventScroll: true });
   tl.drawing = false;
-  if (tl.reveal !== null && !tl.busy()) revealItem(tl, tl.reveal);
-  if (!tl.busy()) tl.reveal = null;
+  if (tl.reveal !== null && !tl.busy() && revealItem(tl, tl.reveal)) tl.reveal = null;
   tl.windowMoved();
 }
 
@@ -243,7 +245,7 @@ function markAbilities(root, callbacks) {
 
 function timelineState(doc, life, root, callbacks) {
   return { doc, life, root, callbacks, id: uniqueId(TL), labels: { ...TIMELINE_LABELS, ...callbacks.labels }, format: null, lastScale: undefined,
-    byId: new Map(), groups: new Map(), seen: { selectedId: undefined, gutter: undefined, focusId: undefined }, reach: { before: 0, after: 0 }, reveal: null,
+    byId: new Map(), groups: new Map(), seen: { selectedId: undefined, gutter: undefined, focusId: undefined }, reach: { before: 0, after: 0, room: 0 }, reveal: null,
     state: { scale: 'week', items: [], now: new Date(), pending: null, creating: null, linking: null, cursor: null, focusId: null, selectedId: null, selectedLink: null, gutter: null } };
 }
 
@@ -280,7 +282,6 @@ export function createTimeline(host, callbacks = {}) {
   tl.paint = () => paint(tl);
   tl.busy = () => Boolean(tl.state.pending || tl.state.creating || tl.state.linking);
   tl.describe = (item) => describeItem(tl, item);
-  tl.setScale = (scale) => { tl.state.scale = scale; tl.render(); callbacks.onScale?.(scale); };
   tl.scrollToNow = () => {
     const x = xOf(tl.state.now, tl.domain, tl.state.scale);
     tl.sheet.scrollLeft = Math.max(0, x - tl.sheet.clientWidth / 2);

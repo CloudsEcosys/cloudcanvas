@@ -6,7 +6,8 @@
  * pause forgets what has not; two fingers moving apart or together are a step
  * each time they have travelled half as far again. Either way the date under
  * the pointer - or between the fingers - stays under it, and the new scale is
- * reported (`onScale`). The scale buttons are the toolbar's own.
+ * reported (`onScale`). The scale buttons are the toolbar's own: the day at the
+ * middle of the window stays at the middle.
  */
 import { normalizeWheelDeltas } from '../../addons/pan.js';
 import { widthNow } from './gutter.js';
@@ -19,14 +20,22 @@ const PAUSE_MS = 300;
 /** How much farther apart (or nearer) two fingers go for one step. */
 const PINCH_RATIO = 1.5;
 
-/** The date at the pointer's place on the track - at the track's visible edge when the pointer is over the gutter - and where on the sheet it is. */
-function anchorAt(tl, clientX) {
+/**
+ * The date `offset` px along the sheet from its left edge - at the track's visible edge when that is over the gutter - and
+ * what it takes to put it back there.
+ */
+function anchorOf(tl, offset) {
   const { sheet } = tl;
   const gutter = widthNow(tl);
-  const offset = Math.max(gutter, clientX - sheet.getBoundingClientRect().left);
-  const x = offset + sheet.scrollLeft - gutter;
-  return { date: dateAt(x, tl.domain, tl.state.scale), gutter, offset };
+  const at = Math.max(gutter, offset);
+  return { date: dateAt(at + sheet.scrollLeft - gutter, tl.domain, tl.state.scale), gutter, offset: at };
 }
+
+/** The date at the pointer's place on the track. */
+const anchorAt = (tl, clientX) => anchorOf(tl, clientX - tl.sheet.getBoundingClientRect().left);
+
+/** The date at the middle of the track the sheet shows: what a change made by a button keeps where it is. */
+const anchorMiddle = (tl) => anchorOf(tl, widthNow(tl) + Math.max(0, (tl.sheet.clientWidth || 0) - widthNow(tl)) / 2);
 
 /** Scroll the sheet so the anchor's date stands at its place again, on the scale now drawn. */
 function restore(tl, anchor) {
@@ -34,17 +43,20 @@ function restore(tl, anchor) {
   tl.sheet.scrollLeft = Math.max(0, anchor.gutter + x - anchor.offset);
 }
 
-/** One step of zoom (-1 finer, 1 coarser) about `clientX`; nothing at either end, and nothing while a gesture is in hand. */
-function zoomBy(tl, step, clientX) {
-  const { state } = tl;
-  const next = stepScale(state.scale, step);
-  if (next === state.scale || tl.busy()) return;
-  const anchor = anchorAt(tl, clientX);
-  state.scale = next;
+/** Draw at scale `next` with the date of `anchor` kept where it stood, and report the scale. */
+function rescale(tl, next, anchor) {
+  tl.state.scale = next;
   tl.render();
   restore(tl, anchor);
   tl.windowMoved();
   tl.callbacks.onScale?.(next);
+}
+
+/** One step of zoom (-1 finer, 1 coarser) about `clientX`; nothing at either end, and nothing while a gesture is in hand. */
+function zoomBy(tl, step, clientX) {
+  const next = stepScale(tl.state.scale, step);
+  if (next === tl.state.scale || tl.busy()) return;
+  rescale(tl, next, anchorAt(tl, clientX));
 }
 
 function bindWheel(tl) {
@@ -91,8 +103,9 @@ function bindPinch(tl) {
   tl.life.on(tl.sheet, 'pointercancel', end);
 }
 
-/** Wire the wheel and two fingers. */
+/** Wire the wheel, two fingers and the toolbar's buttons: a button keeps the day at the middle of the window, a gesture the day under it. */
 export function bindZoom(tl) {
+  tl.setScale = (scale) => rescale(tl, scale, anchorMiddle(tl));
   bindWheel(tl);
   bindPinch(tl);
 }
