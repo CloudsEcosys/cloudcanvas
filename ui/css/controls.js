@@ -375,6 +375,11 @@ export const UI_CONTROLS_CSS = `${LIVE_REGION_CSS}/* ------------------ UI KIT: 
 .cloudcanvas-ui-navbar[data-placement="bottom"] .cloudcanvas-ui-navbar-link[aria-current="page"] { border-top-color: var(--cc-accent, #38bdf8); }
 
 .cloudcanvas-ui-empty { display: grid; justify-items: center; gap: var(--cc-space-2, 8px); padding: var(--cc-space-4, 16px); text-align: center; }
+/* The icon is a graphic, told by its tone: muted for nothing and for loading, the info tone for what needs something first, the danger tone for what failed. */
+.cloudcanvas-ui-empty-icon { display: inline-flex; color: var(--cc-text-muted, #94a3b8); }
+.cloudcanvas-ui-empty-icon > .cloudcanvas-ui-icon { width: 2.5rem; height: 2.5rem; }
+.cloudcanvas-ui-empty[data-kind="locked"] .cloudcanvas-ui-empty-icon { color: var(--cc-tone-info, #38bdf8); }
+.cloudcanvas-ui-empty[data-kind="error"] .cloudcanvas-ui-empty-icon { color: var(--cc-tone-danger, #f87171); }
 .cloudcanvas-ui-empty-title { margin: 0; font-size: var(--cc-type-lg, 15px); font-weight: var(--cc-weight-semibold, 600); }
 .cloudcanvas-ui-empty-body { margin: 0; color: var(--cc-text-muted, #94a3b8); }
 
