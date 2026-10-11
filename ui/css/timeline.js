@@ -81,6 +81,26 @@ export const UI_TIMELINE_CSS = `/* ------------------ UI KIT: TIMELINE ---------
 .cloudcanvas-ui-timeline-label::after { content: ""; position: absolute; top: 0; right: 0; bottom: 0; border-right: 1px solid ${LINE}; }
 .cloudcanvas-ui-timeline-row.is-current .cloudcanvas-ui-timeline-label { font-weight: var(--cc-weight-semibold, 600); }
 .cloudcanvas-ui-timeline-track { position: relative; flex: none; width: var(--timeline-width); height: 2.25rem; }
+.cloudcanvas-ui-timeline[data-can-create] .cloudcanvas-ui-timeline-track { cursor: crosshair; }
+/* The span being made: a band of the days it covers, with their dates in it. */
+.cloudcanvas-ui-timeline-draft {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: var(--timeline-x);
+  width: var(--timeline-w);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--cc-space-2, 8px);
+  overflow: hidden;
+  font-size: var(--cc-type-xs, 11px);
+  white-space: nowrap;
+  color: var(--cc-ui-bar-text, var(--cc-text, #e2e8f0));
+  background: var(--cc-btn-bg-hover, rgba(56, 189, 248, 0.22));
+  border: 2px dashed var(--cc-ui-drop, ${ACCENT});
+  border-radius: var(--cc-radius-sm, 6px);
+  pointer-events: none;
+}
 
 /* A bar: its title inside (or beside it), its status in its outline and fill, its progress as the fill that is done. */
 .cloudcanvas-ui-timeline-bar {

@@ -184,7 +184,7 @@ function markAbilities(root, callbacks) {
 function timelineState(doc, life, root, callbacks) {
   return { doc, life, root, callbacks, id: uniqueId(TL), labels: { ...TIMELINE_LABELS, ...callbacks.labels }, format: null, lastScale: undefined,
     byId: new Map(), groups: new Set(), seen: { selectedId: undefined, gutter: undefined },
-    state: { scale: 'week', items: [], now: new Date(), pending: null, focusId: null, selectedId: null, selectedLink: null, gutter: null } };
+    state: { scale: 'week', items: [], now: new Date(), pending: null, creating: null, focusId: null, selectedId: null, selectedLink: null, gutter: null } };
 }
 
 /**
@@ -223,7 +223,7 @@ export function createTimeline(host, callbacks = {}) {
     update(model = {}) {
       if (life.dead) return;
       applyModel(tl, model);
-      if (!tl.state.pending) tl.render();
+      if (!tl.state.pending && !tl.state.creating) tl.render();
     },
     destroy() {
       if (life.destroy()) root.remove();

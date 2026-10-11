@@ -8,6 +8,7 @@
  */
 import { itemIdOf, itemNodeOf } from '../dom.js';
 import { setTabStop } from '../roving.js';
+import { bindCreate } from './create.js';
 import { bindGutter } from './gutter.js';
 import { TL } from './model.js';
 import { bindKeys } from './keys.js';
@@ -52,5 +53,6 @@ export function bindTimeline(tl) {
   tl.life.on(tl.sheet, 'focusin', (event) => onFocusIn(tl, event));
   bindKeys(tl);
   bindMove(tl);
+  bindCreate(tl);
   bindGutter(tl);
 }
