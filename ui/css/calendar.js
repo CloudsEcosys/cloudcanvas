@@ -34,7 +34,7 @@ export const UI_CALENDAR_CSS = `/* ------------------ UI KIT: CALENDAR ---------
 }
 .cloudcanvas-ui-calendar-event:is(:hover, :focus-visible, .is-selected, .is-grabbed) .cloudcanvas-ui-calendar-event-handle::before { opacity: 0.7; }
 
-/* The range being made: a band of slots with their times in it down a column; the days of a month or the strip, lit. */
+/* The range being made: a band of slots with their times in it down a column; the days of a month or the strip, lit. Its words are the page's text: the band is a wash over the page, and a bar's text colour is for a bar's accent fill. */
 .cloudcanvas-ui-calendar-draft {
   position: absolute;
   top: calc(var(--calendar-top) * var(--cc-ui-hour-height, 48px) / 60);
@@ -45,7 +45,7 @@ export const UI_CALENDAR_CSS = `/* ------------------ UI KIT: CALENDAR ---------
   overflow: hidden;
   font-size: var(--cc-type-xs, 11px);
   white-space: nowrap;
-  color: var(--cc-ui-bar-text, var(--cc-text, #e2e8f0));
+  color: var(--cc-text, #e2e8f0);
   background: var(--cc-btn-bg-hover, rgba(56, 189, 248, 0.22));
   border: 2px dashed var(--cc-ui-drop, var(--cc-accent, #38bdf8));
   border-radius: var(--cc-radius-sm, 6px);

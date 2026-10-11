@@ -114,7 +114,7 @@ export const UI_TIMELINE_CSS = `/* ------------------ UI KIT: TIMELINE ---------
 .cloudcanvas-ui-timeline-row.is-current .cloudcanvas-ui-timeline-label { font-weight: var(--cc-weight-semibold, 600); }
 .cloudcanvas-ui-timeline-track { position: relative; flex: none; width: var(--timeline-width); height: 2.25rem; }
 .cloudcanvas-ui-timeline[data-can-create] .cloudcanvas-ui-timeline-track { cursor: crosshair; }
-/* The span being made: a band of the days it covers, with their dates in it. */
+/* The span being made: a band of the days it covers, with their dates in it, in the page's text colour: the band is a wash over the page (see the calendar's). */
 .cloudcanvas-ui-timeline-draft {
   position: absolute;
   top: 6px;
@@ -127,7 +127,7 @@ export const UI_TIMELINE_CSS = `/* ------------------ UI KIT: TIMELINE ---------
   overflow: hidden;
   font-size: var(--cc-type-xs, 11px);
   white-space: nowrap;
-  color: var(--cc-ui-bar-text, var(--cc-text, #e2e8f0));
+  color: var(--cc-text, #e2e8f0);
   background: var(--cc-btn-bg-hover, rgba(56, 189, 248, 0.22));
   border: 2px dashed var(--cc-ui-drop, ${ACCENT});
   border-radius: var(--cc-radius-sm, 6px);
