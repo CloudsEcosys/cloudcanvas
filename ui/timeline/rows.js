@@ -43,7 +43,9 @@ function barNode(tl, item, geometry, inside) {
   writeGeometry(node, geometry);
   if (item.progress !== null) node.style.setProperty('--timeline-progress', String(item.progress));
   if (inside) node.append(el(doc, 'span', { className: `${TL}-bar-title`, text: item.title }));
-  if (item.movable && !geometry.point) node.append(el(doc, 'span', { className: `${TL}-handle`, attrs: { 'aria-hidden': 'true' } }));
+  if (item.movable && !geometry.point) {
+    for (const name of ['handle-start', 'handle']) node.append(el(doc, 'span', { className: `${TL}-${name}`, attrs: { 'aria-hidden': 'true' } }));
+  }
   return node;
 }
 

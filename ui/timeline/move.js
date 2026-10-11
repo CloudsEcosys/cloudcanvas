@@ -16,6 +16,7 @@ import { TL, TIMELINE_SCALES, shiftItem } from './model.js';
 
 export const BAR = `.${TL}-bar`;
 const HANDLE_END = `.${TL}-handle`;
+const HANDLE_START = `.${TL}-handle-start`;
 
 /** Every bar the sheet draws, in the order drawn. */
 export function bars(tl) {
@@ -26,8 +27,9 @@ export function itemById(tl, id) {
   return tl.state.items.find((item) => item.id === id) ?? null;
 }
 
-/** Which part of the bar a press took hold of: its body, or the end handle. */
+/** Which part of the bar a press took hold of: its body, or a handle at one end. */
 function modeOf(target) {
+  if (target?.closest?.(HANDLE_START)) return 'start';
   return target?.closest?.(HANDLE_END) ? 'end' : 'move';
 }
 

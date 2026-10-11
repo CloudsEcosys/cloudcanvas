@@ -132,9 +132,11 @@ export const UI_TIMELINE_CSS = `/* ------------------ UI KIT: TIMELINE ---------
 }
 .cloudcanvas-ui-timeline-outside.is-point { left: calc(var(--timeline-x) + 12px); }
 
-/* The handle at a bar's end: it resizes, and says so under the pointer. */
-.cloudcanvas-ui-timeline-handle { position: absolute; top: 0; right: 0; bottom: 0; width: 10px; cursor: ew-resize; background: ${ACCENT}; opacity: 0.4; }
-.cloudcanvas-ui-timeline-row:is(:hover, :focus-within, .is-current) .cloudcanvas-ui-timeline-handle { opacity: 0.75; }
+/* The handles at a bar's ends: each resizes, and says so under the pointer. */
+:is(.cloudcanvas-ui-timeline-handle, .cloudcanvas-ui-timeline-handle-start) { position: absolute; top: 0; bottom: 0; width: 10px; cursor: ew-resize; background: ${ACCENT}; opacity: 0.4; }
+.cloudcanvas-ui-timeline-handle { right: 0; border-radius: 0 var(--cc-radius-sm, 6px) var(--cc-radius-sm, 6px) 0; }
+.cloudcanvas-ui-timeline-handle-start { left: 0; border-radius: var(--cc-radius-sm, 6px) 0 0 var(--cc-radius-sm, 6px); }
+.cloudcanvas-ui-timeline-row:is(:hover, :focus-within, .is-current) :is(.cloudcanvas-ui-timeline-handle, .cloudcanvas-ui-timeline-handle-start) { opacity: 0.75; }
 .cloudcanvas-ui-timeline-now {
   position: absolute;
   top: 0;
