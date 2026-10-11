@@ -31,7 +31,10 @@
  * in one day only the last has the whole 44px; the others have their own
  * height and the room to the next - there is no more room than that. A graph
  * is drawn at its zoom (`--graph-k`, written by the control): a node's target
- * is 44px on the screen. A timeline row, the all-day strip and a day of the
+ * is 44px on the screen. A node is placed by `left` and `top`: a transform
+ * would make it a stacking context, and its reach could not lie under the
+ * node drawn before it. A dimmed node is one (opacity), so it has no reach
+ * beyond what is drawn. A timeline row, the all-day strip and a day of the
  * month are tall enough for one whole target. Under a fine pointer none of
  * this exists.
  *
@@ -258,5 +261,7 @@ export const UI_VIEWS_CSS = `/* ------------------ UI KIT: VIEWS ---------------
   .cloudcanvas-ui-calendar .cloudcanvas-ui-calendar-event::after { top: 0; translate: -50% 0; }
   .cloudcanvas-ui-calendar .cloudcanvas-ui-calendar-timed::after { left: 0; width: 100%; translate: none; }
   .cloudcanvas-ui-timeline-bar.is-point::after { rotate: -45deg; }
+  /* A dimmed node is faded by opacity, a stacking context of its own: its reach could not lie under the node drawn before it, so it has none. */
+  .cloudcanvas-ui-graph-node:is(.is-dim, .is-unmatched)::after { pointer-events: none; }
 }
 `;

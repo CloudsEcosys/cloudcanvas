@@ -263,6 +263,8 @@ export const UI_TIMELINE_CSS = `/* ------------------ UI KIT: TIMELINE ---------
   .cloudcanvas-ui-timeline-bar.is-short :is(.cloudcanvas-ui-timeline-handle, .cloudcanvas-ui-timeline-handle-start) { pointer-events: none; }
   /* The grab area of a bar drawn narrower than a finger is padding round it: it lies under the bar, so the bar keeps its own look. */
   .cloudcanvas-ui-timeline-bar { overflow: visible; }
+  /* A milestone's reach stands over the title drawn beside it - a part of the same item - so a finger 12 to 22px from its middle moves the milestone, not just opens it. */
+  .cloudcanvas-ui-timeline-bar.is-point { z-index: var(--cc-z-ui-raised, 2); }
   .cloudcanvas-ui-timeline-bar:not(.is-point)::after {
     content: "";
     position: absolute;

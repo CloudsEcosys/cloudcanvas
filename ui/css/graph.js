@@ -62,13 +62,12 @@ export const UI_GRAPH_CSS = `/* ------------------ UI KIT: GRAPH ---------------
 
 .cloudcanvas-ui-graph-node {
   position: absolute;
-  top: 0;
-  left: 0;
+  top: var(--graph-y);
+  left: var(--graph-x);
   box-sizing: border-box;
   display: grid;
   grid-template-rows: auto auto;
   align-content: space-between;
-  translate: var(--graph-x) var(--graph-y);
   padding: var(--cc-space-1, 4px) var(--cc-space-2, 8px);
   font: inherit;
   font-size: var(--cc-type-md, 13px);
