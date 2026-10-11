@@ -257,8 +257,8 @@ function bindMenu(life, menu) {
  * @param {HTMLElement} host where the menu is mounted; its panels are placed in the viewport, not in the host's flow
  * @param {{onSelect?: (id: string) => void, onClose?: (reason: 'select'|'escape'|'outside'|'tab'|'update') => void}} [callbacks]
  * @returns {{update(model: {open?: boolean, label?: string, at?: {x: number, y: number}, anchor?: Element|null,
- *   items?: Array<{id: string, label?: string, disabled?: boolean, danger?: boolean, separatorBefore?: boolean,
- *   items?: Array<{id: string, label?: string, disabled?: boolean, danger?: boolean, separatorBefore?: boolean}>}>}): void,
+ *   items?: Array<{id: string, label?: string, icon?: string|Element, title?: string, disabled?: boolean, danger?: boolean, separatorBefore?: boolean,
+ *   items?: Array<{id: string, label?: string, icon?: string|Element, title?: string, disabled?: boolean, danger?: boolean, separatorBefore?: boolean}>}>}): void,
  *   destroy(): void}}
  */
 export function createMenu(host, { onSelect, onClose } = {}) {

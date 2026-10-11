@@ -49,7 +49,8 @@ export const UI_MENU_CSS = `
   border-radius: var(--cc-radius-sm, 6px);
   cursor: pointer;
 }
-.cloudcanvas-ui-menu-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.cloudcanvas-ui-menu-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.cloudcanvas-ui-menu-icon { display: inline-flex; flex: none; }
 /* One highlight: the pointer moves focus, so the item under it and the item the keys are on are the same item. An open submenu's item keeps it. */
 .cloudcanvas-ui-menu-item:is(:hover, :focus, [aria-expanded="true"]):not(:disabled) { background: var(--cc-ui-selected, var(--cc-btn-bg-hover, rgba(56, 189, 248, 0.22))); }
 .cloudcanvas-ui-menu-item:disabled { opacity: 0.5; cursor: not-allowed; }

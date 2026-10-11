@@ -8,6 +8,7 @@
  * one submenu it can show.
  */
 import { el, textNode, uniqueId, uniqueItems, writeText } from '../dom.js';
+import { iconSlot, writeIcon } from '../icons.js';
 import { placeChildren, rowCache } from '../render.js';
 
 export const MENU_CLASS = 'cloudcanvas-ui-menu';
@@ -48,9 +49,10 @@ function buildRow(doc, row) {
   if (!row.item) return { node: el(doc, 'div', { className: `${MENU_CLASS}-separator`, attrs: { role: 'separator' } }) };
   const node = el(doc, 'button', { className: `${MENU_CLASS}-item`,
     attrs: { type: 'button', role: 'menuitem', tabindex: '-1', 'data-ui-id': row.item.id } });
+  const slot = iconSlot(doc, `${MENU_CLASS}-icon`);
   const label = el(doc, 'span', { className: `${MENU_CLASS}-label` });
-  node.append(label);
-  return { node, text: textNode(doc, label) };
+  node.append(slot, label);
+  return { node, slot, text: textNode(doc, label) };
 }
 
 /** Say on `node` whether it opens a submenu. One that does starts shut; one that stays one keeps the state it has. */
@@ -67,6 +69,9 @@ function writeParent(node, parent) {
 function writeRow(entry, { item }) {
   if (!item) return;
   writeText(entry.text, item.label ?? item.id);
+  writeIcon(entry.slot, item.icon);
+  if (item.title) entry.node.setAttribute('title', String(item.title));
+  else entry.node.removeAttribute('title');
   entry.node.disabled = item.disabled === true;
   if (item.danger === true) entry.node.setAttribute('data-tone', 'danger');
   else entry.node.removeAttribute('data-tone');

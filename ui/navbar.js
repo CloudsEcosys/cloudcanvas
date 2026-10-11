@@ -17,9 +17,13 @@
  * part of the button's name. `placement` is 'top', or 'bottom' for a phone's
  * bar; it is written as `data-placement` and the sheet lays the same buttons
  * out either way. Where the bar sits on the page is the host's.
+ *
+ * An item may carry an `icon` - a kit icon name (`./icons.js`) or an element, drawn before its label and hidden from
+ * readers - and a `title`: the tooltip, which a reader gives as the button's description. The label is still its name.
  */
 import { badgeModel, createBadge } from './badge.js';
 import { createLife, documentOf, el, textNode, uniqueItems, writeText } from './dom.js';
+import { iconSlot, writeIcon } from './icons.js';
 import { keepFocus, placeChildren } from './render.js';
 import { injectUiStyles } from './styles.js';
 
@@ -29,10 +33,11 @@ const CLASS = 'cloudcanvas-ui-navbar';
 function entryFor(doc, id) {
   const node = el(doc, 'li', { className: `${CLASS}-item` });
   const link = el(doc, 'button', { className: `${CLASS}-link`, attrs: { type: 'button', 'data-ui-id': id } });
+  const slot = iconSlot(doc, `${CLASS}-icon`);
   const label = el(doc, 'span', { className: `${CLASS}-label` });
-  link.append(label);
+  link.append(slot, label);
   node.append(link);
-  return { node, link, text: textNode(doc, label), badge: createBadge(link) };
+  return { node, link, slot, text: textNode(doc, label), badge: createBadge(link) };
 }
 
 /** Redraw the destinations in place: entries are kept by id, and one the model dropped takes its badge with it. */
@@ -49,6 +54,9 @@ function draw(nav, items, activeId) {
     if (!entries.has(item.id)) entries.set(item.id, entryFor(doc, item.id));
     const entry = entries.get(item.id);
     writeText(entry.text, item.label ?? item.id);
+    writeIcon(entry.slot, item.icon);
+    if (item.title) entry.link.setAttribute('title', String(item.title));
+    else entry.link.removeAttribute('title');
     if (item.id === activeId) entry.link.setAttribute('aria-current', 'page');
     else entry.link.removeAttribute('aria-current');
     entry.badge.update(badgeModel(item.badge));
@@ -60,7 +68,7 @@ function draw(nav, items, activeId) {
 /**
  * @param {HTMLElement} host
  * @param {{onSelect?: (id: string) => void}} [callbacks]
- * @returns {{update(model: {label?: string, items?: Array<{id: string, label?: string, badge?: number|object}>,
+ * @returns {{update(model: {label?: string, items?: Array<{id: string, label?: string, icon?: string|Element, title?: string, badge?: number|object}>,
  *   activeId?: string, placement?: 'top'|'bottom'}): void, destroy(): void}}
  */
 export function createNavBar(host, { onSelect } = {}) {

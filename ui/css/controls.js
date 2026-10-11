@@ -344,6 +344,9 @@ export const UI_CONTROLS_CSS = `${LIVE_REGION_CSS}/* ------------------ UI KIT: 
   list-style: none;
 }
 .cloudcanvas-ui-navbar-item { flex: none; }
+.cloudcanvas-ui-navbar-icon { display: inline-flex; flex: none; }
+/* A kit icon is as large as the text beside it and drawn in that text's colour, so what recolours the text recolours it. */
+.cloudcanvas-ui-icon { flex: none; width: 1.25em; height: 1.25em; }
 .cloudcanvas-ui-navbar-link {
   position: relative;
   display: inline-flex;

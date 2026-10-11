@@ -37,6 +37,7 @@ export { createBreadcrumbs } from './breadcrumbs.js';
 export { createTree } from './tree.js';
 export { createProgress } from './progress.js';
 export { createSwitch } from './switch.js';
+export { ICON_NAMES, ICON_CLASS, createIcon } from './icons.js';
 export { createSelect } from './select.js';
 export { createChips } from './chips.js';
 export { createNavBar } from './navbar.js';
