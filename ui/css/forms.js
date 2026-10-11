@@ -34,4 +34,21 @@ export const UI_FORMS_CSS = `
 .cloudcanvas-ui-switch-status[aria-live="assertive"] { font-weight: var(--cc-weight-semibold, 600); }
 .cloudcanvas-ui-switch:has(.cloudcanvas-ui-switch-box:disabled) { opacity: 0.6; cursor: default; }
 .cloudcanvas-ui-switch-box:focus-visible { outline: var(--cc-focus-ring-width, 2px) solid var(--cc-focus-ring, var(--cc-accent, #38bdf8)); outline-offset: 2px; }
+
+/* The select reads as the switch does: words first, the control at the end of the line. The row wraps, so on a phone the control stands under its words and never reaches past the row. */
+.cloudcanvas-ui-select { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--cc-space-1, 4px) var(--cc-space-3, 12px); min-height: 2.75rem; font: inherit; color: inherit; }
+.cloudcanvas-ui-select-label { flex: 1 1 10rem; min-width: 0; overflow-wrap: anywhere; }
+.cloudcanvas-ui-select-control { flex: 0 1 14rem; min-width: 0; max-width: 100%; }
+.cloudcanvas-ui-select-hint { flex-basis: 100%; margin: 0; font-size: var(--cc-type-sm, 12px); color: var(--cc-text, #e2e8f0); }
+.cloudcanvas-ui-select-hint[hidden] { display: none; }
+.cloudcanvas-ui-select[data-invalid] .cloudcanvas-ui-select-control { border-color: var(--cc-tone-danger, #f87171); }
+.cloudcanvas-ui-select[data-invalid] .cloudcanvas-ui-select-hint::before {
+  content: "";
+  display: inline-block;
+  width: 0.5em;
+  height: 0.5em;
+  margin-inline-end: 0.4em;
+  border-radius: var(--cc-radius-pill, 9999px);
+  background: var(--cc-tone-danger, #f87171);
+}
 `;

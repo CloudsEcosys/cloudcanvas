@@ -35,6 +35,7 @@ export { createBreadcrumbs } from './breadcrumbs.js';
 export { createTree } from './tree.js';
 export { createProgress } from './progress.js';
 export { createSwitch } from './switch.js';
+export { createSelect } from './select.js';
 export { createChips } from './chips.js';
 export { createNavBar } from './navbar.js';
 export { createEmptyState } from './empty.js';
