@@ -43,6 +43,7 @@ function zoomBy(tl, step, clientX) {
   state.scale = next;
   tl.render();
   restore(tl, anchor);
+  tl.windowMoved();
   tl.callbacks.onScale?.(next);
 }
 

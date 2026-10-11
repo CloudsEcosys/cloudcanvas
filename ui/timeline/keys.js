@@ -11,11 +11,15 @@
  *   Enter                 open the bar
  *   + or Insert           add to the group (`onAdd(groupId)`)
  *   Delete or Backspace   remove the bar (`onDelete(id)`)
+ *   N                     draw a span on the row (`./draw.js`, `onCreate`)
  *   the menu key, Shift+F10   the item's menu, under it (`onMenu(id, {x, y})`)
  *
- * A verb the host gave no callback for leaves its key alone.
+ * While a span is drawn every key is the drawing's. A verb the host gave no
+ * callback for leaves its key alone.
  */
 import { setTabStop } from '../roving.js';
+import { isDrawKey } from '../draw-keys.js';
+import { drawKey, startDraw } from './draw.js';
 import { TL, shiftItem } from './model.js';
 import { BAR, bars, pickUp, pickupKey, reportChange } from './move.js';
 import { select } from './select.js';
@@ -117,9 +121,11 @@ function onFaceKey(tl, face, event) {
 }
 
 function onKeyDown(tl, event) {
+  if (tl.state.cursor) { drawKey(tl, event); return; }
   const face = event.target.closest?.(`${BAR}, ${LABEL}`);
   if (!face) return;
   if (tl.state.pending?.keyboard) { pickupKey(tl, event); return; }
+  if (isDrawKey(event) && startDraw(tl, face)) { event.preventDefault(); return; }
   if (event.key === ' ' && face.matches(BAR)) {
     event.preventDefault();
     if (!event.repeat) pickUp(tl, face);
@@ -131,8 +137,10 @@ function onKeyDown(tl, event) {
 /** Wire the keys on the timeline's sheet. */
 export function bindKeys(tl) {
   tl.life.on(tl.sheet, 'keydown', (event) => onKeyDown(tl, event));
+  // A Space a drawing took is no press of the face it was on, whatever that face is.
   tl.life.on(tl.sheet, 'keyup', (event) => {
     const held = event.target.closest?.(`${BAR}, ${LABEL}`);
-    if (event.key === ' ' && held && (held.matches(BAR) || tl.callbacks.onToggleGroup)) event.preventDefault();
+    if (event.key === ' ' && held && (held.matches(BAR) || tl.callbacks.onToggleGroup || tl.spaceTaken)) event.preventDefault();
+    if (event.key === ' ') tl.spaceTaken = false;
   });
 }

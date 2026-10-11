@@ -4,12 +4,16 @@
  * What the calendar does with a click, a key or a drag. A move in progress is
  * one record, `state.pending` (`{id, original, times}`), which the renderer
  * draws in place of the event; dropping reports it through `onMove`, and
- * cancelling simply forgets it.
+ * cancelling simply forgets it. N on a day draws a range by keyboard
+ * (`./draw.js`); while it is drawn the keys are its own, but those that move
+ * the day, which move it here.
  */
 import { trackDrag } from '../drag.js';
 import { addDays, addMinutes, atMinutes, daysBetween, fromDayKey, minutesOfDay, sameDay, shiftAnchor, startOfWeek, viewDays } from './dates.js';
 import { describeEvent, eventById, isAllDayLike } from './model.js';
 import { CAL } from './month.js';
+import { isDrawKey } from '../draw-keys.js';
+import { bindDraw, drawKey, sayDraw, startDraw } from './draw.js';
 import { select } from './hint.js';
 import { bindRange } from './range.js';
 import { bindResize, resizeKey } from './resize.js';
@@ -126,6 +130,7 @@ function grabKey(cal, event) {
 function onKeyDown(cal, event) {
   if (event.repeat && (event.key === ' ' || event.key === 'Enter') && event.target.closest?.(CHIP)) { event.preventDefault(); return; }
   if (cal.state.pending?.keyboard) { grabKey(cal, event); return; }
+  if (cal.state.drawing && drawKey(cal, event)) return;
   const chip = event.target.closest?.(CHIP);
   if (chip && (resizeKey(cal, chip, event) || menuKey(cal, chip, event))) return;
   if (chip && event.key === ' ') {
@@ -136,11 +141,13 @@ function onKeyDown(cal, event) {
   }
   const day = event.target.closest?.(DAY);
   if (!day) return;
+  if (!cal.state.drawing && isDrawKey(event) && startDraw(cal, day)) { event.preventDefault(); return; }
   cal.state.focusDate = fromDayKey(day.getAttribute('data-date')) ?? cal.state.focusDate;
   const target = dayTarget(cal, event.key);
   if (!target) return;
   event.preventDefault();
   focusDay(cal, target);
+  sayDraw(cal);
 }
 
 /** Where a pointer at `point` would put the event: a day, and a time when over the hour grid. */
@@ -213,7 +220,12 @@ export function bindCalendar(cal) {
   cal.life.on(cal.body, 'keydown', (event) => onKeyDown(cal, event));
   cal.life.on(cal.body, 'contextmenu', (event) => onContextMenu(cal, event));
   cal.life.on(cal.body, 'focusin', (event) => onFocusIn(cal, event));
-  cal.life.on(cal.body, 'keyup', (event) => { if (event.key === ' ' && event.target.closest?.(CHIP)) event.preventDefault(); });
+  // A Space a drawing took is no press of the day it was on.
+  cal.life.on(cal.body, 'keyup', (event) => {
+    if (event.key === ' ' && (event.target.closest?.(CHIP) || cal.spaceTaken)) event.preventDefault();
+    if (event.key === ' ') cal.spaceTaken = false;
+  });
+  bindDraw(cal);
   bindDrag(cal);
   bindResize(cal);
   bindRange(cal);

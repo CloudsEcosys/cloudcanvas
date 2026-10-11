@@ -24,7 +24,9 @@
  * arrows move it (by day, or by `snapMinutes` in the hour grid), Space or Enter
  * drops it and Escape puts it back. The hour grid is a tab stop of its own, so
  * its hours scroll by keyboard. A redraw keeps focus on what held it and scrolls
- * nothing; only the calendar's own keyboard moves bring the view along.
+ * nothing; only the calendar's own keyboard moves bring the view along. N on a
+ * day draws a range by keyboard, as a drag across empty slots or days does,
+ * and reports it the same way (`onPick`; `./draw.js`).
  */
 import { button, clamp, createLife, documentOf, el, textNode, writeText } from '../dom.js';
 import { injectUiStyles } from '../styles.js';
@@ -34,6 +36,7 @@ import { CALENDAR_VIEWS, addDays, dayKey, sameDay, shiftAnchor, startOfDay, toDa
 import { formattersFor, normalizeEvents, titleFor } from './model.js';
 import { CAL, renderMonth } from './month.js';
 import { renderTimeGrid } from './time.js';
+import { paintDraw } from './draw.js';
 import { paint } from './hint.js';
 import { bindCalendar } from './interact.js';
 
@@ -42,7 +45,12 @@ export const CALENDAR_LABELS = /* @__PURE__ */ Object.freeze({
   previous: 'Previous', next: 'Next', today: 'Today', allDay: 'All day', views: 'View',
   month: 'Month', week: 'Week', day: 'Day', hours: 'Hours', resized: 'Now',
   hintNone: 'Select an event to see what it can do', hintCreate: 'drag across empty slots to add one', hintCreateDays: 'drag across days to add one',
-  hintOpen: 'Enter opens', hintMove: 'drag to move', hintResize: 'drag the bottom edge to resize', hintKeys: 'Alt+Shift+Up or Down resizes'
+  hintOpen: 'Enter opens', hintMove: 'drag to move', hintResize: 'drag the bottom edge to resize', hintKeys: 'Alt+Shift+Up or Down resizes',
+  hintDraw: 'N on a day draws one', hintDrawTime: 'Up and Down move the time · Left and Right the day · Enter or Space starts the range · Escape cancels',
+  hintDrawTimeEnd: 'Up and Down set the end · Enter or Space adds the range · Escape cancels',
+  hintDrawDays: 'The arrows move the day · Enter or Space starts the range · Escape cancels',
+  hintDrawDaysEnd: 'The arrows set the end · Enter or Space adds the range · Escape cancels',
+  drawStart: 'Drawing a range: {when}.', drawAnchor: 'Starts {when}.', drawn: 'Range drawn: {range}.', drawCancelled: 'No range drawn.'
 });
 
 function toolbar(cal) {
@@ -134,6 +142,7 @@ function render(cal) {
   cal.root.setAttribute('data-view', state.view);
   if (state.view === 'month') renderMonth(cal, days, events);
   else renderTimeGrid(cal, days, events);
+  paintDraw(cal);
   writeTabStops(cal);
   cal.drawing = true;
   restoreFocus(cal);
@@ -175,7 +184,7 @@ function createRecord(host, callbacks, labels) {
   const root = el(doc, 'div', { className: CAL, attrs: { role: 'region', [CONTROL_ATTR]: true } });
   const today = startOfDay(new Date());
   const cal = { doc, life, root, callbacks, labels: { ...CALENDAR_LABELS, ...labels }, format: null, last: {}, focusAfter: null,
-    state: { view: 'month', anchor: today, focusDate: today, events: [], views: [...CALENDAR_VIEWS], pending: null, creating: null, selectedId: null } };
+    state: { view: 'month', anchor: today, focusDate: today, events: [], views: [...CALENDAR_VIEWS], pending: null, creating: null, drawing: null, selectedId: null } };
   root.append(toolbar(cal));
   cal.hint = el(doc, 'p', { className: `${CAL}-hint` });
   cal.hintText = textNode(doc, cal.hint);

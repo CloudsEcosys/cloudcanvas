@@ -5,11 +5,13 @@
  * group heading's - wherever the bar is: the axis reaches the sheet's edges
  * (`./reach.js`). A band follows the pointer, from the day the press was on to
  * the day the pointer is on, either way round, a day at least and no further
- * than the track is drawn; the release reports
+ * than the track is drawn; held near an edge of the sheet, the sheet scrolls
+ * and the band follows (`./edge.js`). The release reports
  * `onCreate({groupId, start, end})` - end exclusive - for the group whose row
  * it was (null for a row with no group), and Escape drops the band. While the
  * band is drawn a host's update waits: the sheet is drawn again when the drag
- * ends. Nothing is made by the kit.
+ * ends. Nothing is made by the kit. The keyboard's way to the same report is
+ * `./draw.js`, which draws its band as this one is drawn.
  */
 import { el } from '../dom.js';
 import { trackDrag } from '../drag.js';
@@ -18,12 +20,21 @@ import { TL, TIMELINE_SCALES, dayAt, daysIn } from './model.js';
 
 const TRACK = `.${TL}-track`;
 
-/** The band for a drag whose press was on day `from` and pointer is on day `to` (counted from the domain's start). */
-function spanOf(tl, from, to) {
+/** The span from day `from` to day `to` (counted from the domain's start), either way round, both in. */
+export function spanOf(tl, from, to) {
   const first = Math.min(from, to);
   const days = Math.abs(to - from) + 1;
   const start = addDays(tl.domain.start, first);
   return { start, end: addDays(start, days), first, days };
+}
+
+/** A band over `span`'s days, saying them: "Sep 28", or "Sep 28 – Oct 1". */
+export function writeBand(tl, band, span) {
+  const perDay = TIMELINE_SCALES[tl.state.scale].perDay;
+  band.style.setProperty('--timeline-x', `${span.first * perDay}px`);
+  band.style.setProperty('--timeline-w', `${span.days * perDay}px`);
+  const last = addDays(span.end, -1);
+  band.textContent = span.days === 1 ? tl.format.format(span.start) : `${tl.format.format(span.start)} – ${tl.format.format(last)}`;
 }
 
 /** The day the pointer is over, counted from the domain's start; a pointer past either end of the track is on its first or last day. */
@@ -34,12 +45,7 @@ function dayUnder(tl, creating, point) {
 
 function drawBand(tl, creating, point) {
   const span = spanOf(tl, creating.from, dayUnder(tl, creating, point));
-  const perDay = TIMELINE_SCALES[tl.state.scale].perDay;
-  const { band } = creating;
-  band.style.setProperty('--timeline-x', `${span.first * perDay}px`);
-  band.style.setProperty('--timeline-w', `${span.days * perDay}px`);
-  const last = addDays(span.end, -1);
-  band.textContent = span.days === 1 ? tl.format.format(span.start) : `${tl.format.format(span.start)} – ${tl.format.format(last)}`;
+  writeBand(tl, creating.band, span);
   creating.span = span;
 }
 
@@ -55,6 +61,7 @@ function endCreate(tl, point) {
 
 /** Wire the drag across a row's empty track. */
 export function bindCreate(tl) {
+  const follow = (point) => { if (tl.state.creating) drawBand(tl, tl.state.creating, point); };
   trackDrag(tl.life, tl.sheet, {
     selector: TRACK,
     canStart: (track, event) => typeof tl.callbacks.onCreate === 'function' && !tl.state.pending && event.target === track,
@@ -65,9 +72,11 @@ export function bindCreate(tl) {
       tl.state.creating.from = dayUnder(tl, tl.state.creating, point);
     },
     onMove(point) {
-      if (tl.state.creating) drawBand(tl, tl.state.creating, point);
+      follow(point);
+      tl.edge.follow(point, follow);
     },
     onEnd(point) {
+      tl.edge.stop();
       if (tl.state.creating) endCreate(tl, point);
     }
   });

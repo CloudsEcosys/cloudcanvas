@@ -7,8 +7,9 @@
  * `domain` while it lasts, so the bar moves under the pointer rather than the
  * axis moving under the bar. Every move snaps to whole days, keeps the time of
  * day, and is reported through `onChange(id, {start, end})` - end exclusive -
- * never applied. By pointer: a drag on the bar, or on one of its end handles.
- * By keyboard: Space picks the bar up, the arrows move it a day (Shift
+ * never applied. By pointer: a drag on the bar, or on one of its end handles;
+ * held near an edge of the sheet, the sheet scrolls and the bar follows the
+ * days that pass under the pointer (`./edge.js`). By keyboard: Space picks the bar up, the arrows move it a day (Shift
  * resizes its end), Space or Enter drops it, Escape puts it back.
  */
 import { trackDrag } from '../drag.js';
@@ -91,24 +92,34 @@ export function reportChange(tl, id, times) {
   tl.say(`${tl.labels.moved}: ${tl.describe({ ...itemById(tl, id), ...times })}.`);
 }
 
+/** The bar in hand, at the days the pointer has travelled since the press - and the sheet has scrolled under it. */
+function dragTo(tl, point) {
+  const pending = tl.state.pending;
+  if (!pending) return;
+  const travel = point.x - pending.originX + tl.sheet.scrollLeft - pending.originScroll;
+  const days = Math.round(travel / TIMELINE_SCALES[tl.state.scale].perDay);
+  if (days === pending.days) return;
+  pending.days = days;
+  pending.times = shiftItem(pending.original, days, pending.mode);
+  tl.render();
+}
+
 /** Wire the pointer's drag of a bar, and of the handle at its end. */
 export function bindMove(tl) {
+  const follow = (point) => dragTo(tl, point);
   trackDrag(tl.life, tl.sheet, {
     selector: `${BAR}[data-movable]`,
     canStart: () => !tl.state.pending,
     onStart(bar, point, pressTarget) {
-      if (startMove(tl, bar.getAttribute('data-ui-id'), { keyboard: false, mode: modeOf(pressTarget) })) tl.state.pending.originX = point.x;
+      if (!startMove(tl, bar.getAttribute('data-ui-id'), { keyboard: false, mode: modeOf(pressTarget) })) return;
+      Object.assign(tl.state.pending, { originX: point.x, originScroll: tl.sheet.scrollLeft });
     },
     onMove(point) {
-      const pending = tl.state.pending;
-      if (!pending) return;
-      const days = Math.round((point.x - pending.originX) / TIMELINE_SCALES[tl.state.scale].perDay);
-      if (days === pending.days) return;
-      pending.days = days;
-      pending.times = shiftItem(pending.original, days, pending.mode);
-      tl.render();
+      follow(point);
+      if (tl.state.pending) tl.edge.follow(point, follow);
     },
     onEnd(point) {
+      tl.edge.stop();
       if (tl.state.pending) finishMove(tl, point !== null);
     }
   });

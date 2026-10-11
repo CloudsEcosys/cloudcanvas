@@ -61,8 +61,17 @@
  * heading that stands for it: for the eye and for assistive technology
  * (`aria-current`). The arrows and a press move the selection; the model's
  * replaces it when the model changes it. The hint under the toolbar says what
- * the selection can do. The timeline has no motion, so a reader who asked for
- * less gets none.
+ * the selection can do. A FOLDED GROUP draws a summary bar on its heading's
+ * row (`./rows.js`). `focusId`, as the graph's, brings its item into view
+ * ONCE when it changes - its bar, or the heading of the folded group it is in
+ * - and gives it the tab stop; the reader's scrolling after it is never
+ * fought (`./reveal.js`).
+ *
+ * A SPAN IS DRAWN BY KEYBOARD as by a drag: N on a bar or a heading, a date
+ * cursor on its row, Enter or Space to anchor and to add (`./draw.js`). A
+ * drag held near an edge of the sheet scrolls it (`./edge.js`); for a reader
+ * who asked for less motion, by whole days, in steps. The range in the
+ * toolbar is the days the sheet shows (`./window.js`). Nothing else moves.
  */
 import { createLiveRegion, say } from '../../addons/announce.js';
 import { CONTROL_ATTR } from '../../addons/trait.js';
@@ -72,8 +81,10 @@ import { toDate } from '../calendar/dates.js';
 import { applyGutter } from './gutter.js';
 import { bindTimeline } from './interact.js';
 import { TL, TIMELINE_SCALES, normalizeItems, widthOf, xOf } from './model.js';
+import { placeCursor } from './draw.js';
 import { drawLinks, linksLayer } from './links.js';
 import { domainOf, viewAfter, viewBefore } from './reach.js';
+import { revealItem } from './reveal.js';
 import { axisNode, describeItem, rowsNode } from './rows.js';
 import { paint } from './select.js';
 
@@ -85,7 +96,11 @@ export const TIMELINE_LABELS = /* @__PURE__ */ Object.freeze({
   hintNone: 'Select a bar to see what it can do', hintCreate: 'drag on a row to add one', hintOpen: 'Enter opens',
   hintMove: 'drag to move', hintResize: 'drag an edge to resize', hintKeys: 'Alt+arrows move a day, Alt+Shift+arrows resize',
   hintLink: 'drag the dot to link', hintDelete: 'Delete removes', hintAdd: '+ adds one here', hintFold: 'Space folds',
-  hintUnlink: 'Delete removes the link', clamped: 'shown wider than it lasts', link: 'Drag to another bar to link them', dependsOn: 'depends on', collapse: 'Collapse {group}', expand: 'Expand {group}', hidden: '{count} hidden'
+  hintUnlink: 'Delete removes the link', clamped: 'shown wider than it lasts', link: 'Drag to another bar to link them', dependsOn: 'depends on', collapse: 'Collapse {group}', expand: 'Expand {group}', hidden: '{count} hidden',
+  summary: '{group}, {count} items', summaryOne: '{group}, 1 item',
+  hintDraw: 'N draws a span', hintDrawing: 'Left and Right move the day · Up and Down the row · Enter or Space starts the span · Escape cancels',
+  hintSpanning: 'Left and Right set the end · Enter or Space adds the span · Escape cancels', drawStart: 'Drawing a span in {group}: {date}.',
+  drawAnchor: 'Starts {date}.', drawn: 'Span drawn: {range}, {group}.', drawCancelled: 'No span drawn.', days: '{count} days', oneDay: '1 day', noGroup: 'no group'
 });
 
 function toolbar(tl) {
@@ -156,15 +171,17 @@ function render(tl) {
   tl.sheet.replaceChildren(gridNode(tl, drawnItems(state)));
   viewAfter(tl, view);
   drawLinks(tl);
+  placeCursor(tl);
   const heading = headingOf(tl, held.groupId);
   if (!tl.focusAfter && !heading && (held.bar || held.groupId !== null)) tl.focusAfter = 'keep';
   writeScales(tl);
-  writeText(tl.rangeText, `${tl.format.format(tl.domain.start)} – ${tl.format.format(tl.domain.end)}`);
   tl.writeTabStops();
   paint(tl);
   heading?.focus({ preventScroll: true });
   if (held.gutter) tl.gutterNode?.focus({ preventScroll: true });
   tl.drawing = false;
+  if (tl.reveal !== null && !tl.busy()) revealItem(tl, tl.reveal);
+  if (!tl.busy()) tl.reveal = null;
   tl.windowMoved();
 }
 
@@ -175,7 +192,7 @@ function writeFormats(tl, locale) {
     week: tl.format, month: new Intl.DateTimeFormat(locale, { month: 'short', year: 'numeric' }) };
 }
 
-/** Take what the model says that the reader may also change - the selection, the gutter - only when the model changed it. */
+/** Take what the model says that the reader may also change - the selection, the gutter, the item to bring into view - only when the model changed it. */
 function adopt(tl, model) {
   const { seen, state } = tl;
   const selectedId = model.selectedId ?? null;
@@ -188,6 +205,14 @@ function adopt(tl, model) {
   if (gutter !== seen.gutter) {
     seen.gutter = gutter;
     if (gutter !== null) applyGutter(tl, gutter);
+  }
+  const focusId = model.focusId ?? null;
+  if (focusId !== seen.focusId) {
+    seen.focusId = focusId;
+    if (focusId !== null) {
+      tl.reveal = focusId;
+      state.focusId = focusId;
+    }
   }
 }
 
@@ -214,16 +239,18 @@ function markAbilities(root, callbacks) {
 
 function timelineState(doc, life, root, callbacks) {
   return { doc, life, root, callbacks, id: uniqueId(TL), labels: { ...TIMELINE_LABELS, ...callbacks.labels }, format: null, lastScale: undefined,
-    byId: new Map(), groups: new Map(), seen: { selectedId: undefined, gutter: undefined }, reach: { before: 0, after: 0 },
-    state: { scale: 'week', items: [], now: new Date(), pending: null, creating: null, linking: null, focusId: null, selectedId: null, selectedLink: null, gutter: null } };
+    byId: new Map(), groups: new Map(), seen: { selectedId: undefined, gutter: undefined, focusId: undefined }, reach: { before: 0, after: 0 }, reveal: null,
+    state: { scale: 'week', items: [], now: new Date(), pending: null, creating: null, linking: null, cursor: null, focusId: null, selectedId: null, selectedLink: null, gutter: null } };
 }
 
 /**
  * @param {HTMLElement} host
  * @param {{onActivate?: (id: string) => void, onChange?: (id: string, times: {start: Date, end: Date|null}) => void,
+ *   onCreate?: (span: {groupId: string|null, start: Date, end: Date}) => void,
  *   onScale?: (scale: string) => void, onGutter?: (px: number) => void, onWindow?: (days: {from: string, to: string}) => void,
  *   labels?: Partial<typeof TIMELINE_LABELS>}} [callbacks]
- * @returns {{update(model: {label?: string, scale?: string, now?: Date|string, locale?: string, selectedId?: string|null, gutter?: number,
+ * @returns {{update(model: {label?: string, scale?: string, now?: Date|string, locale?: string, selectedId?: string|null,
+ *   focusId?: string|null, gutter?: number,
  *   items?: Array<{id: string, title?: string, start: Date|string, end?: Date|string, milestone?: boolean,
  *   group?: string|{id?: string, label?: string, collapsed?: boolean}, groupId?: string, status?: string|{label: string, tone?: string},
  *   tone?: string, progress?: number, depends?: string[], movable?: boolean}>}): void, destroy(): void}}

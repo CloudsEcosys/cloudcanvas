@@ -4,11 +4,14 @@
  * What the timeline does with a click or a key. A press on a bar, on the label
  * beside it or on a heading that stands for an item opens that item: each says
  * which item it belongs to (`itemIdOf`). The moves are `./move.js`, the keys
- * `./keys.js`, the gutter `./gutter.js`.
+ * `./keys.js`, a span drawn by keyboard `./draw.js`, the scroll at the sheet's
+ * edges `./edge.js`, the gutter `./gutter.js`.
  */
 import { itemIdOf, itemNodeOf } from '../dom.js';
 import { setTabStop } from '../roving.js';
 import { bindCreate } from './create.js';
+import { bindDraw } from './draw.js';
+import { bindEdge } from './edge.js';
 import { bindGutter } from './gutter.js';
 import { TL } from './model.js';
 import { bindKeys } from './keys.js';
@@ -67,6 +70,8 @@ export function bindTimeline(tl) {
   tl.life.on(tl.sheet, 'click', (event) => onClick(tl, event));
   tl.life.on(tl.sheet, 'contextmenu', (event) => onContextMenu(tl, event));
   tl.life.on(tl.sheet, 'focusin', (event) => onFocusIn(tl, event));
+  bindDraw(tl);
+  bindEdge(tl);
   bindKeys(tl);
   bindMove(tl);
   bindCreate(tl);

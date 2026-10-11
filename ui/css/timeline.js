@@ -16,7 +16,9 @@
  * the selected row.
  *
  * A TITLE IS ALWAYS DRAWN: inside the bar it ends in an ellipsis, and beside
- * a milestone or a short bar it stands clear of the bar's handles.
+ * a milestone or a short bar it stands clear of the bar's handles. A folded
+ * group's summary on its heading's row is drawn as a bar of what is folded
+ * away: the page's text on the sheet's surface, a dashed outline.
  *
  * Nothing here moves: a handle appears, a band is drawn, a bar is placed;
  * none of it is animated, so there is no motion to turn off for a reader who
@@ -63,7 +65,8 @@ export const UI_TIMELINE_CSS = `/* ------------------ UI KIT: TIMELINE ---------
 /* It is as wide as the sheet's content, so the empty track beside its name takes a dragged span; the name stays in view as the sheet is scrolled. */
 .cloudcanvas-ui-timeline-group { position: relative; display: flex; }
 .cloudcanvas-ui-timeline-group > .cloudcanvas-ui-timeline-track { position: absolute; top: 0; bottom: 0; left: var(--timeline-gutter); height: auto; }
-.cloudcanvas-ui-timeline-group-cell { position: sticky; left: 0; z-index: var(--cc-z-ui-raised, 2); flex: none; display: flex; align-items: center; gap: var(--cc-space-1, 4px); padding: var(--cc-space-1, 4px) var(--cc-space-2, 8px); font-size: var(--cc-type-sm, 12px); font-weight: var(--cc-weight-semibold, 600); color: var(--cc-text-muted, #94a3b8); }
+/* The heading's cell is the title column's, as a row's title is: at least as wide, on its surface, so a summary or a band scrolled under it is hidden as a bar is under a title. */
+.cloudcanvas-ui-timeline-group-cell { position: sticky; left: 0; z-index: var(--cc-z-ui-raised, 2); flex: none; box-sizing: border-box; min-width: var(--timeline-gutter); display: flex; align-items: center; gap: var(--cc-space-1, 4px); padding: var(--cc-space-1, 4px) var(--cc-space-2, 8px); font-size: var(--cc-type-sm, 12px); font-weight: var(--cc-weight-semibold, 600); color: var(--cc-text-muted, #94a3b8); background: ${SURFACE}; }
 .cloudcanvas-ui-timeline-group-label:focus-visible { outline: ${RING}; outline-offset: var(--cc-focus-ring-offset, 2px); }
 /* The chevron: drawn, not written, so the heading's words are its name alone; it points down when the group is open and right when it is folded. */
 .cloudcanvas-ui-timeline-group-toggle {
@@ -115,17 +118,18 @@ export const UI_TIMELINE_CSS = `/* ------------------ UI KIT: TIMELINE ---------
 .cloudcanvas-ui-timeline-row.is-current .cloudcanvas-ui-timeline-label { font-weight: var(--cc-weight-semibold, 600); }
 .cloudcanvas-ui-timeline-track { position: relative; flex: none; width: var(--timeline-width); height: 2.25rem; }
 .cloudcanvas-ui-timeline[data-can-create] .cloudcanvas-ui-timeline-track { cursor: crosshair; }
-/* The span being made: a band of the days it covers, with their dates in it, in the page's text colour: the band is a wash over the page (see the calendar's). */
+/* The span being made: a band of the days it covers - its border and padding within them - with their dates in it, running on past its end when it is shorter than they are, in the page's text colour: the band is a wash over the page (see the calendar's). */
 .cloudcanvas-ui-timeline-draft {
   position: absolute;
   top: 6px;
   bottom: 6px;
   left: var(--timeline-x);
   width: var(--timeline-w);
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   padding: 0 var(--cc-space-2, 8px);
-  overflow: hidden;
+  overflow: visible;
   font-size: var(--cc-type-xs, 11px);
   white-space: nowrap;
   color: var(--cc-text, #e2e8f0);
@@ -134,6 +138,27 @@ export const UI_TIMELINE_CSS = `/* ------------------ UI KIT: TIMELINE ---------
   border-radius: var(--cc-radius-sm, 6px);
   pointer-events: none;
 }
+
+/* A folded group's summary: the days its items cover, its name and count in the page's text; a press opens the group's item, so it points, and it is no row to drag a span across. */
+.cloudcanvas-ui-timeline-summary {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: var(--timeline-x);
+  width: var(--timeline-w);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--cc-space-2, 8px);
+  font-size: var(--cc-type-xs, 11px);
+  color: var(--cc-text, #e2e8f0);
+  background: ${SURFACE};
+  border: 1px dashed var(--cc-text-muted, #94a3b8);
+  border-left: 4px solid var(--cc-text-muted, #94a3b8);
+  border-radius: var(--cc-radius-sm, 6px);
+  cursor: pointer;
+}
+.cloudcanvas-ui-timeline-summary-title { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 
 /* A bar: its title inside (or beside it), its status in its outline and fill, its progress as the fill that is done. */
 .cloudcanvas-ui-timeline-bar {
@@ -262,11 +287,11 @@ export const UI_TIMELINE_CSS = `/* ------------------ UI KIT: TIMELINE ---------
     translate: 0 -50%;
   }
   .cloudcanvas-ui-timeline-bar.is-short :is(.cloudcanvas-ui-timeline-handle, .cloudcanvas-ui-timeline-handle-start) { pointer-events: none; }
-  /* The grab area of a bar drawn narrower than a finger is padding round it: it lies under the bar, so the bar keeps its own look. */
+  /* The grab area of a bar drawn narrower than a finger is padding round it: it lies under the bar, so the bar keeps its own look. A folded group's summary is a whole target the same way. */
   .cloudcanvas-ui-timeline-bar { overflow: visible; }
   /* A milestone's reach stands over the title drawn beside it - a part of the same item - so a finger 12 to 22px from its middle moves the milestone, not just opens it. */
   .cloudcanvas-ui-timeline-bar.is-point { z-index: var(--cc-z-ui-raised, 2); }
-  .cloudcanvas-ui-timeline-bar:not(.is-point)::after {
+  .cloudcanvas-ui-timeline-bar:not(.is-point)::after, .cloudcanvas-ui-timeline-summary::after {
     content: "";
     position: absolute;
     top: 50%;

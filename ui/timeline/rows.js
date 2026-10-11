@@ -11,11 +11,17 @@
  * A TITLE IS ALWAYS DRAWN. Inside the bar when the bar is wide enough to hold
  * some of it (it then ends in an ellipsis), else beside it, as a milestone's
  * is. Either way the full title is in the bar's name and its tooltip.
+ *
+ * A FOLDED GROUP DRAWS A SUMMARY on its heading's row: a bar from the earliest
+ * start of its items to their latest end, within the axis, titled with the
+ * group's name and how many it holds. It is a part of the group's item (a
+ * press opens it, as the heading does) for the eye alone - the heading says
+ * the same - and it is no empty row: a drag that starts on it makes no span.
  */
 import { addDays, startOfDay } from '../calendar/dates.js';
 import { el } from '../dom.js';
 import { gutterHandle } from './gutter.js';
-import { TL, barOf, tickDates, xOf } from './model.js';
+import { MIN_BAR_PX, TL, barOf, tickDates, xOf } from './model.js';
 
 /** A bar narrower than this (px) draws its title beside it: inside, nothing of it would read. */
 export const INSIDE_MIN_PX = 56;
@@ -25,7 +31,7 @@ export const INSIDE_MIN_PX = 56;
  * exclusive - the midnight after its last day - so an end at midnight is the day before, and an end during a day is
  * that day.
  */
-function daysWords({ start, end }, date) {
+export function daysWords({ start, end }, date) {
   const midnight = startOfDay(end);
   const last = end.getTime() === midnight.getTime() ? addDays(end, -1) : midnight;
   return last > startOfDay(start) ? `${date(start)} to ${date(last)}` : date(start);
@@ -116,12 +122,42 @@ function foldCount(tl, item) {
   return el(tl.doc, 'span', { className: `${TL}-group-count`, text: count, attrs: { title: tl.labels.hidden.replace('{count}', String(count)) } });
 }
 
+/** The items under `item`'s heading: its group's, by id; a group that is a name alone, by that name. */
+function membersOf(tl, item) {
+  return tl.state.items.filter((other) => other.groupId === item.groupId && (item.groupId !== null || other.group === item.group));
+}
+
 /**
- * The empty track of a heading row, drawn when the host takes `onCreate`: a span is dragged across it as across any
- * row's, for the group the heading is, folded or not. It holds no bar, so it is for the pointer alone.
+ * Where `item`'s group stands on the axis: from its items' earliest start to their latest end (a milestone's end is its
+ * start), within the axis, never narrower than a bar is drawn; and how many items it holds.
+ */
+export function groupSpan(tl, item) {
+  const members = membersOf(tl, item);
+  const start = new Date(Math.max(tl.domain.start, Math.min(...members.map((one) => one.start))));
+  const end = new Date(Math.min(tl.domain.end, Math.max(...members.map((one) => one.end ?? one.start))));
+  const left = xOf(start, tl.domain, tl.state.scale);
+  return { left, width: Math.max(MIN_BAR_PX, xOf(end, tl.domain, tl.state.scale) - left), count: members.length };
+}
+
+/** The bar a folded group draws over its group's days, titled with the group's name and how many items it holds. */
+function summaryNode(tl, item) {
+  const span = groupSpan(tl, item);
+  const words = (span.count === 1 ? tl.labels.summaryOne : tl.labels.summary).replace('{group}', item.group).replace('{count}', String(span.count));
+  const node = el(tl.doc, 'span', { className: `${TL}-summary`, attrs: { 'aria-hidden': 'true', title: words, 'data-ui-for': item.groupId } });
+  node.append(el(tl.doc, 'span', { className: `${TL}-summary-title`, text: words }));
+  writeGeometry(node, span);
+  return node;
+}
+
+/**
+ * The track of a heading row, drawn when the host takes `onCreate` or the group is folded: a span is dragged across
+ * it as across any row's, for the group the heading is, folded or not, and a folded group's summary stands on it. It
+ * holds no bar, so it is for the pointer alone.
  */
 function headingTrack(tl, item) {
-  return el(tl.doc, 'div', { className: `${TL}-track`, attrs: { role: 'gridcell', 'aria-hidden': 'true', 'data-group-id': item.groupId } });
+  const track = el(tl.doc, 'div', { className: `${TL}-track`, attrs: { role: 'gridcell', 'aria-hidden': 'true', 'data-group-id': item.groupId } });
+  if (item.collapsed) track.append(summaryNode(tl, item));
+  return track;
 }
 
 /** The heading row of `item`'s group: its name, or - for a group that stands for an item - a button that is that item's face. */
@@ -129,7 +165,7 @@ function groupNode(tl, item) {
   const row = el(tl.doc, 'div', { className: `${TL}-group`, attrs: { role: 'row', 'aria-level': 1 } });
   const cell = el(tl.doc, 'div', { className: `${TL}-group-cell`, attrs: { role: 'gridcell' } });
   row.append(cell);
-  if (typeof tl.callbacks.onCreate === 'function') row.append(headingTrack(tl, item));
+  if (typeof tl.callbacks.onCreate === 'function' || item.collapsed) row.append(headingTrack(tl, item));
   if (item.groupId === null) {
     cell.textContent = item.group;
     return row;
