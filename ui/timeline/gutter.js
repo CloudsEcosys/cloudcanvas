@@ -49,6 +49,7 @@ export function applyGutter(tl, px) {
   tl.state.gutter = width;
   tl.root.style.setProperty('--timeline-gutter', `${width}px`);
   writeHandle(tl);
+  tl.windowMoved?.();
   return width;
 }
 

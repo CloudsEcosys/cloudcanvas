@@ -88,7 +88,7 @@ export function bindReach(tl) {
   tl.life.on(tl.sheet, 'scroll', () => extend(tl));
   const Observer = tl.doc.defaultView?.ResizeObserver;
   if (typeof Observer !== 'function') return;
-  const observer = new Observer(() => refit(tl));
+  const observer = new Observer(() => { refit(tl); tl.windowMoved(); });
   observer.observe(tl.sheet);
   tl.life.add(() => observer.disconnect());
 }

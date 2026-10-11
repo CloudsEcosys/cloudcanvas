@@ -16,6 +16,7 @@ import { bindLinks } from './links.js';
 import { BAR, bars, bindMove } from './move.js';
 import { bindReach } from './reach.js';
 import { select } from './select.js';
+import { bindWindow } from './window.js';
 import { bindZoom } from './zoom.js';
 
 /**
@@ -73,4 +74,5 @@ export function bindTimeline(tl) {
   bindGutter(tl);
   bindZoom(tl);
   bindReach(tl);
+  bindWindow(tl);
 }

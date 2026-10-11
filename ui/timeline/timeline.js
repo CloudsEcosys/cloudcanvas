@@ -46,6 +46,12 @@
  * across the empty part of any row, a group's heading included - folded or
  * not - on any day the axis shows, whatever is on the row. See `./reach.js`.
  *
+ * THE DAYS ON SCREEN are said to a host that fetches what it draws:
+ * `onWindow({from, to})`, the first and the last day (day keys, both on screen)
+ * right of the gutter, once the sheet is drawn and again about 150ms after a
+ * scroll, a zoom, a change of scale or a resize has settled and moved them.
+ * See `./window.js`.
+ *
  * THE ROWS ARE A TREEGRID: a heading is a row of level 1, a bar's row level 2
  * under it. `selectedId` marks the item that is selected, on its bar and on a
  * heading that stands for it: for the eye and for assistive technology
@@ -155,6 +161,7 @@ function render(tl) {
   heading?.focus({ preventScroll: true });
   if (held.gutter) tl.gutterNode?.focus({ preventScroll: true });
   tl.drawing = false;
+  tl.windowMoved();
 }
 
 function writeFormats(tl, locale) {
@@ -210,7 +217,8 @@ function timelineState(doc, life, root, callbacks) {
 /**
  * @param {HTMLElement} host
  * @param {{onActivate?: (id: string) => void, onChange?: (id: string, times: {start: Date, end: Date|null}) => void,
- *   onScale?: (scale: string) => void, onGutter?: (px: number) => void, labels?: Partial<typeof TIMELINE_LABELS>}} [callbacks]
+ *   onScale?: (scale: string) => void, onGutter?: (px: number) => void, onWindow?: (days: {from: string, to: string}) => void,
+ *   labels?: Partial<typeof TIMELINE_LABELS>}} [callbacks]
  * @returns {{update(model: {label?: string, scale?: string, now?: Date|string, locale?: string, selectedId?: string|null, gutter?: number,
  *   items?: Array<{id: string, title?: string, start: Date|string, end?: Date|string, milestone?: boolean,
  *   group?: string|{id?: string, label?: string, collapsed?: boolean}, groupId?: string, status?: string|{label: string, tone?: string},
