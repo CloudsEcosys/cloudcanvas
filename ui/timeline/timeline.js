@@ -23,6 +23,12 @@
  * changes wins. A redraw keeps focus on the bar, the heading or the separator
  * that held it and scrolls nothing.
  *
+ * A BAR IS DRAWN AT LEAST 1.25REM WIDE: one that lasts less (half an hour, a day
+ * on the month scale) is drawn at that width, starting where it starts, and its
+ * name says `shown wider than it lasts`; `onChange` reports its true times. Under
+ * a finger it has a 44px grab area of padding round it, and the handles at its
+ * ends give way to its body when it is too short for three targets.
+ *
  * A ROW'S LABEL BELONGS TO ITS BAR: a press on the label beside a bar is a
  * press on that bar, and `itemIdOf` answers with the bar's item for either.
  *
@@ -66,7 +72,7 @@ export const TIMELINE_LABELS = /* @__PURE__ */ Object.freeze({
   hintNone: 'Select a bar to see what it can do', hintCreate: 'drag on a row to add one', hintOpen: 'Enter opens',
   hintMove: 'drag to move', hintResize: 'drag an edge to resize', hintKeys: 'Alt+arrows move a day, Alt+Shift+arrows resize',
   hintLink: 'drag the dot to link', hintDelete: 'Delete removes', hintAdd: '+ adds one here', hintFold: 'Space folds',
-  hintUnlink: 'Delete removes the link', link: 'Drag to another bar to link them', dependsOn: 'depends on', collapse: 'Collapse {group}', expand: 'Expand {group}', hidden: '{count} hidden'
+  hintUnlink: 'Delete removes the link', clamped: 'shown wider than it lasts', link: 'Drag to another bar to link them', dependsOn: 'depends on', collapse: 'Collapse {group}', expand: 'Expand {group}', hidden: '{count} hidden'
 });
 
 function toolbar(tl) {

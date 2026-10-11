@@ -141,7 +141,7 @@ export const UI_TIMELINE_CSS = `/* ------------------ UI KIT: TIMELINE ---------
   bottom: 6px;
   left: var(--timeline-x);
   width: var(--timeline-w);
-  min-width: 4px;
+  min-width: 1.25rem;
   display: flex;
   align-items: center;
   padding: 0 var(--cc-space-2, 8px);
@@ -251,13 +251,27 @@ export const UI_TIMELINE_CSS = `/* ------------------ UI KIT: TIMELINE ---------
   .cloudcanvas-ui-timeline-gutter-handle { right: calc(-0.5 * var(--cc-control-min-coarse, 44px)); width: var(--cc-control-min-coarse, 44px); }
   .cloudcanvas-ui-timeline-gutter-handle::after { left: calc(50% - 1px); }
   :is(.cloudcanvas-ui-timeline-handle, .cloudcanvas-ui-timeline-handle-start) { width: min(14px, 30%); }
+  /* A bar's ends reach inward a third of the bar at most, so its body keeps a third; a bar too short for three targets is one, its ends inert. */
   :is(.cloudcanvas-ui-timeline-handle, .cloudcanvas-ui-timeline-handle-start)::after {
     content: "";
     position: absolute;
     top: 50%;
-    width: var(--cc-control-min-coarse, 44px);
+    width: min(var(--cc-control-min-coarse, 44px), calc(var(--timeline-w) / 3));
     height: var(--cc-control-min-coarse, 44px);
     translate: 0 -50%;
+  }
+  .cloudcanvas-ui-timeline-bar.is-short :is(.cloudcanvas-ui-timeline-handle, .cloudcanvas-ui-timeline-handle-start) { pointer-events: none; }
+  /* The grab area of a bar drawn narrower than a finger is padding round it: it lies under the bar, so the bar keeps its own look. */
+  .cloudcanvas-ui-timeline-bar { overflow: visible; }
+  .cloudcanvas-ui-timeline-bar:not(.is-point)::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    z-index: var(--target-under);
+    width: max(100%, var(--target));
+    height: max(100%, var(--target));
+    translate: -50% -50%;
   }
   .cloudcanvas-ui-timeline-handle::after { right: 0; }
   .cloudcanvas-ui-timeline-handle-start::after { left: 0; }

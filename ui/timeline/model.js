@@ -105,11 +105,15 @@ export function widthOf(domain, scale) {
   return xOf(domain.end, domain, scale);
 }
 
-/** A bar's left and width; a milestone (no end) has width 0. */
+/** The narrowest a bar is drawn (px): 1.25rem at the browser's default size. A bar that lasts less is drawn this wide, and says so. */
+export const MIN_BAR_PX = 20;
+
+/** A bar's left and width, and `clamped` when it is drawn wider than it lasts; a milestone (no end) has width 0. */
 export function barOf(item, domain, scale) {
   const left = xOf(item.start, domain, scale);
   if (!item.end) return { left, width: 0, point: true };
-  return { left, width: Math.max(4, xOf(item.end, domain, scale) - left), point: false };
+  const width = xOf(item.end, domain, scale) - left;
+  return width < MIN_BAR_PX ? { left, width: MIN_BAR_PX, point: false, clamped: true } : { left, width, point: false };
 }
 
 /** The tick dates for a scale: every day, every week start, or every month start. */

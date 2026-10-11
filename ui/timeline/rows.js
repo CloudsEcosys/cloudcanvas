@@ -19,14 +19,15 @@ import { TL, barOf, tickDates, xOf } from './model.js';
 /** A bar narrower than this (px) draws its title beside it: inside, nothing of it would read. */
 export const INSIDE_MIN_PX = 56;
 
-/** How a bar reads to a screen reader, and what its tooltip says: title, dates, status, progress. */
+/** How a bar reads to a screen reader, and what its tooltip says: title, dates, that it is drawn wider than it lasts, status, progress. */
 export function describeItem(tl, item) {
   const date = (value) => tl.format.format(value);
   const when = item.end ? `${date(item.start)} to ${date(item.end)}` : `${date(item.start)}, ${tl.labels.milestone}`;
+  const clamped = item.end && barOf(item, tl.domain, tl.state.scale).clamped ? `, ${tl.labels.clamped}` : '';
   const status = item.status ? `, ${item.status}` : '';
   const done = item.progress === null ? '' : `, ${Math.round(item.progress * 100)}% ${tl.labels.done}`;
   const needs = item.depends.filter((id) => tl.byId.has(id)).map((id) => tl.byId.get(id).title);
-  return `${item.title}, ${when}${status}${done}${needs.length ? `, ${tl.labels.dependsOn} ${needs.join(', ')}` : ''}`;
+  return `${item.title}, ${when}${clamped}${status}${done}${needs.length ? `, ${tl.labels.dependsOn} ${needs.join(', ')}` : ''}`;
 }
 
 function writeGeometry(node, geometry) {
