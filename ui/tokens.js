@@ -63,6 +63,7 @@ export const UI_TOKENS = /* @__PURE__ */ Object.freeze({
   '--cc-z-ui-context': { category: C.Z_INDEX, purpose: 'Nonmodal floating context windows: the lowest of the floating layers, below toasts, dialogs and menus' },
   '--cc-z-ui-toast': { category: C.Z_INDEX, purpose: 'Toast stack: above the floating context windows, below a dialog and below a menu, which it must not cover' },
   '--cc-z-ui-dialog': { category: C.Z_INDEX, purpose: 'A dialog that is not modal: above toasts, below a menu opened over it (a modal dialog is in the top layer)' },
+  '--cc-z-ui-popover': { category: C.Z_INDEX, purpose: 'Popovers: above a dialog that is not modal and the toasts, below a menu opened from one' },
   '--cc-z-ui-menu': { category: C.Z_INDEX, purpose: 'Menus: the top floating layer, above the context windows, toasts and dialogs one may be opened over' },
   '--cc-z-ui-raised': { category: C.Z_INDEX, purpose: 'Parts raised inside a UI view: sticky labels, a card being dragged' },
   '--cc-z-ui-sticky': { category: C.Z_INDEX, purpose: 'Sticky headers inside a UI view, above raised parts (the timeline axis)' }
