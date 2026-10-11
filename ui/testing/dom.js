@@ -76,7 +76,16 @@
  * `tests/unified-shared-work-comments.test.js` is what holds it, beside a case
  * for the placing itself. Before it was here, mounting the combobox read
  *   TypeError: input.after is not a function
+ *
+ * `prepend` IS HERE FOR THE KIT TABS: a tab's icon stands in a slot of its own before the label, and the
+ * tab puts it there with `prepend`. Where a node's children go - `append`, `prepend`, `insertBefore`,
+ * `after`, `replaceWith`, `replaceChildren` and `remove` - is in `place.js`. The tab-icon cases of
+ * `tests/unit/ui-testing-mounts.test.js` and `tests/unit/ui-testing-dom.test.js` hold it. Before it was
+ * here, a tab drawn with an icon on this document read
+ *   TypeError [Error]: view.tab.prepend is not a function
  */
+
+import { FRAGMENT, placing, replacing, textNode } from './place.js';
 
 /**
  * One selector - or a comma list of them, which is how a focus trap names the
@@ -138,9 +147,6 @@ function listenerList() {
   return { add, remove, of };
 }
 
-/** A document fragment's node type: a parent that is never itself in the tree. */
-const FRAGMENT = 11;
-
 /**
  * The nearest sibling of `node` that is an element, `step` places at a time
  * (+1 after it, -1 before it), or null: text between two elements is passed
@@ -154,17 +160,6 @@ function elementSibling(node, step) {
   }
   return null;
 }
-
-/**
- * What inserting `kid` puts in the tree: the node, or a fragment's children in
- * its place - which is also what empties the fragment, since each is detached
- * from it as it moves.
- * @param {any} kid @returns {any[]}
- */
-function inserted(kid) {
-  return kid.nodeType === FRAGMENT ? [...kid.childNodes] : [kid];
-}
-
 /**
  * A NODE IS MADE IN PARTS. `makeNode` was one function of about 165 lines; each
  * part below is one concern of a node, under the 50-line limit, and `makeNode`
@@ -256,96 +251,6 @@ function attributes() {
 }
 
 /**
- * Putting a node into this one. An insertion MOVES what it is given: the node
- * leaves the parent it had first.
- * @param {any} node @returns {any}
- */
-function placing(node) {
-  return {
-    /** @param {any} kid */
-    detach(kid) {
-      if (!kid.parentNode) return;
-      const at = kid.parentNode.childNodes.indexOf(kid);
-      if (at >= 0) kid.parentNode.childNodes.splice(at, 1);
-      kid.parentNode = null;
-    },
-    /** @param {...any} kids */
-    append(...kids) {
-      for (const kid of kids.flatMap(inserted)) {
-        node.detach(kid);
-        kid.parentNode = node;
-        node.childNodes.push(kid);
-      }
-    },
-    /** @param {any} kid */
-    appendChild(kid) { node.append(kid); return kid; },
-    /** @param {any} kid @param {any} before */
-    insertBefore(kid, before) {
-      if (before === null || before === undefined) { node.append(kid); return kid; }
-      for (const one of inserted(kid)) {
-        node.detach(one);
-        one.parentNode = node;
-        node.childNodes.splice(node.childNodes.indexOf(before), 0, one);
-      }
-      return kid;
-    },
-  };
-}
-
-/**
- * The sibling after `node` that is not one of `placed`, or null at the end:
- * where nodes placed beside it, or in its place, go before.
- * @param {any} node @param {any[]} placed @returns {any}
- */
-function nextNotAmong(node, placed) {
-  const kin = node.parentNode.childNodes;
-  return kin.slice(kin.indexOf(node) + 1).find((/** @type {any} */ sibling) => !placed.includes(sibling)) ?? null;
-}
-
-/**
- * Placing beside a node, in its place, emptying one and taking one out.
- * @param {any} node @returns {any}
- */
-function replacing(node) {
-  return {
-    /**
-     * Puts nodes right after this one in its parent, in the order given, each
-     * moved as an insertion moves it. Where they go is fixed first, by the
-     * next sibling that is not itself being placed; a node with no parent has
-     * nowhere to put them.
-     * @param {...any} kids
-     */
-    after(...kids) {
-      const parent = node.parentNode;
-      if (!parent) return;
-      const placed = kids.flatMap(inserted), before = nextNotAmong(node, placed);
-      for (const kid of placed) parent.insertBefore(kid, before);
-    },
-    /**
-     * Puts nodes in this one's place in its parent, in the order given, and
-     * takes this one out of the tree. The place is fixed first, as `after`
-     * fixes it; a node with no parent has no place to give.
-     * @param {...any} kids
-     */
-    replaceWith(...kids) {
-      const parent = node.parentNode;
-      if (!parent) return;
-      const placed = kids.flatMap(inserted), before = nextNotAmong(node, placed);
-      node.detach(node);
-      for (const kid of placed) parent.insertBefore(kid, before);
-    },
-    /** Emptying a scroll container zeroes its position, both axes, and its ancestors'. */
-    replaceChildren(/** @type {...any} */ ...kids) {
-      for (const old of node.childNodes) old.parentNode = null;
-      node.childNodes = [];
-      for (/** @type {any} */ let at = node; at; at = at.parentNode) { at.scrollTop = 0; at.scrollLeft = 0; }
-      node.append(...kids);
-    },
-    remove() { node.detach(node); },
-  };
-}
-
-/**
  * A node as an event target and as what holds focus.
  * @param {any} node @param {ReturnType<typeof listenerList>} events @returns {any}
  */
@@ -429,7 +334,7 @@ function text(node) {
       return node.childNodes.map((/** @type {any} */ kid) => (kid.tagName ? kid.textContent : kid.data)).join('');
     },
     set textContent(value) {
-      node.replaceChildren(globalThis.document?.createTextNode(value) || { data: String(value), parentNode: null, childNodes: [] });
+      node.replaceChildren(textNode(value));
     },
   };
 }
@@ -471,7 +376,7 @@ export function installDocument() {
     createElementNS: (/** @type {string} */ namespaceURI, /** @type {string} */ tag) =>
       Object.assign(makeNode(tag), { tagName: tag, namespaceURI }),
     createTextNode: (/** @type {unknown} */ data = '') => ({ data: String(data), parentNode: null, childNodes: [] }),
-    // A parent with no tag, which is never itself in the tree: see `inserted`.
+    // A parent with no tag, which is never itself in the tree: see `inserted` in `place.js`.
     createDocumentFragment: () => Object.assign(makeNode('#document-fragment'), { tagName: undefined, nodeType: FRAGMENT }),
     activeElement: null,
     body: makeNode('body'),
