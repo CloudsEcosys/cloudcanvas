@@ -63,7 +63,8 @@ function dayTarget(cal, key) {
   return new Date(shifted.getFullYear(), shifted.getMonth(), Math.min(focusDate.getDate(), lastDay));
 }
 
-function focusDay(cal, date) {
+/** Make `date` the focused day - the tab stop, and the day a redraw gives the focus back to - and focus it; a day not on show is navigated to. */
+export function focusDay(cal, date) {
   const visible = viewDays(cal.state.view, cal.state.anchor, cal.state.weekStartsOn).some((day) => sameDay(day, date));
   if (!visible) { cal.navigate(cal.state.view, date, { focus: true }); return; }
   cal.state.focusDate = date;

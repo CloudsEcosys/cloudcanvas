@@ -26,7 +26,11 @@
  * model when it changes; typing dims and reports `onQuery`), the tab stop,
  * and the selection the arrows move (`selectedId` from the model when it
  * changes). The selected node, its way up to the root and its neighbours
- * are emphasised and the rest dim; `focusId` pans its node into view. The
+ * are emphasised and the rest dim; `focusId` pans its node into view. A
+ * selection or a focus the model names before it draws the node (still
+ * being read, or inside a folded parent) waits and is taken once, when a
+ * model draws it - the model's selection again after it was folded away and
+ * back - unless the reader selects, pans or zooms meanwhile. The
  * hint under the toolbar says what the selection can do, from the
  * callbacks the host gave.
  *
@@ -124,7 +128,7 @@ function render(g) {
   g.forest = forestOf(nodes, edges);
   g.rows = treeRows(g.forest);
   g.positions = layoutForest(g.forest);
-  if (!g.byId.has(g.state.selectedId)) g.state.selectedId = null;
+  if (!g.byId.has(g.state.selectedId)) unselectGone(g);
   const had = g.nodeLayer.contains(g.doc.activeElement);
   reconcileKeyedList(g.nodeLayer, g.rows, { key: (row) => row.id, create: () => nodeElement(g.doc), update: (element, row) => writeNode(g, element, row) });
   paint(g);
@@ -134,8 +138,16 @@ function render(g) {
   g.applyView();
 }
 
-/** Make `id` the selection and the tab stop; with `focus`, focus it and bring it into view. */
+/** A selected node the model no longer draws is not selected; the model's own selection waits to be drawn again (a folded parent opened). */
+function unselectGone(g) {
+  const id = g.state.selectedId;
+  if (id !== null && id === g.seen.selectedId) g.wait.selectedId = id;
+  g.state.selectedId = null;
+}
+
+/** Make `id` the selection and the tab stop; with `focus`, focus it and bring it into view. The reader's choice: nothing waiting is taken after it. */
 function select(g, id, { focus }) {
+  Object.assign(g.wait, { selectedId: null, focusId: null });
   g.state.selectedId = id;
   g.state.focusId = id;
   paint(g);
@@ -180,27 +192,49 @@ function toolbar(g) {
   return bar;
 }
 
-/** Take what the model says that the reader may also change - the selection, the search, the view - only when the model changed it. */
+/**
+ * Take what the model says that the reader may also change - the selection, the search, the view, the node to bring into view -
+ * only when the model changed it. A selection or a focus whose node the model does not draw yet waits for it (`takeWaiting`).
+ */
 function adopt(g, model, replaced) {
-  const seen = g.seen;
+  const { seen, wait, state } = g;
   const selectedId = model.selectedId ?? null;
   if (selectedId !== seen.selectedId) {
     seen.selectedId = selectedId;
-    g.state.selectedId = selectedId;
-    if (selectedId !== null) g.state.focusId = selectedId;
+    wait.selectedId = selectedId;
+    if (selectedId === null) state.selectedId = null;
   }
   const query = String(model.query ?? '');
   if (query !== seen.query) {
     seen.query = query;
-    g.state.query = query;
+    state.query = query;
     g.search.value = query;
   }
   g.views.adopt(model.viewport, replaced);
   const focusId = model.focusId ?? null;
-  const reveal = focusId !== seen.focusId && focusId !== null;
-  seen.focusId = focusId;
-  if (reveal) g.state.focusId = focusId;
-  return reveal ? focusId : null;
+  if (focusId !== seen.focusId) {
+    seen.focusId = focusId;
+    wait.focusId = focusId;
+  }
+}
+
+/**
+ * Take, once, what waits for a node the model now draws: the selection (with the tab stop) and the node to bring into view.
+ * The id to bring into view, or null.
+ */
+function takeWaiting(g) {
+  const { wait, state } = g;
+  const drawn = (id) => id !== null && state.nodes.some((node) => node.id === id);
+  if (drawn(wait.selectedId)) {
+    state.selectedId = wait.selectedId;
+    state.focusId = wait.selectedId;
+    wait.selectedId = null;
+  }
+  if (!drawn(wait.focusId)) return null;
+  const id = wait.focusId;
+  wait.focusId = null;
+  state.focusId = id;
+  return id;
 }
 
 function surface(g) {
@@ -229,7 +263,7 @@ function graphState(doc, life, root, callbacks) {
   const g = { doc, life, root, callbacks, labels: { ...GRAPH_LABELS, ...callbacks.labels }, markerId: uniqueId(`${GRAPH}-arrow`),
     view: { x: 0, y: 0, k: 1 }, fitted: false, positions: new Map(), byId: new Map(), forest: forestOf([], []), rows: [], emphasis: null,
     drag: null, draft: null, panned: false, state: { nodes: [], edges: [], selectedId: null, focusId: null, query: '' },
-    seen: { selectedId: undefined, query: undefined, focusId: undefined, viewport: undefined } };
+    seen: { selectedId: undefined, query: undefined, focusId: undefined, viewport: undefined }, wait: { selectedId: null, focusId: null } };
   g.countOf = (id) => g.byId.get(id)?.childCount ?? g.forest.children.get(id)?.length ?? 0;
   g.render = () => render(g);
   g.select = (id, options) => select(g, id, options);
@@ -269,8 +303,9 @@ export function createGraph(host, callbacks = {}) {
       const label = String(model.label ?? 'Relationships');
       root.setAttribute('aria-label', label);
       g.nodeLayer.setAttribute('aria-label', label);
-      const reveal = adopt(g, model, replaced);
+      adopt(g, model, replaced);
       if (g.drag) return;
+      const reveal = takeWaiting(g);
       render(g);
       if (reveal !== null) g.views.reveal(reveal, { report: false });
     },

@@ -40,13 +40,18 @@ function scheduleReport(g) {
   }, REPORT_MS);
 }
 
-/** Draw the world where the view has it and say how far it is zoomed: the sheet sizes what must stay a fixed size on the screen by it. */
+/**
+ * Draw the world where the view has it and say how far it is zoomed: the sheet sizes what must stay a fixed size on the screen by it.
+ * A view to report is the reader's own move: a node the model asked to bring into view and has not drawn yet is not brought after it.
+ */
 function applyView(g, report) {
   const { x, y, k } = g.view;
   g.world.style.setProperty('transform', `translate(${x}px, ${y}px) scale(${k})`);
   g.world.style.setProperty('--graph-k', String(k));
   g.minimap.drawView();
-  if (report) scheduleReport(g);
+  if (!report) return;
+  g.wait.focusId = null;
+  scheduleReport(g);
 }
 
 /** The box to frame - the nodes and the chips of the labels on their edges - and the viewport's, or null while either is empty. */

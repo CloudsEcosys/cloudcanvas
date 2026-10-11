@@ -22,6 +22,7 @@ import { TL } from './model.js';
 import { bindKeys } from './keys.js';
 import { bindLinks } from './links.js';
 import { BAR, bars, bindMove } from './move.js';
+import { bindPlace } from './place.js';
 import { bindReach } from './reach.js';
 import { select } from './select.js';
 import { bindWindow } from './window.js';
@@ -91,5 +92,6 @@ export function bindTimeline(tl) {
   bindGutter(tl);
   bindZoom(tl);
   bindReach(tl);
+  bindPlace(tl);
   bindWindow(tl);
 }

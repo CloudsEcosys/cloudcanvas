@@ -74,6 +74,12 @@
  * fought (`./reveal.js`). An ask whose item is not drawn yet waits for it, and one
  * within its own width of an edge of the sheet is brought to the middle too.
  *
+ * WHERE THE READER IS, by date: `visibleStart()` says the moment at the left
+ * edge of the track and the rows' offset, and `scrollToDate(date, { top })`
+ * puts the sheet there, once, reaching the date. A sheet with no box (its host
+ * hidden) is not drawn; it is drawn when the box returns, where it was. See
+ * `./place.js`.
+ *
  * A SPAN IS DRAWN BY KEYBOARD as by a drag: N on a bar or a heading, a date
  * cursor on its row, Enter or Space to anchor and to add (`./draw.js`). A
  * drag held near an edge of the sheet scrolls it (`./edge.js`); for a reader
@@ -90,6 +96,7 @@ import { bindTimeline } from './interact.js';
 import { TL, TIMELINE_SCALES, normalizeItems, widthOf, xOf } from './model.js';
 import { placeCursor } from './draw.js';
 import { drawLinks, linksLayer } from './links.js';
+import { hasBox, notePlace, placeToKeep, putPlace, scrollToDate, visibleStart, waitForBox } from './place.js';
 import { domainOf, viewAfter, viewBefore } from './reach.js';
 import { revealItem } from './reveal.js';
 import { axisNode, describeItem, rowsNode } from './rows.js';
@@ -167,8 +174,11 @@ function gridNode(tl, items) {
 }
 
 function render(tl) {
+  // A sheet with no box is drawn when it has one again (`./place.js`), where it was.
+  if (!hasBox(tl)) { waitForBox(tl); return; }
   const { state } = tl;
   const view = viewBefore(tl);
+  const keep = placeToKeep(tl);
   tl.domain = state.pending?.domain ?? domainOf(tl);
   // Every bar and heading is redrawn: a draw that names no focus of its own (a host update, a pointer drag) keeps it on
   // what held it. A heading and the separator have it back; a bar's - and a heading's whose group has gone - is the tab
@@ -177,6 +187,7 @@ function render(tl) {
   tl.drawing = true;
   tl.sheet.replaceChildren(gridNode(tl, drawnItems(state)));
   viewAfter(tl, view);
+  if (keep) putPlace(tl, keep);
   drawLinks(tl);
   placeCursor(tl);
   const heading = headingOf(tl, held.groupId);
@@ -189,6 +200,7 @@ function render(tl) {
   tl.drawing = false;
   if (tl.reveal !== null && !tl.busy() && revealItem(tl, tl.reveal)) tl.reveal = null;
   tl.windowMoved();
+  notePlace(tl);
 }
 
 function writeFormats(tl, locale) {
@@ -246,6 +258,7 @@ function markAbilities(root, callbacks) {
 function timelineState(doc, life, root, callbacks) {
   return { doc, life, root, callbacks, id: uniqueId(TL), labels: { ...TIMELINE_LABELS, ...callbacks.labels }, format: null, lastScale: undefined,
     byId: new Map(), groups: new Map(), seen: { selectedId: undefined, gutter: undefined, focusId: undefined }, reach: { before: 0, after: 0, room: 0 }, reveal: null,
+    asked: null, held: null, away: false, looking: false,
     state: { scale: 'week', items: [], now: new Date(), pending: null, creating: null, linking: null, cursor: null, focusId: null, selectedId: null, selectedLink: null, gutter: null } };
 }
 
@@ -261,7 +274,8 @@ function timelineState(doc, life, root, callbacks) {
  *   focusId?: string|null, gutter?: number,
  *   items?: Array<{id: string, title?: string, start: Date|string, end?: Date|string, milestone?: boolean,
  *   group?: string|{id?: string, label?: string, collapsed?: boolean}, groupId?: string, status?: string|{label: string, tone?: string},
- *   tone?: string, progress?: number, depends?: string[], movable?: boolean}>}): void, destroy(): void}}
+ *   tone?: string, progress?: number, depends?: string[], movable?: boolean}>}): void,
+ *   visibleStart(): {date: Date, top: number}|null, scrollToDate(date: Date|string, options?: {top?: number}): boolean, destroy(): void}}
  */
 export function createTimeline(host, callbacks = {}) {
   const doc = documentOf(host);
@@ -294,6 +308,10 @@ export function createTimeline(host, callbacks = {}) {
       applyModel(tl, model);
       if (!tl.busy()) tl.render();
     },
+    /** The moment at the track's left edge and the rows' offset (`./place.js`); null before anything is drawn or asked. */
+    visibleStart: () => visibleStart(tl),
+    /** Show `date` at the track's left edge and, given, the rows at `top`: once, at once or at the first draw. False for no date. */
+    scrollToDate: (date, { top } = {}) => !life.dead && scrollToDate(tl, date, top),
     destroy() {
       if (life.destroy()) root.remove();
     }

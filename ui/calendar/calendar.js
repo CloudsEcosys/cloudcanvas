@@ -26,7 +26,10 @@
  * its hours scroll by keyboard. A redraw keeps focus on what held it and scrolls
  * nothing; only the calendar's own keyboard moves bring the view along. N on a
  * day draws a range by keyboard, as a drag across empty slots or days does,
- * and reports it the same way (`onPick`; `./draw.js`).
+ * and reports it the same way (`onPick`; `./draw.js`). A host that gives the
+ * focus back to a day (where a range began, after Escape dropped it) says so
+ * with `focusDay(date)`: that day takes the tab stop and the focus, and a
+ * redraw keeps it there; a day not on show is navigated to first.
  */
 import { button, clamp, createLife, documentOf, el, textNode, writeText } from '../dom.js';
 import { injectUiStyles } from '../styles.js';
@@ -38,7 +41,7 @@ import { CAL, renderMonth } from './month.js';
 import { renderTimeGrid } from './time.js';
 import { paintDraw } from './draw.js';
 import { paint } from './hint.js';
-import { bindCalendar } from './interact.js';
+import { bindCalendar, focusDay } from './interact.js';
 
 /** The calendar's default words. */
 export const CALENDAR_LABELS = /* @__PURE__ */ Object.freeze({
@@ -204,7 +207,7 @@ function createRecord(host, callbacks, labels) {
  * @returns {{update(model: {view?: string, views?: string[], date?: Date|string, now?: Date|string, locale?: string,
  *   weekStartsOn?: number, snapMinutes?: number, hours?: {start: number, end: number}, selectedId?: string|null,
  *   events?: Array<{id: string, title?: string, start: Date|string, end?: Date|string, allDay?: boolean, tone?: string,
- *   movable?: boolean}>}): void, destroy(): void}}
+ *   movable?: boolean}>}): void, focusDay(date: Date|string): boolean, destroy(): void}}
  */
 export function createCalendar(host, callbacks = {}) {
   const cal = createRecord(host, callbacks, callbacks.labels);
@@ -225,6 +228,16 @@ export function createCalendar(host, callbacks = {}) {
       if (cal.life.dead) return;
       applyModel(cal, model);
       if (!cal.state.pending && !cal.state.creating) cal.render();
+    },
+    /**
+     * Make `date` the day the calendar keeps - its one tab stop, and the day a redraw gives the focus back to - and focus it; a
+     * day not on show is navigated to first (`onNavigate`). False for what is not a date, and while an event is in hand.
+     */
+    focusDay(date) {
+      const day = toDate(date);
+      if (cal.life.dead || !day || cal.state.pending || cal.state.creating) return false;
+      focusDay(cal, startOfDay(day));
+      return true;
     },
     destroy() {
       if (cal.life.destroy()) cal.root.remove();

@@ -16,8 +16,9 @@
  * is in hand, and takes up the scroll when the hand is let go.
  *
  * A sheet with no width (hidden, or a test DOM without layout) has no margin.
+ * A date a host asks to be shown (`./place.js`) is reached however far it is.
  */
-import { addDays } from '../calendar/dates.js';
+import { addDays, daysBetween } from '../calendar/dates.js';
 import { GUTTER_MIN, widthNow } from './gutter.js';
 import { TIMELINE_SCALES, dateAt, domainFor, widthOf, xOf } from './model.js';
 
@@ -47,6 +48,18 @@ export function domainOf(tl) {
   const base = domainFor(state.items, state.scale, state.now);
   const step = stepOf(tl);
   return { start: addDays(base.start, -Math.max(reach.before, step)), end: addDays(base.end, Math.max(reach.after, step)), home: base.start };
+}
+
+/**
+ * Make the axis reach `date` at the sheet's left edge: a sheet's width of days before it, and two after it (what the sheet
+ * shows from it, and the margin), as far as MAX_REACH_DAYS allows at each end.
+ */
+export function reachTo(tl, date) {
+  const { reach, state } = tl;
+  const base = domainFor(state.items, state.scale, state.now);
+  const step = stepOf(tl);
+  reach.before = Math.min(MAX_REACH_DAYS, Math.max(reach.before, daysBetween(date, base.start) + step));
+  reach.after = Math.min(MAX_REACH_DAYS, Math.max(reach.after, daysBetween(base.end, date) + 2 * step));
 }
 
 /** The date at the sheet's left edge before a redraw, to be put back after it. */
@@ -83,18 +96,13 @@ function extend(tl) {
 }
 
 /** Draw again when the sheet's width has changed what the axis should cover. */
-function refit(tl) {
+export function refit(tl) {
   if (!tl.domain || tl.busy() || tl.drawing) return;
   const next = domainOf(tl);
   if (next.start.getTime() !== tl.domain.start.getTime() || next.end.getTime() !== tl.domain.end.getTime()) tl.render();
 }
 
-/** Extend the axis as the reader scrolls near its ends, and cover the sheet's width when it is resized. */
+/** Extend the axis as the reader scrolls near its ends; a resized sheet is refitted by the one watch on its box (`./place.js`). */
 export function bindReach(tl) {
   tl.life.on(tl.sheet, 'scroll', () => extend(tl));
-  const Observer = tl.doc.defaultView?.ResizeObserver;
-  if (typeof Observer !== 'function') return;
-  const observer = new Observer(() => { refit(tl); tl.windowMoved(); });
-  observer.observe(tl.sheet);
-  tl.life.add(() => observer.disconnect());
 }
