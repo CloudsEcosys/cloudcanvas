@@ -25,7 +25,7 @@
  * where its item does by the geometry the item carries.
  *
  * WHAT THE CLOUDCANVAS UI KIT ASKS OF A DOCUMENT is here too, and
- * `tests/kit-mount.test.js` is what holds it there: a node answers with its
+ * `tests/unit/ui-testing-cycle.test.js` is what holds it there: a node answers with its
  * `ownerDocument`, whether it `isConnected`, its first and last child and its
  * element children; the document finds a node by `id` and makes fragments and
  * namespaced nodes; a text area starts with an empty `value`; a listener added
@@ -68,15 +68,16 @@
  * button for its heading's label: the board asks the label what it is, puts
  * the other kind in its place when the model changes, and asks a focused
  * heading whether it is still that button before it redraws. The heading
- * case in `tests/kit-mount.test.js` is what holds all three, and says what
+ * case in `tests/unit/ui-testing-cycle.test.js` is what holds all three, and says what
  * each read without it. Before any was here, every board mounted on this
  * document read
  *   TypeError: heading.firstChild.replaceWith is not a function
  *
  * `after` IS HERE FOR THE KIT COMBOBOX, which places its list right behind
- * the field it is given. The mention case in
- * `tests/unified-shared-work-comments.test.js` is what holds it, beside a case
- * for the placing itself. Before it was here, mounting the combobox read
+ * the field it is given. The `after` case of `tests/unit/ui-testing-dom.test.js`
+ * is what holds the placing itself, and the mention case of Momentum's
+ * `tests/feed-logger-shared.test.js` the combobox on this document. Before it
+ * was here, mounting the combobox read
  *   TypeError: input.after is not a function
  *
  * `prepend` IS HERE FOR THE KIT TABS: a tab's icon stands in a slot of its own before the label, and the
