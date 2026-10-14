@@ -2,7 +2,7 @@
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
  * The flag a badge can be drawn as: an inline SVG marker, planted beside its
- * label the way a map plants a pin.
+ * label the way a map places a marker.
  *
  *   const flag = createFlag(doc);
  *   host.append(flag.node);

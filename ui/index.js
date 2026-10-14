@@ -60,3 +60,4 @@ export { TIMELINE_SCALES } from './timeline/model.js';
 export { createGraph, GRAPH_LABELS } from './graph/graph.js';
 export { layoutGraph } from './graph/layout.js';
 export { reconcileKeyedList } from '../addons/keyed-list.js';
+export { isControlTarget } from '../addons/trait.js';

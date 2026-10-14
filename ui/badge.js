@@ -17,7 +17,7 @@
  *
  * TWO SHAPES. `shape: 'pill'` is the default. `shape: 'flag'` draws the same
  * figure inside an inline SVG marker (`./badge-flag.js`), planted beside its
- * label the way a map plants a pin; a dot flag is an empty pennant. The flag
+ * label the way a map places a marker; a dot flag is an empty pennant. The flag
  * is the badge's tone, stands in front of what it is planted on, and - like
  * the pill's figure - is not there for assistive technology. A host that wants
  * it to stick out of its label gives it a rise (`--cc-ui-flag-rise`).
