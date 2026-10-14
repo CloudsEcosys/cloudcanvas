@@ -4,7 +4,7 @@
  * `TOKENS`: a JS-readable catalogue of the framework's `--cc-*` design tokens.
  *
  * The token *values* live where they always have - in the fallback chain of
- * `CANVAS_DEFAULT_CSS` (`./styles-css.js`) and of the few engine modules that
+ * the CSS chunks (`./css/`, all of them in `CANVAS_DEFAULT_CSS`) and of the few engine modules that
  * read a token directly, and in the override set `LIGHT_THEME` (`./theme.js`).
  * This module invents no value and no name: it is a discovery layer *over*
  * those strings, so a component author or an appearance editor can
@@ -67,9 +67,8 @@ export const TOKENS = /* @__PURE__ */ Object.freeze({
   '--cc-text': { category: C.COLOR, purpose: 'Primary body text colour' },
   '--cc-text-muted': { category: C.COLOR, purpose: 'Secondary/muted text colour' },
   '--cc-accent': { category: C.COLOR, purpose: 'Accent colour for selection and controls' },
-  '--cc-focus': { category: C.COLOR, purpose: 'Focus ring / focused-Pin outline colour' },
-  '--cc-focus-glow': { category: C.COLOR, purpose: 'Soft glow around a focused Pin' },
-  '--cc-focus-veil': { category: C.COLOR, purpose: 'Dimming veil over the unfocused canvas' },
+  '--cc-focus': { category: C.COLOR, purpose: 'Focused-blit ring colour' },
+  '--cc-focus-glow': { category: C.COLOR, purpose: 'Soft glow around a focused blit' },
   '--cc-focus-ring': { category: C.COLOR, purpose: 'Keyboard focus-visible outline colour' },
   '--cc-connector': { category: C.COLOR, purpose: 'Default connector stroke colour' },
   '--cc-cursor-focus': { category: C.COLOR, purpose: 'Focus cursor reticle colour' },
@@ -117,7 +116,7 @@ export const TOKENS = /* @__PURE__ */ Object.freeze({
   /* ---- foundations: shadow ---- */
   '--cc-shadow-1': { category: C.SHADOW, purpose: 'Resting elevation shadow' },
   '--cc-shadow-2': { category: C.SHADOW, purpose: 'Raised elevation shadow (hover, drag)' },
-  '--cc-shadow-focus': { category: C.SHADOW, purpose: 'Focused-Pin shadow stack' },
+  '--cc-shadow-focus': { category: C.SHADOW, purpose: 'Focused-blit shadow stack' },
 
   /* ---- foundations: type ---- */
   '--cc-font': { category: C.TYPE, purpose: 'Base font-family stack' },
@@ -130,12 +129,9 @@ export const TOKENS = /* @__PURE__ */ Object.freeze({
   '--cc-weight-semibold': { category: C.TYPE, purpose: 'Semibold font weight' },
 
   /* ---- foundations: stacking ---- */
-  '--cc-z-svg': { category: C.Z_INDEX, purpose: 'SVG connector layer stacking order' },
-  '--cc-z-plane': { category: C.Z_INDEX, purpose: 'Pin plane stacking order' },
-  '--cc-z-overlay': { category: C.Z_INDEX, purpose: 'Cursor/overlay layer stacking order' },
-  '--cc-z-veil': { category: C.Z_INDEX, purpose: 'Focus veil stacking order' },
-  '--cc-z-elevated': { category: C.Z_INDEX, purpose: 'Elevated-Pin stacking order' },
-  '--cc-z-drag': { category: C.Z_INDEX, purpose: 'Dragging/resizing Pin stacking order' },
+  '--cc-z-overlay': { category: C.Z_INDEX, purpose: 'Toast stack stacking order in the overlay' },
+  '--cc-z-drag': { category: C.Z_INDEX, purpose: 'Dragging/resizing blit and resize-handle stacking order' },
+  '--cc-z-grab': { category: C.Z_INDEX, purpose: 'Grab-handle stacking order, over the resize handle at its corner' },
   '--cc-z-menu': { category: C.Z_INDEX, purpose: 'Context-menu stacking order' },
 
   /* ---- scalar geometry (themable knobs) ---- */
@@ -143,7 +139,7 @@ export const TOKENS = /* @__PURE__ */ Object.freeze({
   '--cc-grid-dot-size': { category: C.SIZE, purpose: 'Background grid dot radius' },
   '--cc-card-blur': { category: C.SIZE, purpose: 'Card backdrop blur radius' },
   '--cc-card-max-width': { category: C.SIZE, purpose: 'Max width of a self-sizing card' },
-  '--cc-media-max-height': { category: C.SIZE, purpose: 'Max height of a media Pin image' },
+  '--cc-media-max-height': { category: C.SIZE, purpose: 'Max height of a media card image' },
   '--cc-scope-min-height': { category: C.SIZE, purpose: 'Minimum populated scope-well height' },
   '--cc-control-min': { category: C.SIZE, purpose: 'Minimum interactive control height' },
   '--cc-control-min-coarse': { category: C.SIZE, purpose: 'Minimum control height for coarse pointers' },

@@ -24,12 +24,9 @@ import {
   safeColor,
   safeNumber
 } from '../graphics/primitives/primitives.js';
-import { defineTrait } from './trait.js';
+import { defineTrait, titleOf } from './trait.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
-
-/** Capability every cursor declares, whatever implements it. */
-export const CURSOR_CAPABILITY = 'cursor';
 
 export const CURSOR_FOCUS = 'cursor-focus';
 export const CURSOR_SELECTED = 'cursor-selected';
@@ -75,36 +72,40 @@ export function createCursorLayer(overlay) {
   const layer = document.createElementNS(SVG_NS, 'svg');
   layer.setAttribute('class', CURSOR_LAYER_CLASS);
   layer.setAttribute('style', LAYER_STYLE);
+  layer.setAttribute('aria-hidden', 'true');
   overlay.appendChild(layer);
   return layer;
 }
 
-/** A target's canvas box `{minX minY maxX maxY ...}`: a Pin's global bounds, or a blit's. */
+/** A blit's canvas box `{minX minY maxX maxY width height}`. */
 function canvasBoxOf(target) {
-  if (typeof target.getGlobalBounds === 'function') return target.getGlobalBounds();
   const { x, y, w, h } = target.bounds;
   return { minX: x, minY: y, maxX: x + w, maxY: y + h, width: w, height: h };
 }
 
-/** A target's canvas box projected into host-relative screen pixels (unprojected without a viewport). */
+/**
+ * A target's canvas box projected into host-relative screen pixels (unprojected without a viewport): the box
+ * around its four corners, so a tilted camera's quad is enclosed; null when every corner is behind the viewer.
+ */
 export function screenBoundsOf(target, context = {}) {
   const hostRect = context.hostRect || DEFAULT_HOST_RECT;
   const viewport = context.viewport;
   const bounds = canvasBoxOf(target);
   if (!viewport || typeof viewport.canvasToScreen !== 'function') return bounds;
 
-  const topLeft = viewport.canvasToScreen(bounds.minX, bounds.minY, hostRect);
-  const bottomRight = viewport.canvasToScreen(bounds.maxX, bounds.maxY, hostRect);
-  const left = hostRect.left || 0;
-  const top = hostRect.top || 0;
-  return { minX: topLeft.x - left, minY: topLeft.y - top, maxX: bottomRight.x - left, maxY: bottomRight.y - top };
+  const corners = [[bounds.minX, bounds.minY], [bounds.maxX, bounds.minY], [bounds.minX, bounds.maxY], [bounds.maxX, bounds.maxY]]
+    .map(([x, y]) => viewport.canvasToScreen(x, y, hostRect)).filter(Boolean);
+  if (corners.length === 0) return null;
+  const xs = corners.map((corner) => corner.x - (hostRect.left || 0));
+  const ys = corners.map((corner) => corner.y - (hostRect.top || 0));
+  return { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) };
 }
 
-/** Whether a target is drawable: awake, in the document (headless counts), and participating. */
+/** Whether a target is drawable: in the document, not inside a hidden branch (a promotion hides one), participating. */
 export function isTargetVisible(target, context = {}) {
   if (!target || target.active === false) return false;
   const element = target.element ?? target.el ?? null;
-  if (element && element.isConnected === false) return false;
+  if (element && (element.isConnected === false || element.closest?.('[hidden]'))) return false;
   const participates = context.participates;
   return !(typeof participates === 'function' && !participates(target));
 }
@@ -131,9 +132,8 @@ export function cursorFields(options, fixed) {
 }
 
 /**
- * What every cursor does, as methods over its own record: the legacy classes
- * take them onto their prototype, a native record inherits them. `draw(group,
- * screenBounds, context)` is each kind's own.
+ * What every cursor does, as methods over its own record, which inherits them.
+ * `draw(group, screenBounds, context)` is each kind's own.
  */
 export const CURSOR_METHODS = {
   /** Point at a target, or clear with null. @returns {boolean} whether it changed */
@@ -168,7 +168,9 @@ export const CURSOR_METHODS = {
     this._drawnVersion = frame.viewportVersion;
     if (!target) return this._setVisible(false);
 
-    this.draw(this.group(), screenBoundsOf(target, frame.context), frame.context);
+    const box = screenBoundsOf(target, frame.context);
+    if (!box) return this._setVisible(false);
+    this.draw(this.group(), box, frame.context);
     this._setVisible(true);
     return true;
   },
@@ -207,14 +209,12 @@ export const CURSOR_METHODS = {
     return true;
   },
 
-  /** The caption: the label, else the target's `title` content, else nothing. */
+  /** The caption: the label, else the target's name - its `aria-label`, or a `title` in its contents - else nothing. */
   resolveLabel() {
     if (this.label === null) return '';
     if (this.label) return this.label;
-    const contents = this.target ? this.target.contents : null;
-    if (!contents || typeof contents.get !== 'function') return '';
-    const title = contents.get('title');
-    return typeof title === 'string' ? title : '';
+    const element = this.target?.el ?? this.target?.element ?? null;
+    return element ? titleOf(element) : '';
   },
 
   /** Forget the drawing: the group, the shape and the gate. */
@@ -269,7 +269,7 @@ export const CURSOR_KINDS = /* @__PURE__ */ Object.freeze({
         const parent = this.target ? this.target.parent : null;
         if (!parent) return '';
         const parentBounds = screenBoundsOf(parent, context);
-        if (!(parentBounds.maxX - parentBounds.minX > 0)) return '';
+        if (!(parentBounds?.maxX - parentBounds?.minX > 0)) return '';
         return createFrustumProjectionSVG(parentBounds, bounds, { stroke: this.color });
       }
     }
@@ -331,10 +331,11 @@ function boxKey(target) {
 /** The camera's projection, in the shape `screenBoundsOf` reads. */
 function projectionOf(camera) {
   return {
-    canvasToScreen: (x, y, rect = {}) => ({
-      x: x * camera.scale + camera.x + (rect.left || 0),
-      y: y * camera.scale + camera.y + (rect.top || 0)
-    })
+    canvasToScreen: (x, y, rect = {}) => {
+      if (!camera.is3d) return { x: x * camera.scale + camera.x + (rect.left || 0), y: y * camera.scale + camera.y + (rect.top || 0) };
+      const at = camera.project(x, y, rect);
+      return at && { x: at.x + (rect.left || 0), y: at.y + (rect.top || 0) };
+    }
   };
 }
 
@@ -344,7 +345,7 @@ function drawRecord(c, context, version) {
   if (c.renderCursor(frame)) c._drawnKey = c._drawnTarget ? boxKey(c._drawnTarget) : undefined;
 }
 
-/** Native: three records on the root's overlay, following the signals, drawn in the write phase. */
+/** Three records on the root's overlay, following the signals, drawn in the write phase. */
 function mount(s, b, root) {
   const layer = createCursorLayer(root.overlay);
   const records = CURSOR_TRAIT_NAMES.map((name) => createCursor(name, { ...(s.options[name] || {}), layer }));
@@ -361,6 +362,14 @@ function mount(s, b, root) {
     else if (c.target === target) c.setTarget(null);
     schedule(root);
   };
+  // A restart (new options) picks up what is focused and selected now, rather than waiting for the next change.
+  const seed = (name, selector) => {
+    const element = Array.from(root.host.querySelectorAll(selector)).pop();
+    const target = element && stateOf(element)?.handle;
+    if (target) byName.get(name).setTarget(target);
+  };
+  seed(CURSOR_FOCUS, '.is-focused');
+  seed(CURSOR_SELECTED, '.is-selected');
   const offs = Object.keys(SIGNALS).map((type) => listenOn(root.host, type, onSignal));
   offs.push(b.tick((ctx) => {
     if (ctx.cameraMoved) version += 1;
@@ -381,7 +390,6 @@ function listenOn(element, type, listener) {
 }
 
 export const cursors = /* @__PURE__ */ defineTrait({
-  capabilities: [CURSOR_CAPABILITY],
   init: (options) => ({ options }),
   mount
 });

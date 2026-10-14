@@ -5,24 +5,22 @@
  * tree leaves a Comment anchor in its place. The anchor keeps the element's
  * logical ancestry readable (`parentElementOf` walks through it) and its
  * position among its siblings, so the element returns to exactly where it was.
- * A core blit's traits stop on the way out and run again on the way back
- * (`state.traits`, set by `../core/use.js` once it is indexed). A core blit and
+ * A blit's traits stop on the way out and run again on the way back
+ * (`state.traits`, set by `../core/use.js` once it is indexed). A blit and
  * the blits inside it are (re)indexed under their current ids on the way out, so
  * their root still finds them.
  */
-import { BLIT_ATTR, rootOf, stateOf } from '../core/state.js';
+import { BLIT_ATTR, holdPlace, parkedStateOf, rootOf, stateOf } from '../core/state.js';
 import { indexBlit } from '../core/root.js';
 
-/** @type {WeakMap<Comment, import('../core/state.js').BlitState>} anchor -> the record it holds a place for */
-const OWNERS = /* @__PURE__ */ new WeakMap();
+/** The record an anchor node holds a place for, or undefined for any other node (kept by the core). */
+export { parkedStateOf };
 
-/** The record an anchor node holds a place for, or undefined for any other node. */
-export function parkedStateOf(node) {
-  return OWNERS.get(node);
-}
-
-/** Take the element out, leaving an anchor where it was. @returns {boolean} whether it moved */
-export function park(state) {
+/**
+ * Take the element out, leaving an anchor where it was; its traits stop unless `keepTraits` (offload's
+ * virtualisation keeps them). @returns {boolean} whether it moved
+ */
+export function park(state, keepTraits = false) {
   const element = state.el;
   if (state.anchor || !element.parentNode) return false;
 
@@ -32,26 +30,26 @@ export function park(state) {
   }
   // Two plain moves rather than `replaceChild`: the same two writes the frame's
   // read/write discipline is observed at, so a park is never an invisible one.
-  state.traits?.(state, false);
+  if (!keepTraits) state.traits?.(state, false);
   const anchor = element.ownerDocument.createComment(`blit ${element.id || ''}`);
   element.parentNode.insertBefore(anchor, element);
   element.parentNode.removeChild(element);
   state.anchor = anchor;
-  OWNERS.set(anchor, state);
+  holdPlace(anchor, state);
   return true;
 }
 
 /** Put the element back at its anchor. @returns {boolean} false when there was no live anchor */
-export function unpark(state) {
+export function unpark(state, keepTraits = false) {
   const anchor = state.anchor;
   if (!anchor) return false;
 
   state.anchor = null;
-  OWNERS.delete(anchor);
+  holdPlace(anchor, null);
   if (!anchor.parentNode) return false;
   anchor.parentNode.insertBefore(state.el, anchor);
   anchor.parentNode.removeChild(anchor);
-  state.traits?.(state, true);
+  if (!keepTraits) state.traits?.(state, true);
   return true;
 }
 
@@ -61,7 +59,7 @@ export function dropAnchor(state) {
   if (!anchor) return false;
 
   state.anchor = null;
-  OWNERS.delete(anchor);
+  holdPlace(anchor, null);
   if (anchor.parentNode) anchor.parentNode.removeChild(anchor);
   return true;
 }

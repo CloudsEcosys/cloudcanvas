@@ -1,9 +1,11 @@
 /**
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
- * connect: connectors from the blit's centre to the centres of the blits whose
- * ids it lists, drawn in an `<svg>` on the root's plane so they ride the camera
- * with the blits, in canvas coordinates.
+ * connect: connectors from the blit to the blits whose ids it lists, edge to
+ * edge, drawn in an `<svg>` on the root's plane so they ride the camera.
+ *
+ * Each curve leaves the face of the blit's box nearest its target and meets the
+ * target's facing edge, on the axis with the larger gap (`edgeConnectorPathData`).
  *
  *   blit.use({ connect });
  *   app.blit({ id: 'a', connect: { connections: ['b'] } });
@@ -17,7 +19,7 @@
 import { schedule } from '../core/frame.js';
 import { stateOf } from '../core/state.js';
 import { SVG_NS, h } from '../graphics/primitives/element.js';
-import { connectorPathData, safeColor, safeNumber } from '../graphics/primitives/primitives.js';
+import { connectorPathData, edgeConnectorPathData, safeColor, safeNumber } from '../graphics/primitives/primitives.js';
 import { reconcileKeyedList } from './keyed-list.js';
 import { defineTrait } from './trait.js';
 
@@ -27,7 +29,7 @@ export const CONNECTOR_STROKE = 'var(--cc-connector, rgba(56, 189, 248, 0.6))';
 /** The marker on the `<svg>` a root's plane-space drawings go into. */
 export const SVG_LAYER_ATTR = 'data-blit-svg';
 
-/** The group name, shared with the legacy class. */
+/** The group name the connector layer's `<g>` carries (`data-trait`). */
 const NAME = 'connectable';
 
 /** @type {WeakMap<object, object>} root -> its connector group */
@@ -61,13 +63,15 @@ export function removeConnection(s, id) {
 /* ------------------ DRAWING ------------------ */
 
 /**
- * One connector to draw: its key, the path between two `{centerX, centerY}`
- * boxes, and the drawing record's stroke.
+ * One connector to draw: its key, the path between two boxes - edge to edge for
+ * a full `{minX, maxX, minY, maxY, centerX, centerY}` box, centre to centre for
+ * a `{centerX, centerY}` point - and the drawing record's stroke.
  */
 export function connectorItem(key, from, to, s) {
+  const boxes = Number.isFinite(from.minX) && Number.isFinite(to.minX);
   return {
     key,
-    d: connectorPathData(from.centerX, from.centerY, to.centerX, to.centerY),
+    d: boxes ? edgeConnectorPathData(from, to) : connectorPathData(from.centerX, from.centerY, to.centerX, to.centerY),
     stroke: safeColor(s.stroke, CONNECTOR_STROKE),
     strokeWidth: safeNumber(s.strokeWidth || 2, 2),
     dashed: s.dashed
@@ -115,33 +119,38 @@ export function svgLayerOf(root) {
   return svg;
 }
 
-/** A blit's global box as the `{centerX, centerY}` a connector reads. */
-function centreOf(b) {
+/** A blit's global box as the edge-routing box a connector reads. */
+function boxOf(b) {
   const { x, y, w, h: height } = b.bounds;
-  return { centerX: x + w / 2, centerY: y + height / 2 };
+  return { minX: x, minY: y, maxX: x + w, maxY: y + height, centerX: x + w / 2, centerY: y + height / 2 };
 }
 
-/** The connected blit an id names in the root's document, or null. */
+/** Whether a blit's element is on the board: in the document, and not inside a branch a promotion hid. */
+function shown(element) {
+  return element.isConnected && !element.closest('[hidden]');
+}
+
+/** The connected blit an id names in the root's document, or null when it is not shown. */
 function targetOf(root, id) {
   const element = root.host.ownerDocument.getElementById(String(id));
-  const state = element && element.isConnected ? stateOf(element) : null;
+  const state = element && shown(element) ? stateOf(element) : null;
   return state && state.handle ? state.handle : null;
 }
 
-/** The write pass: every source's connectors whose target is in the document. */
+/** The write pass: every shown source's connectors to a shown target. */
 function drawGroup(root, group) {
   const items = [];
   for (const [b, s] of group.sources) {
-    if (!b.el.isConnected) continue;
+    if (!shown(b.el)) continue;
     for (const id of s.connections) {
       const target = targetOf(root, id);
-      if (target && target !== b) items.push(connectorItem(`${b.el.id}->${id}`, centreOf(b), centreOf(target), s));
+      if (target && target !== b) items.push(connectorItem(`${b.el.id}->${id}`, boxOf(b), boxOf(target), s));
     }
   }
   updateConnectors(group.host, items);
 }
 
-/** Native: join the root's group; the last source out takes the group and its pass. */
+/** Join the root's group; the last source out takes the group and its pass. */
 function mount(s, b, root) {
   let group = GROUPS.get(root);
   if (!group) {
@@ -165,10 +174,4 @@ function mount(s, b, root) {
   };
 }
 
-/** The behaviour both shells share: the record; each shell draws through its own layer. */
-export const connectBehaviour = {
-  capabilities: ['connectable', 'graph-node', 'global-render'],
-  init
-};
-
-export const connect = /* @__PURE__ */ defineTrait(connectBehaviour, { mount });
+export const connect = /* @__PURE__ */ defineTrait({ init, mount });

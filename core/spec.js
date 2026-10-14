@@ -3,7 +3,7 @@
  *
  * `data-*` <-> spec: the one conversion between attributes and the plain object a blit is described by. Only
  * declared kinds are coerced (placement is numeric); a numeric key that does not parse throws rather than reaching
- * the port as `NaN`. Prefix and kinds are parameters so the legacy `data-cc-*` hydration reads through it too.
+ * the port as `NaN`. Prefix and kinds are parameters, so a caller can read its own namespace through it too.
  */
 import { createLogger } from '../log.js';
 import { BLIT_ATTR, PLACEMENT_KEYS, ROOT_ATTR } from './state.js';
@@ -74,12 +74,15 @@ export function readSpec(element) {
 const UNSAFE_KEYS = /* @__PURE__ */ new Set(['__proto__', 'constructor', 'prototype']);
 
 /**
- * A `data-*` value read back as trait options: bare or `"true"` is `true`, JSON is parsed with its prototype keys
+ * A `data-*` value read back as trait options: bare or `"true"` is `true`, `"false"` is `false`, a plain number is a
+ * number, JSON is parsed with its prototype keys
  * dropped. Authored HTML is untrusted, so JSON that does not parse is warned about and read as `undefined`.
  * @param {string} name the attribute, for the warning
  */
 export function decodeAttribute(value, name = 'data-*') {
   if (value === '' || value === 'true') return true;
+  if (value === 'false') return false;
+  if (/^-?\d+(\.\d+)?$/.test(value)) return Number(value);
   if (!/^[[{]/.test(value)) return value;
   try {
     return JSON.parse(value, (key, each) => {

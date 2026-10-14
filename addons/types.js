@@ -1,81 +1,54 @@
 /**
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
- * The display types as core types: `card`, `media`, `raw` and `vector-pointer`,
- * each a `<template data-type>` whose `[data-slot]`s take text. `raw` is the one
- * markup type, so its single slot is the template's own `data-slot-html` opt-in.
+ * The display types as widgets (`./widget.js`): `card`, `media`,
+ * `vector-pointer` and `raw`, each a type whose same-named trait holds its
+ * contents and renders them - text through Text nodes, the badge, needle and
+ * meter as SVG from the primitives, a media `src` through `safeUrl`. `raw`, and
+ * a card given the `html` key, render markup: the one deliberate opt-in.
  *
- * Registration is a call, never an import side effect, and goes through the
- * registry `type()` wraps (`../core/type.js`), so the legacy bundle that renders
- * through these templates never pulls in the blit handle. After it,
- * `type('card')` and `root.blit({type: 'card', fill: {title}})` work as for
- * any type. `mountType` is how the legacy `DisplayTrait` renders through them.
+ *   registerDisplayTypes();
+ *   const card = app.blit({ type: 'card', card: { title: 'Hi', body: 'Text' } });
+ *   setContent(card, 'badge', { text: 'new', color: '#22c55e' });
+ *
+ * Every type but `raw` holds its children in a `[data-scope]` well after its
+ * content, sized to them by the layout add-on (`layout: 'free'` is a type
+ * default). Registration is a call, never an import side effect. `mountType`
+ * clones any type's structure into an element (a consumer's own renderer).
  */
 import { SLOT_ATTR } from '../core/state.js';
-import { defineType, findType, isTemplate } from '../core/type.js';
+import { findType, isTemplate } from '../core/type.js';
+import {
+  createBadgeSVG, createGradientMeterSVG, createPlaceholderDataURI, createVectorPointerSVG, safeColor, safeUrl
+} from '../graphics/primitives/primitives.js';
+import { CARD_CSS } from '../graphics/css/card.js';
+import { injectAddonCss } from './trait.js';
+import { leadingText, setAttr, setSlot, setText, setVisible, widget } from './widget.js';
 
 /**
  * Every class name the display types carry. Public API twice over: consumers
- * style them and the default stylesheet matches them. `GAUGE_ROW` is the
- * modifier the vector-pointer body carries beside `BODY`.
+ * style them and the display widgets' chunk (`../graphics/css/card.js`)
+ * matches them. `GAUGE_ROW` is the modifier the vector-pointer body carries
+ * beside `BODY`.
  */
 export const CLS = /* @__PURE__ */ Object.freeze({
-  HEADER: 'cloudcanvas-pin-header',
-  TITLE: 'cloudcanvas-pin-title',
-  BADGE_SLOT: 'cloudcanvas-pin-badge-slot',
-  BODY: 'cloudcanvas-pin-body',
-  GAUGE_ROW: 'cloudcanvas-pin-gauge-row',
-  FOOTER: 'cloudcanvas-pin-footer',
-  AUTHOR: 'cloudcanvas-pin-author',
-  ACTION_BTN: 'cloudcanvas-pin-action-btn',
-  NEEDLE_SLOT: 'cloudcanvas-pin-needle-slot',
-  GAUGE: 'cloudcanvas-pin-gauge',
-  LABEL: 'cloudcanvas-pin-label',
-  METER_SLOT: 'cloudcanvas-pin-meter-slot',
-  MEDIA: 'cloudcanvas-pin-media',
-  CAPTION: 'cloudcanvas-pin-caption'
+  HEADER: 'cloudcanvas-card-header',
+  TITLE: 'cloudcanvas-card-title',
+  BADGE_SLOT: 'cloudcanvas-card-badge-slot',
+  BODY: 'cloudcanvas-card-body',
+  GAUGE_ROW: 'cloudcanvas-card-gauge-row',
+  FOOTER: 'cloudcanvas-card-footer',
+  AUTHOR: 'cloudcanvas-card-author',
+  ACTION_BTN: 'cloudcanvas-card-action-btn',
+  NEEDLE_SLOT: 'cloudcanvas-card-needle-slot',
+  GAUGE: 'cloudcanvas-card-gauge',
+  LABEL: 'cloudcanvas-card-label',
+  METER_SLOT: 'cloudcanvas-card-meter-slot',
+  MEDIA: 'cloudcanvas-card-media',
+  CAPTION: 'cloudcanvas-card-caption',
+  HTML: 'cloudcanvas-card-html',
+  SCOPE: 'cloudcanvas-card-scope'
 });
-
-/** One element as markup; `slot` names a text slot. Constants only: nothing here is data. */
-function tag(name, className, slot = '', inner = '', extra = '') {
-  const slotAttr = slot ? ` ${SLOT_ATTR}="${slot}"` : '';
-  return `<${name} class="${className}"${slotAttr}${extra}>${inner}</${name}>`;
-}
-
-/**
- * Name -> template markup. Every type but `raw` opens with the header, a title and a badge; the badge, needle and
- * meter are graphic slots the legacy renderer draws. Built by a call so the table is one pure expression.
- */
-function displayTypeMarkup() {
-  const header = tag('div', CLS.HEADER, '', tag('div', CLS.TITLE, 'title') + tag('span', CLS.BADGE_SLOT, 'badge'));
-  return Object.freeze({
-    card: header + tag('div', CLS.BODY, 'body') + tag('div', CLS.FOOTER, '',
-      tag('span', CLS.AUTHOR, 'author') + tag('button', CLS.ACTION_BTN, 'action', '', ' type="button"')),
-    media: header + tag('div', CLS.BODY, '', `<img class="${CLS.MEDIA}">` + tag('p', CLS.CAPTION, 'caption')),
-    'vector-pointer': header + tag('div', `${CLS.BODY} ${CLS.GAUGE_ROW}`, '', tag('div', CLS.NEEDLE_SLOT, 'needle')
-      + tag('div', CLS.GAUGE, '', tag('div', CLS.LABEL, 'label') + tag('div', CLS.METER_SLOT, 'meter'))),
-    raw: `<div ${SLOT_ATTR}="html" data-slot-html></div>`
-  });
-}
-
-/** Name -> template markup, frozen. */
-export const DISPLAY_TYPES = /* @__PURE__ */ displayTypeMarkup();
-
-/** Set once every display type is registered, so the legacy build path parses the markup once. */
-let registered = false;
-
-/**
- * Register the display types; a second call is a no-op, and a document or
- * caller that already defined one of these names with other markup throws.
- * @returns {string[]} the names registered
- */
-export function registerDisplayTypes() {
-  if (!registered) {
-    for (const [name, html] of Object.entries(DISPLAY_TYPES)) defineType(name, { html });
-    registered = true;
-  }
-  return Object.keys(DISPLAY_TYPES);
-}
 
 /**
  * Clone a type's content into `into`, replacing its children: the build half of
@@ -90,4 +63,150 @@ export function mountType(type, into) {
   const slots = Object.create(null);
   for (const slot of into.querySelectorAll(`[${SLOT_ATTR}]`)) slots[slot.getAttribute(SLOT_ATTR)] ??= slot;
   return slots;
+}
+
+/* ------------------ WIDGETS ------------------ */
+
+const ACCENT = '#38bdf8';
+const NEEDLE_SIZE = 36;
+const METER_MIN = 0;
+const METER_MAX = 100;
+
+/** One element as markup, classed; constants only. */
+const el = (name, className, inner = '', extra = '') => `<${name} class="${className}"${extra}>${inner}</${name}>`;
+const HEADER = el('div', CLS.HEADER, el('div', CLS.TITLE) + el('span', CLS.BADGE_SLOT), ' data-drag-handle');
+const HTML = el('div', CLS.HTML, '', ' hidden');
+const SCOPE = el('div', CLS.SCOPE, '', ' data-scope');
+
+/** The first `.name` under `root` that is `root`'s own, not a nested blit's. */
+function own(root, className) {
+  for (const found of root.querySelectorAll(`.${className}`)) {
+    if (found.closest('[data-blit]') === root) return found;
+  }
+  return null;
+}
+
+/** The `badge` content value, a string or `{text, color}`. */
+function badgeOf(value, fallbackColor) {
+  if (value === undefined || value === null) return { text: '', color: fallbackColor };
+  if (typeof value === 'object') return { text: value.text == null ? '' : String(value.text), color: safeColor(value.color, fallbackColor) };
+  return { text: String(value), color: fallbackColor };
+}
+
+/** The header every type but `raw` opens with: title text, and the badge drawn only when it has text. */
+function renderHeader(b, contents, cache, badge = badgeOf(contents.get('badge'), ACCENT)) {
+  setText(b.title, contents.get('title'));
+  setSlot(b.badge, badge.text ? createBadgeSVG(badge.text, badge.color) : '', cache, 'badge', `${badge.text}|${badge.color}`);
+  setVisible(b.badge, Boolean(badge.text));
+}
+
+/** The header's nodes, plus the markup region a card's `html` key renders into. */
+function bindHeader(root) {
+  return {
+    header: own(root, CLS.HEADER), title: leadingText(own(root, CLS.TITLE)), badge: own(root, CLS.BADGE_SLOT),
+    html: own(root, CLS.HTML)
+  };
+}
+
+/** Markup in place of the template, or back: the one opt-in, and only for a key the caller set. */
+function renderMarkup(b, contents, cache, sections) {
+  const markup = contents.has('html') ? String(contents.get('html') ?? '') : null;
+  for (const section of sections) if (section) setVisible(section, markup === null);
+  if (!b.html) return false;
+  setVisible(b.html, markup !== null);
+  if (markup !== null) setSlot(b.html, markup, cache, 'html', markup);
+  return markup !== null;
+}
+
+/** A container's children sit in its well, which the layout add-on sizes to them (`free`: by their own placement). */
+const CONTAINER = Object.freeze({ layout: 'free' });
+
+const CARD = {
+  name: 'card',
+  defaults: CONTAINER,
+  html: HEADER + el('div', CLS.BODY) + el('div', CLS.FOOTER, el('span', CLS.AUTHOR)
+    + el('button', CLS.ACTION_BTN, '', ' type="button"')) + HTML + SCOPE,
+  // Open: a card holds any contents (a custom type's own fields among them); it renders the ones it knows.
+  keys: null,
+  bind: (root) => {
+    const b = { ...bindHeader(root), body: own(root, CLS.BODY), footer: own(root, CLS.FOOTER), action: own(root, CLS.ACTION_BTN) };
+    return { ...b, bodyText: leadingText(b.body), authorText: leadingText(own(root, CLS.AUTHOR)), actionText: leadingText(b.action) };
+  },
+  render(b, contents, cache) {
+    if (renderMarkup(b, contents, cache, [b.header, b.body, b.footer])) return;
+    renderHeader(b, contents, cache);
+    const body = contents.get('body') ?? '';
+    const author = contents.get('author') ?? '';
+    const action = contents.get('actionText') ?? '';
+    setText(b.bodyText, body);
+    setVisible(b.body, body !== '');
+    setText(b.authorText, author);
+    setText(b.actionText, action);
+    setAttr(b.action, 'data-action', String(action), cache, 'action');
+    setVisible(b.action, action !== '');
+    setVisible(b.footer, author !== '' || action !== '');
+  }
+};
+
+const MEDIA = {
+  name: 'media',
+  defaults: CONTAINER,
+  html: HEADER + el('div', CLS.BODY, `<img class="${CLS.MEDIA}">` + el('p', CLS.CAPTION)) + SCOPE,
+  keys: ['title', 'badge', 'src', 'alt', 'caption'],
+  bind: (root) => {
+    const caption = own(root, CLS.CAPTION);
+    return { ...bindHeader(root), image: own(root, CLS.MEDIA), caption, captionText: leadingText(caption) };
+  },
+  render(b, contents, cache) {
+    renderHeader(b, contents, cache);
+    setAttr(b.image, 'src', safeUrl(contents.get('src'), createPlaceholderDataURI()), cache, 'src');
+    setAttr(b.image, 'alt', String(contents.get('alt') ?? ''), cache, 'alt');
+    const caption = contents.get('caption') ?? '';
+    setText(b.captionText, caption);
+    setVisible(b.caption, caption !== '');
+  }
+};
+
+const VECTOR_POINTER = {
+  name: 'vector-pointer',
+  defaults: CONTAINER,
+  html: HEADER + el('div', `${CLS.BODY} ${CLS.GAUGE_ROW}`, el('div', CLS.NEEDLE_SLOT)
+    + el('div', CLS.GAUGE, el('div', CLS.LABEL) + el('div', CLS.METER_SLOT))) + SCOPE,
+  keys: ['title', 'angle', 'magnitude', 'color', 'label'],
+  bind: (root) => ({
+    ...bindHeader(root), needle: own(root, CLS.NEEDLE_SLOT), label: leadingText(own(root, CLS.LABEL)), meter: own(root, CLS.METER_SLOT)
+  }),
+  render(b, contents, cache) {
+    const angle = Number(contents.get('angle')) || 0;
+    const magnitude = Number(contents.get('magnitude')) || 0;
+    const color = safeColor(contents.get('color'), ACCENT);
+    renderHeader(b, contents, cache, { text: `${angle.toFixed(0)}°`, color });
+    setSlot(b.needle, createVectorPointerSVG(angle, { color, size: NEEDLE_SIZE }), cache, 'needle', `${angle}|${color}`);
+    setText(b.label, contents.get('label') ?? `Mag: ${magnitude.toFixed(1)}`);
+    setSlot(b.meter, createGradientMeterSVG(magnitude, METER_MIN, METER_MAX, { color }), cache, 'meter', `${magnitude}|${color}`);
+  }
+};
+
+const RAW = {
+  name: 'raw',
+  html: el('div', CLS.HTML),
+  keys: ['html'],
+  bind: (root) => ({ html: own(root, CLS.HTML) }),
+  render: (b, contents, cache) => {
+    const markup = String(contents.get('html') ?? '');
+    setSlot(b.html, markup, cache, 'html', markup);
+  }
+};
+
+/** The display widgets, in registration order. */
+const WIDGETS = /* @__PURE__ */ Object.freeze([CARD, MEDIA, VECTOR_POINTER, RAW]);
+
+/**
+ * Register the display types as widgets; a second call is a no-op.
+ * @returns {string[]} the names registered
+ */
+export function registerDisplayTypes() {
+  injectAddonCss('card', CARD_CSS);
+  for (const spec of WIDGETS) widget(spec);
+  return WIDGETS.map((spec) => spec.name);
 }

@@ -21,7 +21,7 @@ export function forgetPlacement(element) {
   return APPLIED.delete(element);
 }
 
-/** Paint a blit's placement: `b` is the handle, or any `{el, x, y, z}` (a Pin's state). @returns {boolean} wrote */
+/** Paint a blit's placement: `b` is the handle, or any `{el, x, y, z}`. @returns {boolean} wrote */
 export function defaultPort(b) {
   const element = b.el;
   if (!element.style) return false;

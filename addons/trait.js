@@ -3,25 +3,23 @@
  *
  * The trait kit: what the built-in add-ons share.
  *
- * A built-in trait is written once, as a *behaviour* - plain functions over a
- * state record `s` and a blit-shaped handle `b` (`el x y size bounds set emit
- * on`). `defineTrait` turns a behaviour into a function trait the core runs,
- * `(b, opts, root) => cleanup`, wiring its pointer hooks to native events;
- * `./class-from-trait.js` turns the same behaviour into the legacy class, with
- * the Pin's session routing the pointer instead. One implementation, two shells.
+ * A built-in trait is written as a *behaviour* - plain functions over a state
+ * record `s` and the blit's handle `b` - and `defineTrait` turns it into the
+ * function trait the core runs, `(b, opts, root) => cleanup`, wiring its
+ * pointer hooks to native events:
  *
  *   init(options)             the state record's fields
- *   attach(s, b) / detach     start and stop, on both shells
+ *   attach(s, b) / detach     start and stop
  *   press(s, b, event, env)   a press the blit owns; truthy arms move/release
  *   move / release            the gesture; `release` without an event is a cancel
- *   mount(s, b, root)         wiring only a core blit has (ticks, root passes); returns its off
+ *   mount(s, b, root)         the rest of the wiring (ticks, root passes, CSS); returns its off
  *
- * `env.point(event)` is the press in canvas coordinates. Hooks only a core blit
- * runs go in `defineTrait`'s second argument, so the legacy class never carries them.
+ * `env.point(event)` is the press in canvas coordinates.
  */
-import { injectStyle } from '../core/css.js';
 import { BLIT_ATTR, stateOf } from '../core/state.js';
-import { BASE_STYLE_ID } from '../graphics/styles.js';
+
+/** How an add-on puts its CSS chunk in the document: once, and not where the whole sheet is. */
+export { injectAddonCss } from '../graphics/styles.js';
 
 /** Pointer travel (px) a press must exceed before it moves anything. */
 export const DRAG_THRESHOLD_PX = 3;
@@ -70,9 +68,26 @@ export function passedThreshold(s, event) {
 /** The class a selected element carries (`./select.js` owns the selection). */
 export const SELECTED_CLASS = 'is-selected';
 
-/** The selection a handle reports: a Pin's from its trait, a blit's from its class. */
+/**
+ * A blit's own title, for a caption or a spoken name: `aria-label`, else the `title` in a widget's
+ * contents (`data-<type>` JSON), else `data-title`; '' when it has none.
+ */
+export function titleOf(element) {
+  const label = element.getAttribute('aria-label');
+  if (label) return label;
+  const type = element.getAttribute('data-type');
+  const raw = type ? element.getAttribute(`data-${type}`) : null;
+  if (raw && raw.startsWith('{')) {
+    try {
+      const { title } = JSON.parse(raw);
+      if (typeof title === 'string' && title) return title;
+    } catch { /* contents that do not parse carry no title */ }
+  }
+  return element.getAttribute('data-title') ?? '';
+}
+
+/** Whether the blit is selected: it carries `is-selected`. */
 export function selectedOf(b) {
-  if (typeof b.selected === 'boolean') return b.selected;
   return Boolean(b.el && b.el.classList.contains(SELECTED_CLASS));
 }
 
@@ -93,16 +108,6 @@ export function listen(target, types, listener, options) {
   return () => { for (const type of types) target.removeEventListener(type, listener, options); };
 }
 
-/**
- * Put an add-on's CSS chunk (`../graphics/css/`) in the document once, as `<style id="blit-css-<name>">`. The
- * legacy full sheet (`injectCanvasStyles`) already holds every chunk, so where it is present nothing is added.
- * @returns {HTMLStyleElement|null} the chunk's element or the full sheet; null without a document
- */
-export function injectAddonCss(name, css) {
-  if (typeof document === 'undefined') return null;
-  return document.getElementById(BASE_STYLE_ID) ?? injectStyle(`blit-css-${name}`, css);
-}
-
 /** The root a root add-on runs on - the one given, else the host's own - or a TypeError naming `name`. */
 export function requireRootOf(b, root, name) {
   const found = root ?? stateOf(b.el)?.root;
@@ -112,12 +117,16 @@ export function requireRootOf(b, root, name) {
 
 /** A root's projection: client coordinates to canvas coordinates through its camera. */
 export function rootEnv(root) {
+  let last = { x: 0, y: 0 };
   return {
     root,
     point(event) {
       const rect = root.host.getBoundingClientRect();
-      const { x, y, scale } = root.camera;
-      return { x: (event.clientX - rect.left - x) / scale, y: (event.clientY - rect.top - y) / scale };
+      const camera = root.camera;
+      if (!camera.is3d) return { x: (event.clientX - rect.left - camera.x) / camera.scale, y: (event.clientY - rect.top - camera.y) / camera.scale };
+      // Above a tilted board's horizon there is no canvas: a gesture holds its last point on the plane.
+      last = camera.unproject(event.clientX - rect.left, event.clientY - rect.top, rect) ?? last;
+      return last;
     }
   };
 }
@@ -149,13 +158,12 @@ function wirePointer(s, b, env, behaviour) {
 }
 
 /**
- * A behaviour as a function trait; `native` adds (or overrides) the hooks only
- * a core blit runs. The shared behaviour rides on the result as `.behaviour`.
- * Kept apart so a bundle holding only the legacy class sheds the native wiring.
+ * A behaviour as a function trait; `extra` adds (or overrides) hooks, so a
+ * trait can reuse another's gesture functions and differ in one.
  * @returns {(b: object, opts: any, root: object) => () => void}
  */
-export function defineTrait(shared, native = {}) {
-  const behaviour = { ...shared, ...native };
+export function defineTrait(shared, extra = {}) {
+  const behaviour = { ...shared, ...extra };
   const trait = (b, opts, root) => {
     const s = behaviour.init(opts && typeof opts === 'object' ? opts : {});
     if (behaviour.attach) behaviour.attach(s, b);
@@ -167,6 +175,5 @@ export function defineTrait(shared, native = {}) {
       if (behaviour.detach) behaviour.detach(s, b);
     };
   };
-  trait.behaviour = shared;
   return trait;
 }

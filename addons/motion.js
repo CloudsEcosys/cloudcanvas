@@ -7,7 +7,7 @@
  * (`animateTo`, stepped by `update`), an animated `fit`, the reduced-motion
  * rule and the screen <-> canvas projection. `motion(b)` gives a root one, so
  * its `view()` flies. `MOVING_CLASS` is the one compositor-hint class any
- * add-on grants an element while it is in motion. The legacy `Viewport` (`../engine/viewport.js`) extends it.
+ * add-on grants an element while it is in motion.
  */
 import { Camera } from '../core/camera.js';
 import { schedule } from '../core/frame.js';
@@ -102,8 +102,8 @@ export class MotionCamera extends Camera {
     /** The in-flight eased move, or null. */
     this.animation = null;
     /**
-     * Owner wake hook, fired whenever the camera is moved programmatically. The
-     * session and `motion()` point it at the root's `schedule`, so a fit or a
+     * Owner wake hook, fired whenever the camera is moved programmatically.
+     * `motion()` points it at the root's `schedule`, so a fit or a
      * flight started on the camera directly still wakes an idle loop.
      * @type {(() => void)|null}
      */
@@ -119,7 +119,7 @@ export class MotionCamera extends Camera {
   panBy(dx, dy) { this.stopAnimation(); super.panBy(dx, dy); this._wake(); }
   panTo(x, y) { this.stopAnimation(); super.panTo(x, y); this._wake(); }
   setZoom(scale) { this.stopAnimation(); super.setZoom(scale); this._wake(); }
-  zoomAt(factor, focalX, focalY) { this.stopAnimation(); super.zoomAt(factor, focalX, focalY); this._wake(); }
+  zoomAt(factor, focalX, focalY, hostRect) { this.stopAnimation(); super.zoomAt(factor, focalX, focalY, hostRect); this._wake(); }
 
   /**
    * Frame a box: fly there, or jump with `{immediate: true}`. Adds `duration`
@@ -200,20 +200,22 @@ export class MotionCamera extends Camera {
     this.scale = interpolateScale(animation.startScale, animation.targetScale, ease);
   }
 
-  /** Screen (client) coordinates to canvas coordinates. */
+  /** Screen (client) coordinates to canvas coordinates; null above a tilted board's horizon. */
   screenToCanvas(screenX, screenY, hostRect = {}) {
-    return {
-      x: (screenX - (hostRect.left || 0) - this.x) / this.scale,
-      y: (screenY - (hostRect.top || 0) - this.y) / this.scale
-    };
+    const [left, top] = [hostRect.left || 0, hostRect.top || 0];
+    if (this.is3d) return this.unproject(screenX - left, screenY - top, hostRect);
+    return { x: (screenX - left - this.x) / this.scale, y: (screenY - top - this.y) / this.scale };
   }
 
-  /** Canvas coordinates to screen (client) coordinates. */
+  /** Canvas coordinates to screen (client) coordinates, through the tilt and perspective when there is one; null
+   * for a point behind the viewer. */
   canvasToScreen(canvasX, canvasY, hostRect = {}) {
-    return {
-      x: canvasX * this.scale + this.x + (hostRect.left || 0),
-      y: canvasY * this.scale + this.y + (hostRect.top || 0)
-    };
+    const [left, top] = [hostRect.left || 0, hostRect.top || 0];
+    if (this.is3d) {
+      const at = this.project(canvasX, canvasY, hostRect);
+      return at && { x: at.x + left, y: at.y + top };
+    }
+    return { x: canvasX * this.scale + this.x + left, y: canvasY * this.scale + this.y + top };
   }
 }
 

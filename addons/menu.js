@@ -13,10 +13,8 @@
  * module-wide menu. `when` and `action` get the subject - the root's handle -
  * and the context `{target, x, y}`, `target` the blit under the click
  * (`closest('[data-blit]')`) or null on bare canvas. `installMenu` takes the
- * subject and `resolve(event)` as options: the legacy session passes itself
- * and `{pin, x, y}`. A submenu trigger opens a flyout beside itself; a chain keeps
- * to the side its first flyout took. Up/Down rove a panel, Enter runs on press
- * and Space on release (once, as a native button), Right opens,
+ * subject and resolve(event) as options. A submenu opens beside its trigger;
+ * Up/Down rove, Enter runs on press and Space on release, Right opens,
  * Left and Escape step out, a press outside closes.
  *
  * When nothing applies the platform's menu opens; a right-click another
@@ -123,7 +121,8 @@ function focusFirstItem(element) {
 /** Listen on the document while open (`on`), or stop: a press outside closes, keys drive the panels. */
 function documentListeners(m, on) {
   const method = on ? 'addEventListener' : 'removeEventListener';
-  document[method]('pointerdown', m.onDocumentPointerDown);
+  // Capture: a press another listener stops (orbit's, say) still closes the menu.
+  document[method]('pointerdown', m.onDocumentPointerDown, true);
   document[method]('keydown', m.onDocumentKeyDown);
   document[method]('keyup', m.onDocumentKeyUp);
 }

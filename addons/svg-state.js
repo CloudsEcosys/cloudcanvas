@@ -36,10 +36,10 @@ export const DEFAULT_TRANSITION_EASING = 'cubic-bezier(0.16, 1, 0.3, 1)';
 const DEFAULT_FILL = 'var(--cc-surface-2, rgba(56, 189, 248, 0.15))';
 const DEFAULT_STROKE = 'var(--cc-accent, #38bdf8)';
 
-/** @type {WeakMap<Element, object>} element -> its running record (core blits) */
+/** @type {WeakMap<Element, object>} element -> its running record */
 const RECORDS = /* @__PURE__ */ new WeakMap();
 
-/** The svg-state record running on a core blit, or undefined. */
+/** The svg-state record running on a blit, or undefined. */
 export function svgStateOf(b) {
   return RECORDS.get(b.el);
 }
@@ -227,13 +227,8 @@ function clearHint(b) {
   if (b.el && b.el.classList) b.el.classList.remove(MOVING_CLASS);
 }
 
-/** The behaviour both shells share: the record; each shell mounts into its own content. */
-export const svgStateBehaviour = {
-  capabilities: ['svg-state', 'renderable', 'transformable-3d'],
-  init
-};
-
-export const svgState = /* @__PURE__ */ defineTrait(svgStateBehaviour, {
+export const svgState = /* @__PURE__ */ defineTrait({
+  init,
   attach: (s, b) => mountSvgState(s, b, b.el),
   detach: unmountSvgState,
   mount: (s, b) => {

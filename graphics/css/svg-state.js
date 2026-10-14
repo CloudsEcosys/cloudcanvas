@@ -1,8 +1,8 @@
 /**
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
- * The svg-state add-on's CSS chunk (`../../addons/svg-state.js`), injected once when the add-on
- * installs. A verbatim slice of `CANVAS_DEFAULT_CSS`, composed by `../styles-css.js`.
+ * The svg-state add-on's CSS chunk (`../../addons/svg-state.js`), injected once when the trait
+ * first starts.
  */
 
 /** The SVG state wrapper, host and path. */
@@ -34,6 +34,14 @@ export const SVG_STATE_CSS = `/* ------------------ SVG STATE & 3D INTERPOLATION
   vector-effect: non-scaling-stroke;
   transform-box: fill-box;
   transform-origin: center center;
+}
+
+/* The interpolation writes its own inline transitions. */
+@media (prefers-reduced-motion: reduce) {
+  .cloudcanvas-svg-state-path,
+  .cloudcanvas-svg-state-host {
+    transition: none !important;
+  }
 }
 
 `;

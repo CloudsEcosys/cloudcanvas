@@ -12,7 +12,7 @@ const logger = /* @__PURE__ */ createLogger('blit');
 
 /** A name round-trips through `data-*` unchanged and is no key or marker the core routes itself. */
 const NAME = /^[a-z][a-zA-Z0-9]*$/;
-const TAKEN = /* @__PURE__ */ new Set(['blit', 'blitRoot', 'port', 'with', 'fill', 'type', 'slot', ...PLACEMENT_KEYS]);
+const TAKEN = /* @__PURE__ */ new Set(['blit', 'blitRoot', 'id', 'port', 'with', 'fill', 'type', 'slot', ...PLACEMENT_KEYS]);
 
 /** @type {Map<string, Function>} name -> the trait or port */
 const NAMED = /* @__PURE__ */ new Map();
@@ -67,8 +67,10 @@ export function specTraits(state, spec) {
     if (NAMED.has(key)) spec[key] = decodeAttribute(spec[key], `data-${kebabCase(key)}`);
     if (spec[key] === undefined) delete spec[key];
   }
-  for (const fn of [...(state.with ?? []), ...(state.port ? [state.port] : [])]) {
-    const kind = fn === state.port ? 'port' : 'trait';
+  // A stand-in port (layout's `flow`) holds the one it replaced in `heldPort`; the spec names that one.
+  const port = state.heldPort ?? state.port;
+  for (const fn of [...(state.with ?? []), ...(port ? [port] : [])]) {
+    const kind = fn === port ? 'port' : 'trait';
     const name = Array.from(NAMED.keys()).find((each) => NAMED.get(each) === fn);
     if (!name) logger.warn(`blit.spec: an anonymous ${kind} is not serialised; name it with blit.use()`);
     else if (kind === 'port') spec.port = name;
@@ -82,16 +84,20 @@ export function runTraits(state) {
   const root = rootOf(state);
   if (!root || !state.handle) return;
   state.traits = toggleTraits;
+  state.retryTraits = false;
   const anonymous = [...typeTraits(state.el.getAttribute(TYPE_ATTR)), ...(state.with ?? [])];
   for (const fn of anonymous) start(state, root, fn, fn, true);
   for (const { name, value } of Array.from(state.el.attributes)) {
     const key = name.startsWith('data-') ? camelCase(name.slice(5)) : '';
     const opts = NAMED.has(key) ? decodeAttribute(value, name) : undefined;
-    if (opts !== undefined) start(state, root, key, NAMED.get(key), opts);
+    if (opts !== undefined && opts !== false) start(state, root, key, NAMED.get(key), opts);
   }
 }
 
-/** Run one trait, marked running first so a trait that writes its own blit is not re-entered. */
+/**
+ * Run one trait, marked running first so a trait that writes its own blit is not re-entered. A named trait
+ * that throws takes its own `data-*` with it, so the refused value is not retried by every later write.
+ */
 function start(state, root, key, fn, opts) {
   if (state.cleanups?.has(key)) return;
   (state.cleanups ??= new Map()).set(key, null);
@@ -100,15 +106,24 @@ function start(state, root, key, fn, opts) {
     if (typeof cleanup === 'function') state.cleanups.set(key, cleanup);
   } catch (error) {
     state.cleanups.delete(key);
+    // A named trait that threw loses its attribute; an anonymous one is tried again on the next set().
+    if (typeof key === 'string') writeAttribute(state.el, key, null);
+    else state.retryTraits = true;
     throw error;
   }
 }
 
-/** Stop one running trait (`key` a name or a function), or every one without a key. */
+/** Stop one running trait (`key` a name or a function), or every one without a key; a cleanup that throws
+ * is logged and the rest still run. */
 export function stopTraits(state, key) {
   for (const each of key === undefined ? Array.from(state.cleanups?.keys() ?? []) : [key]) {
     const cleanup = state.cleanups?.get(each);
-    if (state.cleanups?.delete(each) && cleanup) cleanup();
+    if (!state.cleanups?.delete(each) || !cleanup) continue;
+    try {
+      cleanup();
+    } catch (error) {
+      logger.error(`blit: the cleanup of ${typeof each === 'string' ? `"${each}"` : 'a trait'} threw`, error);
+    }
   }
 }
 

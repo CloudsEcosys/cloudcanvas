@@ -1,18 +1,15 @@
 /**
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
- * The resize add-on's CSS chunk (`../../addons/resize.js`), injected once when the add-on installs.
- * A verbatim slice of `CANVAS_DEFAULT_CSS`, which `../styles-css.js` composes from the chunks.
+ * The resize add-on's CSS chunk (`../../addons/resize.js`), injected once when the trait first starts.
  */
 
 /** The eight resize handles and the resizing state. */
 export const RESIZE_CSS = `/*
- * Resize handles, appended by \`ResizableTrait\` (src/pins/traits/resizable.js).
- *
- * Direct children of the Pin's root element, outside the content node, so a
- * content re-render never takes them away. Each carries \`data-cc-control\`, which
- * is what makes the pointer router decline the deferred capture and
- * \`DraggableTrait\` stand down on it (\`CONTROL_SELECTOR\`, src/pins/pin-element.js).
+ * Resize handles, appended by the resize trait: direct children of the blit, so
+ * a content render never takes them away. Each carries \`data-cc-control\`, which
+ * is what makes the pan add-on decline the deferred capture and the drag add-on
+ * stand down on it (\`CONTROL_SELECTOR\`, \`../../addons/trait.js\`).
  *
  * Visibility is the \`hidden\` property, written by the trait - so no \`display\` is
  * declared here, and the user-agent \`[hidden]\` rule keeps working on a page that
@@ -106,7 +103,7 @@ export const RESIZE_CSS = `/*
 
 /* A resize is a drag of the box: it clears its neighbours the same way, and the
    grab cursor must not fight the direction cursor under the pointer. */
-.cloudcanvas-pin.is-resizing {
+[data-blit].is-resizing {
   z-index: var(--cc-z-drag, 1100);
   cursor: default;
 }

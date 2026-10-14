@@ -2,14 +2,13 @@
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
  * The menu add-on's CSS chunk (`../../addons/menu.js`), injected once when the add-on installs.
- * A verbatim slice of `CANVAS_DEFAULT_CSS`, which `../styles-css.js` composes from the chunks.
  */
 
 /** The context menu: panel, groups and items. */
 export const MENU_CSS = `/* ------------------ CONTEXT MENU ------------------ */
 
-/* The canvas's own right-click menu (src/engine/context-menu.js). It lives in
-   the overlay - the one layer that draws in screen space - which is why it is
+/* The root's own right-click menu (the menu add-on). It lives in the root's
+   overlay - the one layer that draws in screen space - which is why it is
    positioned from the click's host-relative coordinates and needs its pointer
    events back: the overlay itself is inert.
    Every value chains through a part token to a foundation one, so a theme that

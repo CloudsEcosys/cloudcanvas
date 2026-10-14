@@ -1,14 +1,16 @@
 /**
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
- * The frame: structure, read and write phases, and the one loop every root (a `blit('#app')` host or the legacy
- * session) runs on. A root asks for a frame (`schedule`, the only way) while it has work - a dirty blit, a pending
- * measurement, a camera in flight, a busy pass - and stops once settled. The host box is read first, then
- * structure passes (the legacy engine's; blits need none), every layout read, then every write. Every pass is
- * registered, a blit root's own included (`./root.js`).
+ * The frame: structure, read and write phases, and the one loop every root (a `blit('#app')` host) runs on. A
+ * root asks for a frame (`schedule`, the only way) while it has work - a dirty blit, a pending measurement, a
+ * camera in flight, a busy pass - and stops once settled. The host box is read first, then any structure pass,
+ * every layout read, then every write. Every pass is registered, a root's own included (`./root.js`).
  */
+import { createLogger } from '../log.js';
 import { defaultPort } from './port.js';
 import { scopeContainerOf } from './state.js';
+
+const logger = /* @__PURE__ */ createLogger('frame');
 
 /** Duration of one reference frame at 60Hz, in milliseconds. */
 export const FRAME_MS = 16.67;
@@ -99,10 +101,11 @@ export function runFrame(root, dt = 1) {
 
 /** Whether the camera differs from the one last written to the plane. */
 function syncCamera(root) {
-  const { x, y, scale } = root.camera;
-  const applied = root.applied;
-  if (applied && applied.x === x && applied.y === y && applied.scale === scale) return false;
-  root.applied = { x, y, scale };
+  const { x, y, scale, perspective, rotateX, rotateY } = root.camera;
+  const a = root.applied;
+  if (a && a.x === x && a.y === y && a.scale === scale && a.perspective === perspective
+    && a.rotateX === rotateX && a.rotateY === rotateY) return false;
+  root.applied = { x, y, scale, perspective, rotateX, rotateY };
   return true;
 }
 
@@ -141,12 +144,21 @@ function measure(state) {
   }
 }
 
-/** Hand one blit to its port. A size the port wrote is re-read next frame, so declared and measured agree. */
+/**
+ * Hand one blit to its port. A size the port wrote is re-read next frame, so declared and measured agree. A port
+ * that throws is dropped for the default one (logged), so one bad port never stops the root's loop.
+ */
 export function paint(root, state) {
   const port = state.port || defaultPort;
   const resized = state.changed.has('w') || state.changed.has('h');
 
-  port(state.handle, { changed: state.changed, first: !state.painted, camera: root ? root.camera : null });
+  try {
+    port(state.handle, { changed: state.changed, first: !state.painted, camera: root ? root.camera : null });
+  } catch (error) {
+    logger.error('a port threw; the blit falls back to the default port', error);
+    state.port = null;
+    defaultPort(state.handle);
+  }
   state.painted = true;
   state.changed.clear();
 

@@ -2,7 +2,7 @@
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
  * The announce add-on's CSS chunk (`../../addons/announce.js`), injected once when the add-on
- * installs. A verbatim slice of `CANVAS_DEFAULT_CSS`, composed by `../styles-css.js`.
+ * installs.
  */
 
 /** The visually hidden live region. */

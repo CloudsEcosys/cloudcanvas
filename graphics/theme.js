@@ -31,7 +31,6 @@ export const LIGHT_THEME = /* @__PURE__ */ Object.freeze({
   '--cc-accent': '#0284c7',
   '--cc-focus': '#9f3a52',
   '--cc-focus-glow': 'rgba(159, 58, 82, 0.25)',
-  '--cc-focus-veil': 'rgba(241, 245, 249, 0.55)',
   '--cc-card-bg': 'rgba(255, 255, 255, 0.92)',
   '--cc-card-border': 'rgba(15, 23, 42, 0.12)',
   '--cc-card-border-hover': 'rgba(15, 23, 42, 0.2)',
@@ -54,7 +53,7 @@ export const LIGHT_THEME = /* @__PURE__ */ Object.freeze({
   '--cc-meter-track': 'rgba(15, 23, 42, 0.08)',
   '--cc-meter-end': '#db2777',
   '--cc-connector': 'rgba(2, 132, 199, 0.55)',
-  // Read by the cursor traits (`src/pins/cursor.js`), which build SVG attributes
+  // Read by the cursors add-on (`../addons/cursors.js`), which builds SVG attributes
   // rather than matching a stylesheet rule.
   '--cc-cursor-focus': '#9f3a52',
   '--cc-cursor-selected': '#0284c7',

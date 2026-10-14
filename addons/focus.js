@@ -2,20 +2,21 @@
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  *
  * focus: the blit as a zoom target. Its options say how the camera frames it -
- * `padding` (50) and `maxZoom` (3) - and with `focusOnClick` a click that
- * barely moved (under 5px) frames it.
+ * `padding` (50) and `maxZoom` (3), or with `frame: false` not at all - and
+ * with `focusOnClick` a click that barely moved (under 5px) focuses it.
  *
  *   blit.use({ focus });
  *   app.blit({ focus: { focusOnClick: true } });
  *
- * On a core blit that click moves `is-focused` onto it from the root's
+ * That click moves `is-focused` onto it from the root's
  * previously focused blit, frames it through the root's `view()`, and announces
  * `focus:change` (payload `true`) on it and `focus:change` (`false`) on the one it
  * left.
  */
 import { schedule } from '../core/frame.js';
 import { stateOf } from '../core/state.js';
-import { CLICK_TRAVEL_PX, coordinate, defineTrait } from './trait.js';
+import { FOCUS_CSS } from '../graphics/css/focus.js';
+import { CLICK_TRAVEL_PX, coordinate, defineTrait, injectAddonCss } from './trait.js';
 
 /** The class the focused element carries. */
 export const FOCUSED_CLASS = 'is-focused';
@@ -25,7 +26,7 @@ function init(options) {
     padding: options.padding !== undefined ? Number(options.padding) : 50,
     maxZoom: options.maxZoom !== undefined ? Number(options.maxZoom) : 3.0,
     focusOnClick: Boolean(options.focusOnClick),
-    promote: options.promote !== false,
+    frame: options.frame !== false,
     _downX: null,
     _downY: null
   };
@@ -51,9 +52,11 @@ export function clickReleased(s, event) {
 
 /**
  * Move the focus onto `b` and frame it in its root, as the root's `view()`
- * would. @returns {{x: number, y: number, scale: number}} the resolved camera
+ * would; with `{frame: false}` the focus moves and the camera stays.
+ * @returns {{x: number, y: number, scale: number}} the camera in force
  */
 export function focusBlit(s, b, root) {
+  injectAddonCss('focus', FOCUS_CSS);
   const previous = root.host.querySelector(`.${FOCUSED_CLASS}`);
   if (previous && previous !== b.el) {
     previous.classList.remove(FOCUSED_CLASS);
@@ -63,20 +66,31 @@ export function focusBlit(s, b, root) {
     b.el.classList.add(FOCUSED_CLASS);
     b.emit('focus:change', true);
   }
+  if (s.frame === false) return { x: root.camera.x, y: root.camera.y, scale: root.camera.scale };
   const { x, y, w, h } = b.bounds;
   const camera = root.camera.fit({ x, y, width: w, height: h }, root.hostRect, { padding: s.padding, maxZoom: s.maxZoom });
   schedule(root);
   return camera;
 }
 
-/** A click on a core blit, with `focusOnClick`, focuses it. */
+/** Take the focus off whatever holds it in `app`'s root. @returns {object|null} the blit that had it */
+export function unfocus(app) {
+  const element = app.el.querySelector(`.${FOCUSED_CLASS}`);
+  if (!element) return null;
+  element.classList.remove(FOCUSED_CLASS);
+  const b = stateOf(element)?.handle ?? null;
+  b?.emit('focus:change', false);
+  return b;
+}
+
+/** A click, with `focusOnClick`, focuses the blit. */
 function release(s, b, event, env) {
   if (!clickReleased(s, event) || !s.focusOnClick) return false;
   focusBlit(s, b, env.root);
   return true;
 }
 
-/** Native only: a focused blit that stops being focussable gives the focus up. */
+/** A focused blit that stops being focussable gives the focus up. */
 function mount(s, b) {
   return () => {
     if (!b.el.classList.contains(FOCUSED_CLASS)) return;
@@ -85,11 +99,4 @@ function mount(s, b) {
   };
 }
 
-/** The behaviour both shells share; the click's outcome is each shell's own. */
-export const focusBehaviour = {
-  capabilities: ['focussable', 'zoom-target'],
-  init,
-  press: pressFocus
-};
-
-export const focus = /* @__PURE__ */ defineTrait(focusBehaviour, { release, mount });
+export const focus = /* @__PURE__ */ defineTrait({ init, press: pressFocus, release, mount });

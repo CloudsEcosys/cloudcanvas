@@ -266,23 +266,17 @@ function upperBound(value, lower) {
   return Number.isFinite(number) ? Math.max(number, lower) : Infinity;
 }
 
-/** The behaviour both shells share. */
-export const resizeBehaviour = {
-  capabilities: ['interactive', 'resizable'],
+/**
+ * The end reports the box the gesture applied: a blit's size in force is the
+ * last measured one, a frame behind a declared change.
+ */
+export const resize = /* @__PURE__ */ defineTrait({
   init,
   attach,
   detach,
   press,
   move,
-  release
-};
-
-/**
- * On a core blit the end reports the box the gesture applied: its size in
- * force is the last measured one, a frame behind a declared change. A Pin's
- * particle takes the new size at once, so its shell reads that.
- */
-export const resize = /* @__PURE__ */ defineTrait(resizeBehaviour, {
+  release,
   mount: (s) => {
     s._reportApplied = true;
     injectAddonCss('resize', RESIZE_CSS);

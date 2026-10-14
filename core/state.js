@@ -49,6 +49,33 @@ const STATES = /* @__PURE__ */ new WeakMap();
  * @property {string|null} id the id its root indexes it under, not always `el.id` (`./root.js`)
  */
 
+/** @type {WeakMap<Comment, BlitState>} anchor -> the record it holds a place for (`../addons/park.js`) */
+const ANCHORS = /* @__PURE__ */ new WeakMap();
+
+/** The record an anchor comment holds a place for, or undefined for any other node. */
+export function parkedStateOf(node) {
+  return ANCHORS.get(node);
+}
+
+/** Record (or with no state, forget) what an anchor holds a place for. */
+export function holdPlace(anchor, state) {
+  if (state) ANCHORS.set(anchor, state);
+  else ANCHORS.delete(anchor);
+}
+
+/** The blit elements directly inside `node` in document order, a parked one read through its anchor. */
+export function childBlitsOf(node, out = []) {
+  for (const child of node.childNodes) {
+    const parked = child.nodeType === 8 ? ANCHORS.get(child) : null;
+    if (parked) out.push(parked.el);
+    else if (child.nodeType === 1) {
+      if (child.hasAttribute(BLIT_ATTR)) out.push(child);
+      else childBlitsOf(child, out);
+    }
+  }
+  return out;
+}
+
 /** The record for `element`, or undefined when it is not a blit. */
 export function stateOf(element) {
   return STATES.get(element);

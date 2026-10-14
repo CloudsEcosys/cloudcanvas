@@ -6,7 +6,7 @@
  * module asks once for a scoped logger (`createLogger('reactions')`); each call is a level check and, only when
  * enabled, a record handed to the installed sink. The default sink passes `error` to `console.error` and drops
  * the rest, so a silent catch stays silent until an application installs a sink at `debug` or `warn`.
- * Rule: no logging inside the frame phases (`./core/frame.js`, `./engine/renderer.js`), where it is paid per pixel.
+ * Rule: no logging inside the frame phases (`./core/frame.js`), where it is paid per pixel.
  */
 
 /** The four levels, by rank; a sink at `warn` receives `warn` and `error`. */

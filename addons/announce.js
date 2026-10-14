@@ -10,12 +10,12 @@
  *   app.emit('announce', 'Saved');   // anything else, from anywhere inside
  *
  * Heard on the host, as the native events bubble: `focus:change` (the focus
- * add-on's), `edit` (payload true on entry, false on exit), and `announce`
- * (payload the text). A root change is read each frame from `b.root`. A blit
- * is named by its `aria-label`, `data-title`, then id.
+ * add-on's), `edit` (payload true on entry, false on exit), `children:load` and
+ * `children:error` (the lazy add-on's), and `announce` (payload the text). A root change is read each frame from `b.root`. A blit
+ * is named by its title (`titleOf`: its `aria-label`, the `title` in its contents, `data-title`), else its id.
  */
 import { LIVE_REGION_CSS } from '../graphics/css/announce.js';
-import { injectAddonCss, listen, requireRootOf } from './trait.js';
+import { injectAddonCss, listen, requireRootOf, titleOf } from './trait.js';
 
 /** Class of the live region; the canvas stylesheet hides it visually. */
 export const LIVE_REGION_CLASS = 'cloudcanvas-live-region';
@@ -52,9 +52,9 @@ export function say(region, text) {
   return true;
 }
 
-/** A blit's spoken name. */
+/** A blit's spoken name: its title (`titleOf`), else its id. */
 export function nameOf(element) {
-  return element.getAttribute('aria-label') || element.getAttribute('data-title') || element.id || 'item';
+  return titleOf(element) || element.id || 'item';
 }
 
 /**
@@ -72,6 +72,8 @@ function hearing(region, host) {
     const { payload } = event.detail ?? {};
     const name = nameOf(event.target);
     if (event.type === 'announce') say(region, payload);
+    else if (event.type === 'children:load') say(region, `${payload?.length ?? 0} items loaded in ${name}`);
+    else if (event.type === 'children:error') say(region, `Failed to load ${name}`);
     else if (event.type === 'edit') say(region, payload ? `Editing ${name}` : `Finished editing ${name}`);
     else if (payload) say(region, `Focused ${name}`);
     else if (!checking) {
@@ -87,7 +89,7 @@ export function announce(b, _opts, root) {
   injectAddonCss('announce', LIVE_REGION_CSS);
   const host = b.el;
   const region = createLiveRegion(host);
-  const off = listen(host, ['focus:change', 'edit', 'announce'], hearing(region, host));
+  const off = listen(host, ['focus:change', 'edit', 'announce', 'children:load', 'children:error'], hearing(region, host));
   let shown = b.root.el;
   const offTick = b.tick(() => {
     if (b.root.el === shown) return;

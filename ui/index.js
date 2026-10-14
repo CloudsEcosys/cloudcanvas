@@ -59,3 +59,4 @@ export { createTimeline, TIMELINE_LABELS } from './timeline/timeline.js';
 export { TIMELINE_SCALES } from './timeline/model.js';
 export { createGraph, GRAPH_LABELS } from './graph/graph.js';
 export { layoutGraph } from './graph/layout.js';
+export { reconcileKeyedList } from '../addons/keyed-list.js';

@@ -4,20 +4,25 @@
  * `blit`: a thin handle over any DOM element, HTML or SVG. State lives in `./state.js` keyed by the element,
  * the handle cached there (`blit(el) === blit(el)`); the DOM tree is the hierarchy; events are native. A blit is
  * *potential* (detached or a `<template>`: writes apply at once), *indexed* (in a root: placement waits for the
- * write phase) or a *collection*. `set()` routes `x y z w h` to the port, `fill` into `[data-slot]`s, `port`,
- * `with` and `blit.use()` names to `./use.js`, the rest to `data-*`.
+ * write phase) or a *collection*. `set()` routes `x y z w h` to the port, `id` to the element (the root's
+ * index), `fill` into `[data-slot]`s, `port`, `with` and `blit.use()` names to `./use.js`, the rest to `data-*`.
  */
 import {
   BLIT_ATTR, PLACEMENT_KEYS, ROOT_ATTR, SLOT_ATTR, SLOT_HTML_ATTR,
-  boundsOf, createState, isWithin, parentElementOf, rootOf, scopeContainerOf, sizeOf, stateOf
+  boundsOf, childBlitsOf, createState, isWithin, parentElementOf, rootOf, scopeContainerOf, sizeOf, stateOf
 } from './state.js';
+import { createLogger } from '../log.js';
 import { readSpec, writeAttribute } from './spec.js';
 import { PHASES, paint, schedule } from './frame.js';
-import { allows, attachBlit, demoteOthers, findBlit, heldRootOf, mountRoot, releaseBlits, setViewRoot } from './root.js';
-import { defineType, findType, instantiate, isTemplate } from './type.js';
+import {
+  allows, attachBlit, demoteOthers, findBlit, heldRootOf, indexBlit, mountRoot, releaseBlits, setViewRoot
+} from './root.js';
+import { TYPE_ATTR, defineType, findType, instantiate, isTemplate } from './type.js';
 import { runTraits, specTraits, use, writeTraitKey } from './use.js';
 
 const PLACEMENT = /* @__PURE__ */ new Set(PLACEMENT_KEYS);
+
+const logger = /* @__PURE__ */ createLogger('blit');
 
 export class Blit {
   #s;
@@ -46,12 +51,9 @@ export class Blit {
     return element ? blit(element) : null;
   }
 
-  /** The blits directly inside this one, in document order. */
+  /** The blits directly inside this one, in document order, parked ones included. */
   get blits() {
-    const element = this.#s.el;
-    return Array.from(element.querySelectorAll(`[${BLIT_ATTR}]`))
-      .filter((child) => parentElementOf(child) === element)
-      .map(blit);
+    return childBlitsOf(this.#s.el).map(blit);
   }
 
   /** `data-*` keys, placement, slot text, named traits and port: `parent.blit(b.spec)` reproduces it. */
@@ -60,6 +62,7 @@ export class Blit {
     const spec = readSpec(s.el);
     for (const key of PLACEMENT_KEYS) delete spec[key];
     specTraits(s, spec);
+    if (s.el.id) spec.id = s.el.id;
     spec.x = s.x;
     spec.y = s.y;
     if (s.z !== 0) spec.z = s.z;
@@ -79,13 +82,17 @@ export class Blit {
     }
 
     let measure = false;
+    // Traits re-run only when a key that names them changed: a move alone never walks the attributes.
+    let traits = false;
     for (const [key, value] of Object.entries(patch)) {
       if (PLACEMENT.has(key)) writePlacement(s, key, value);
+      else if (key === 'id') writeId(s, value);
       else if (key === 'fill') { writeFill(s.el, value); measure = true; }
-      else if (!writeTraitKey(s, key, value)) { writeAttribute(s.el, key, value); measure = true; }
+      else if (writeTraitKey(s, key, value)) traits = true;
+      else { writeAttribute(s.el, key, value); measure = true; traits ||= key === 'type'; }
       s.changed.add(key);
     }
-    runTraits(s);
+    if (traits || s.retryTraits) runTraits(s);
 
     // A root or a template paints nothing; a detached blit paints now; an attached one next frame.
     if (s.root || isTemplate(s.el)) { s.changed.clear(); return this; }
@@ -127,11 +134,15 @@ export class Blit {
     return event;
   }
 
-  /** Take the element, and every blit inside it, out of the document, the frame and the id index. */
+  /** Announce `remove` (it bubbles), then take the element and every blit inside it out of the document, the
+   * frame and the id index. */
   remove() {
     const s = this.#s;
+    this.emit('remove');
     const root = heldRootOf(s.el);
     if (root) releaseBlits(root, s.el);
+    // A view root that goes, alone or inside this blit, hands the view back to the whole root.
+    if (root?.view && (root.view === s.el || s.el.contains(root.view)) && setViewRoot(root, null)) demoteOthers(root);
     s.anchor?.remove();
     s.anchor = null;
     s.el.remove();
@@ -146,7 +157,10 @@ export class Blit {
     if (!root) throw new TypeError('blit.root: only a root collection has a root to set');
     const element = blit(target ?? root.host).el;
     if (element !== root.host && !isWithin(root.host, element)) throw new TypeError('blit.root: not a blit of this root');
-    if (setViewRoot(root, element)) demoteOthers(root);
+    if (setViewRoot(root, element)) {
+      demoteOthers(root);
+      schedule(root);
+    }
   }
 
   /** The blit this blit's root indexes under `id`, a parked one included, or null. */
@@ -195,15 +209,15 @@ export function blit(target) {
   const element = typeof target === 'string' ? document.querySelector(target) : (target instanceof Blit ? target.el : target);
   if (!element || element.nodeType !== 1) throw new TypeError(`blit: no element for ${String(target)}`);
 
-  // A record made without a handle (the Pin engine's element state) gets one here.
   const existing = stateOf(element);
-  if (existing) return existing.handle || new Blit(existing);
+  if (existing) return existing.handle;
 
   const state = createState(element);
   const handle = new Blit(state);
   const potential = isTemplate(element) || !element.isConnected;
   const hostElement = element.parentElement?.closest(`[${ROOT_ATTR}]`);
   if (potential || (hostElement && stateOf(hostElement))) {
+    adoptType(state);
     adoptPlacement(state);
     if (!potential) attachBlit(state);
     return handle;
@@ -211,7 +225,14 @@ export function blit(target) {
 
   const root = mountRoot(state);
   runTraits(state);
-  for (const found of root.host.querySelectorAll(`[${BLIT_ATTR}]`)) blit(found);
+  // One blit whose trait throws costs that blit, never the rest of the markup.
+  for (const found of root.host.querySelectorAll(`[${BLIT_ATTR}]`)) {
+    try {
+      blit(found);
+    } catch (error) {
+      logger.error(`blit: #${found.id || '?'} could not be adopted`, error);
+    }
+  }
   return handle;
 }
 
@@ -238,6 +259,14 @@ function writePlacement(state, key, value) {
   const unset = (key === 'w' || key === 'h') && (value === null || value === undefined);
   if (!unset && !Number.isFinite(Number(value))) throw new TypeError(`blit.set: ${key}=${String(value)} is not a number`);
   state[key] = unset ? null : Number(value);
+}
+
+/** The element id, which a root indexes the blit under (`find`); null or '' removes it. */
+function writeId(state, value) {
+  if (value === null || value === undefined || value === '') state.el.removeAttribute('id');
+  else state.el.id = String(value);
+  const root = heldRootOf(state.el);
+  if (root && root.host !== state.el) indexBlit(root, state.el);
 }
 
 /** Text into the element's own slots; markup only into a slot its template marks `data-slot-html`. */
@@ -271,6 +300,17 @@ function requireRoot(state, method) {
   const root = rootOf(state);
   if (!root) throw new TypeError(`blit.${method}: a potential blit has no root`);
   return root;
+}
+
+/** Markup naming a type: its structure cloned in when the element is empty, its defaults under what it declares. */
+function adoptType(state) {
+  const template = isTemplate(state.el) ? null : findType(state.el.getAttribute(TYPE_ATTR) ?? '');
+  if (!template) return;
+  if (state.el.children.length === 0) state.el.appendChild(template.content.cloneNode(true));
+  const declared = readSpec(state.el);
+  for (const [key, value] of Object.entries(blit(template).spec)) {
+    if (!(key in declared) && !PLACEMENT.has(key) && key !== 'fill') writeAttribute(state.el, key, value === true ? '' : value);
+  }
 }
 
 /** Move placement declared in `data-x` etc. into the state and off the element, where it would go stale. */
