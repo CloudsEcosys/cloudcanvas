@@ -32,6 +32,7 @@
  * out again while it moves. Only when it arrives is it `hidden` and `inert`,
  * and focus that was inside it goes to `collapseTo`. Opening runs the same
  * travel backwards, and a change of mind turns a travel round where it stands.
+ * `collapseDirection: 'up'` translates vertically at constant width instead.
  * The first model is a state, not a change, so it is shown at once; so is
  * every change for a user who asked for reduced motion. Where the region sits
  * and how wide it is are the host's.
@@ -46,6 +47,7 @@ const CLASS = 'cloudcanvas-ui-drawer';
 const TRAVEL_MS = 160;
 
 /** The travel, as the closing move: from in place to unseen and small at the point it folds into. */
+const UPWARD = /* @__PURE__ */ Object.freeze([{ transform: 'translateY(0)' }, { transform: 'translateY(-100%)' }]);
 const TRAVEL = /* @__PURE__ */ Object.freeze([{ opacity: 1, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(0.2)' }]);
 
 /** The private properties the sheet reads the travel's origin from. */
@@ -132,7 +134,7 @@ function travel(drawer, moving) {
     return;
   }
   aim(root, state.anchor);
-  state.motion = root.animate(TRAVEL, { duration: TRAVEL_MS, easing: 'ease-in', fill: 'both', direction: state.open ? 'reverse' : 'normal' });
+  state.motion = root.animate(state.direction === 'up' ? UPWARD : TRAVEL, { duration: TRAVEL_MS, easing: 'ease-in', fill: 'both', direction: state.open ? 'reverse' : 'normal' });
   state.motion.onfinish = () => settle(drawer);
 }
 
@@ -174,7 +176,7 @@ function hold(drawer, anchor) {
 /**
  * @param {HTMLElement} host where the region is appended
  * @param {{onToggle?: (open: boolean) => void}} [callbacks] `onToggle` hears a press on `collapseTo`, with the state asked for
- * @returns {{panel: HTMLElement, update(model: {open?: boolean, label?: string, collapseTo?: Element|null}): void,
+ * @returns {{panel: HTMLElement, update(model: {open?: boolean, label?: string, collapseTo?: Element|null, collapseDirection?: 'anchor'|'up'}): void,
  *   destroy(): void}} `panel` is the region: the host appends its content there
  */
 export function createDrawer(host, { onToggle } = {}) {
@@ -183,7 +185,7 @@ export function createDrawer(host, { onToggle } = {}) {
   const life = createLife();
   const root = el(doc, 'div', { className: CLASS, attrs: { id: uniqueId(CLASS), role: 'region', hidden: true, inert: true } });
   host.append(root);
-  const state = { open: null, anchor: null, motion: null };
+  const state = { open: null, anchor: null, motion: null, direction: 'anchor' };
   const drawer = { root, state, press: null };
   // Every drawer that names a control hears its press; only the owner answers it.
   if (typeof onToggle === 'function') drawer.press = () => { if (ownerOf(state.anchor) === drawer) onToggle(!state.open); };
@@ -194,6 +196,10 @@ export function createDrawer(host, { onToggle } = {}) {
     update(model = {}) {
       if (life.dead) return;
       const was = state.open;
+      const direction = model.collapseDirection ?? 'anchor';
+      if (!['up', 'anchor'].includes(direction)) throw new TypeError('Invalid drawer collapse direction');
+      if (direction !== state.direction) { halt(state); settle(drawer); }
+      state.direction = direction;
       state.open = Boolean(model.open);
       root.setAttribute('aria-label', String(model.label ?? 'Side panel'));
       hold(drawer, model.collapseTo ?? null);
