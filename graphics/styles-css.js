@@ -18,6 +18,7 @@ import { FOCUS_CSS } from './css/focus.js';
 import { LAYOUT_CSS } from './css/layout.js';
 import { MENU_CSS } from './css/menu.js';
 import { PAN_CSS } from './css/pan.js';
+import { PANEL_CSS } from './css/panel.js';
 import { RESIZE_CSS } from './css/resize.js';
 import { SELECT_CSS } from './css/select.js';
 import { SVG_STATE_CSS } from './css/svg-state.js';
@@ -44,6 +45,7 @@ export const CSS_CHUNKS = /* @__PURE__ */ Object.freeze([
   RESIZE_CSS,
   SVG_STATE_CSS,
   MENU_CSS,
+  PANEL_CSS,
   TOAST_CSS,
   LIVE_REGION_CSS
 ]);

@@ -4,6 +4,26 @@
 All notable changes to CloudCanvas. Versions follow semantic versioning; this file
 records the migration surface, not the commit history.
 
+## Unreleased
+
+### Added
+
+- `cloudcanvas/panel` (`addons/panel.js` and its parts `panel-place`, `panel-record`, `panel-layer`, `panel-frame`,
+  `panel-snap`, `panel-modal`, `panel-door`, `panel-window`): regions over a host that float, attach to an edge
+  (pinned, or over the content as a drawer), open as a modal, fill the host, fold away, share a frame as tabs and
+  move to a browser window of its own. `panels(host)` gives a positioned host one layer, a `[data-cc-panels]` root
+  of its own that lets presses through (a shown modal takes them), with `add`, `list`, `snapshot`, `apply`,
+  `insets` and `off`; the `panel` trait, `panelOf`, `setPanel`, `bodyOf`; the pure `placeOf`, `slotOf` and
+  `insetsOf`; `PANEL_PLACES`, `PANEL_EDGES`, `PANEL_CONTROLS`, `PANEL_TAB_PX`. Options round-trip through
+  `data-panel`. Signals: `panel:change` (with `window`), `panel:refused`, `dismiss`, `panels:inset`.
+- The window module loads by `import()` only; the frame is parked (`park.js`) with its traits running while away.
+- `size` per axis (`{x, y}`; a number is both); opposite pinned strips leave the content at least 80px.
+- `graphics/css/panel.js`, the panel's chunk, in the whole sheet too; its `--cc-panel-*` tokens in `TOKENS`.
+
+### Changed
+
+- `defaults.js` names `panel`.
+
 ## 0.5.0 (2026-09-29)
 
 The blit release. The Pin engine is gone; CloudCanvas is now a two-export core and a set of add-ons,

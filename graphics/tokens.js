@@ -101,6 +101,13 @@ export const TOKENS = /* @__PURE__ */ Object.freeze({
   '--cc-grab-handle-dot': { category: C.COLOR, purpose: 'Grab-handle grip-dot colour' },
   '--cc-grab-handle-fill': { category: C.COLOR, purpose: 'Grab-handle backing fill' },
   '--cc-grab-handle-ring': { category: C.COLOR, purpose: 'Grab-handle outer ring shadow' },
+  '--cc-panel-bg': { category: C.COLOR, purpose: 'Panel frame surface fill' },
+  '--cc-panel-border': { category: C.COLOR, purpose: 'Panel frame and bar border colour' },
+  '--cc-panel-bar-bg': { category: C.COLOR, purpose: 'Panel bar tint over the frame surface' },
+  '--cc-panel-preview': { category: C.COLOR, purpose: 'Fill of the strip a dragged panel would attach to' },
+  '--cc-panel-shadow': { category: C.COLOR, purpose: 'Shadow of a floating panel or a drawer' },
+  '--cc-panel-modal-shadow': { category: C.COLOR, purpose: 'Shadow and backdrop dimming of a modal panel' },
+  '--cc-panel-pressed': { category: C.COLOR, purpose: 'Ring a pressed panel control wears, beside its colour' },
 
   /* ---- foundations: spacing ---- */
   '--cc-space-1': { category: C.SPACE, purpose: 'Spacing step 1 (tightest)' },
@@ -133,6 +140,11 @@ export const TOKENS = /* @__PURE__ */ Object.freeze({
   '--cc-z-drag': { category: C.Z_INDEX, purpose: 'Dragging/resizing blit and resize-handle stacking order' },
   '--cc-z-grab': { category: C.Z_INDEX, purpose: 'Grab-handle stacking order, over the resize handle at its corner' },
   '--cc-z-menu': { category: C.Z_INDEX, purpose: 'Context-menu stacking order' },
+  '--cc-panel-z': { category: C.Z_INDEX, purpose: 'Panels layer stacking order over its host' },
+  '--cc-panel-z-over': { category: C.Z_INDEX, purpose: 'Floating panels and drawers, over pinned edge panels' },
+  '--cc-panel-z-full': { category: C.Z_INDEX, purpose: 'A full panel, over floating panels and drawers' },
+  '--cc-panel-z-modal': { category: C.Z_INDEX, purpose: 'A modal panel, over every other panel' },
+  '--cc-panel-z-moving': { category: C.Z_INDEX, purpose: 'A panel under a drag or resize gesture' },
 
   /* ---- scalar geometry (themable knobs) ---- */
   '--cc-grid-size': { category: C.SIZE, purpose: 'Background grid cell size' },
@@ -150,6 +162,11 @@ export const TOKENS = /* @__PURE__ */ Object.freeze({
   '--cc-resize-handle-size-coarse': { category: C.SIZE, purpose: 'Resize-handle size for coarse pointers' },
   '--cc-grab-handle-size': { category: C.SIZE, purpose: 'Grab-handle size' },
   '--cc-grab-handle-size-coarse': { category: C.SIZE, purpose: 'Grab-handle size for coarse pointers' },
+  '--cc-panel-radius': { category: C.SIZE, purpose: 'Corner radius of a floating or modal panel' },
+  '--cc-panel-bar-size': { category: C.SIZE, purpose: 'Panel bar height (placement folds a panel to PANEL_TAB_PX, 28px)' },
+  '--cc-panel-grip': { category: C.SIZE, purpose: 'Thickness of the resize grips along a panel side' },
+  '--cc-panel-tab-max': { category: C.SIZE, purpose: 'Widest a panel tab grows before its title is cut' },
+  '--cc-panel-motion': { category: C.SIZE, purpose: 'Duration of a panel moving between places' },
   '--cc-badge-dot': { category: C.SIZE, purpose: 'Badge status-dot diameter' },
 
   /* ---- layout ---- */
