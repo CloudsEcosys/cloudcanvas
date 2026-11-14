@@ -161,3 +161,12 @@ test('size - the minimal core entry, a root and one blit, is at most 8 KB gzippe
   assert.ok(bytes.length > 0);
   assert.ok(gzip(bytes) <= MINIMAL_GZIP_MAX, `minimal entry is ${gzip(bytes)} B gzipped`);
 });
+
+test('toolchain - the bundler and the test DOM are pinned exactly, at the lockfile versions', () => {
+  const lock = JSON.parse(fs.readFileSync(path.join(ROOT, 'package-lock.json'), 'utf8'));
+  for (const name of ['esbuild', 'happy-dom', '@happy-dom/global-registrator']) {
+    const locked = lock.packages[`node_modules/${name}`].version;
+    assert.equal(manifest.devDependencies[name], locked, `${name} is not pinned to ${locked}`);
+    assert.equal(lock.packages[''].devDependencies[name], locked, `the lockfile root still ranges ${name}`);
+  }
+});
