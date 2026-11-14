@@ -1,5 +1,5 @@
 /*!
- * CloudCanvas v0.7.0 - CloudCanvas core: blits, thin handles over DOM elements on an infinite canvas
+ * CloudCanvas v0.7.1 - CloudCanvas core: blits, thin handles over DOM elements on an infinite canvas
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  * MIT License. https://github.com/CloudsEcosys/cloudcanvas#readme
  */

@@ -1,6 +1,6 @@
 {
   "name": "cloudcanvas",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "CloudCanvas core: blits, thin handles over DOM elements on an infinite canvas",
   "type": "module",
   "main": "index.js",
@@ -21,7 +21,7 @@
     "testing.js"
   ],
   "scripts": {
-    "build": "node scripts/build.js",
+    "build:dist": "node scripts/build.js",
     "check:dist": "node scripts/build.js --check",
     "size": "node scripts/size.js",
     "size:check": "node scripts/size.js --check",

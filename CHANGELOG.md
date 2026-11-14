@@ -4,6 +4,14 @@
 All notable changes to CloudCanvas. Versions follow semantic versioning; this file
 records the migration surface, not the commit history.
 
+## 0.7.1
+
+### Fixed
+
+- The `build` script is now `build:dist`. npm prepares a git dependency that declares `build` by running a
+  full `npm install` in the clone, devDependencies included; `dist/` is committed, so nothing needs preparing,
+  and a package depending on this one by git no longer fails or pulls the test toolchain.
+
 ## 0.7.0
 
 The split release. CloudCanvas is four repositories, each with one concern, and the `cc-main` workspace is

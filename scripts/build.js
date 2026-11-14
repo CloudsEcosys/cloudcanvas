@@ -252,7 +252,7 @@ function check(built) {
     return;
   }
   console.error(`\nDist check failed:\n  ${stale.join('\n  ')}`);
-  console.error('Run `npm run build` and commit dist/.');
+  console.error('Run `npm run build:dist` and commit dist/.');
   process.exitCode = 1;
 }
 
