@@ -12,8 +12,8 @@
  * one gating the other.
  */
 import http from 'node:http';
-import { createReadStream } from 'node:fs';
-import { stat } from 'node:fs/promises';
+import { open, stat } from 'node:fs/promises';
+import { pipeline } from 'node:stream/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -85,11 +85,24 @@ async function serveFile(rootDir, req, res) {
     return;
   }
 
+  const file = await open(filePath, 'r');
   res.writeHead(200, {
     'content-type': MIME_TYPES[path.extname(filePath)] || 'application/octet-stream',
     'cache-control': 'no-store'
   });
-  createReadStream(filePath).pipe(res);
+  await pipeline(file.createReadStream(), res);
+}
+
+/**
+ * A request that failed: a 500 while nothing was sent, else the response is
+ * cut off (a truncated 200 must not read as complete). The server stays up.
+ */
+function failRequest(res) {
+  if (res.headersSent) {
+    res.destroy();
+    return;
+  }
+  res.writeHead(500, { 'content-type': 'text/plain' }).end('Server error');
 }
 
 /**
@@ -98,9 +111,7 @@ async function serveFile(rootDir, req, res) {
  */
 export async function startStaticServer(rootDir = REPO_ROOT) {
   const server = http.createServer((req, res) => {
-    serveFile(rootDir, req, res).catch(() => {
-      res.writeHead(500, { 'content-type': 'text/plain' }).end('Server error');
-    });
+    serveFile(rootDir, req, res).catch(() => failRequest(res));
   });
 
   await new Promise((resolve, reject) => {
