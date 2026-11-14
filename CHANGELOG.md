@@ -23,6 +23,10 @@ records the migration surface, not the commit history.
 ### Changed
 
 - `defaults.js` names `panel`.
+- The plane is one composited layer only while the camera moves. `core/root.js` writes `will-change: transform` on
+  the frames the camera moved and drops it once the camera has rested `REFOCUS_MS` (150 ms), so the plane redraws
+  at its scale and text and lines are sharp at any zoom. The core sheet (`core/css.js`) no longer sets
+  `will-change` on the plane.
 
 ## 0.5.0 (2026-09-29)
 
