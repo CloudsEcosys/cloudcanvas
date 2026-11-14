@@ -27,6 +27,7 @@
   },
   "exports": {
     ".": "./index.js",
+    "./core": "./core/index.js",
     "./kernel": "./kernel.js",
     "./log": "./log.js",
     "./theme": "./graphics/theme.js",
