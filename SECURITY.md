@@ -226,3 +226,29 @@ trait's function as a port. XML takes a `port` only from its `ports` allowlist (
 0.6.0 a port that throws is dropped for the default port (`core/frame.js`), so a wrong one cannot stop a root's
 loop. The board loader still accepts any registered name as `port` (a known LOW, open): a separate registry for
 ports would close it, at the cost of a change to `blit.use`.
+
+## Repository split (0.7.0)
+
+The workspace's single dev server became three servers, each with its own tests:
+`cloudcanvas-site/scripts/dev-server.js`, the mcp hub's `/vendor/<package>/` route, and the
+browser-test harnesses in `cloudcanvas` and `cloudcanvas-lib`. Reviewed adversarially on 2026-11-14;
+no critical or high finding. Fixed and held by tests:
+
+- Site dev server: the dot-segment, closed-`node_modules` and allow-list rules are re-applied to the
+  real path after symlinks resolve (a tracked `leak.js -> .git/config` was served before); an
+  unreadable or vanished file is a 500, not a crashed process; a `Host` header that is not loopback,
+  the bound host or the arrival address gets 421.
+- mcp hub: `/vendor/cloudcanvas/` and `/vendor/cloudcanvas-lib/` serve only `.js`/`.css` package
+  files whose real path stays inside the package, never dotfiles, nested `node_modules`, tests or
+  `testing` modules; the import map is injected into `web/index.html` under a CSP `sha256-` hash
+  whatever spelling requests the page; `web/` refuses dot segments and symlinks out.
+- Harnesses: streams fail as 500, and lib's harness refuses a served package's directory itself.
+- Packages: `cloudcanvas` modules import only files the package ships and have no load-time effect;
+  `cloudcanvas-lib` reaches the core only through its published entries, and its `dist/` carries no
+  second copy of the core outside the self-contained board runtime.
+
+Accepted: the test seams `cloudcanvas/testing`, `cloudcanvas-lib/ui/testing` and
+`cloudcanvas-lib/sandbox/testing` are published entries; nothing in them is needed at runtime and
+no page imports them. The npm names `cloudcanvas` and `cloudcanvas-lib` are not yet registered; until
+they are, a consumer installing `cloudcanvas-lib` alone could resolve its `cloudcanvas` peer to a
+package someone else publishes under that name.
