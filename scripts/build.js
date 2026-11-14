@@ -8,6 +8,12 @@
  *
  *   node scripts/build.js            rebuild `dist/` and print the size report
  *   node scripts/build.js --check    rebuild in memory; exit 1 if `dist/` differs
+ *                                    or holds any file the build does not make
+ *
+ * Every artifact is built in memory first; a build writes them to a staging
+ * directory beside `dist/` and swaps it in whole, so a failed build or write
+ * leaves the committed `dist/` as it was. Paths resolve from the root, never
+ * the working directory, so the output is the same wherever it is run from.
  *
  * `dist/` is committed: a stale dist is a real defect and `--check` is the
  * gate that catches one. The unit suites import the source directly and never
@@ -40,14 +46,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
+import { fileURLToPath } from 'node:url';
 import * as esbuild from 'esbuild';
 import { ROOT, publicEntries, readManifest } from './entries.js';
 
 const OUT_DIR = path.join(ROOT, 'dist');
-const ENTRY = path.join(ROOT, 'index.js');
+const ENTRY = 'index.js';
 
-/** The split output's directory, relative to the root. */
-const ESM_DIR = 'dist/esm';
+/** The split output's directory, relative to `dist/`. */
+const ESM_DIR = 'esm';
 
 const pkg = readManifest();
 
@@ -71,6 +78,7 @@ const BANNER = [
  * does not have to and the ESM output stays close to the source it came from.
  */
 const SHARED = {
+  absWorkingDir: ROOT,
   bundle: true,
   platform: 'browser',
   target: ['es2022'],
@@ -82,16 +90,16 @@ const SHARED = {
 
 /** The four single-file artifacts, in report order. */
 const TARGETS = [
-  { outfile: 'dist/cloudcanvas.esm.js', format: 'esm', minify: false },
-  { outfile: 'dist/cloudcanvas.esm.min.js', format: 'esm', minify: true },
+  { file: 'cloudcanvas.esm.js', format: 'esm', minify: false },
+  { file: 'cloudcanvas.esm.min.js', format: 'esm', minify: true },
   {
-    outfile: 'dist/cloudcanvas.iife.js',
+    file: 'cloudcanvas.iife.js',
     format: 'iife',
     globalName: 'CloudCanvas',
     minify: false
   },
   {
-    outfile: 'dist/cloudcanvas.iife.min.js',
+    file: 'cloudcanvas.iife.min.js',
     format: 'iife',
     globalName: 'CloudCanvas',
     minify: true
@@ -106,87 +114,112 @@ function reportMessages(label, messages, kind) {
 }
 
 /**
- * Bundle one artifact. With `write` off the bytes stay in memory, which is how
- * `--check` compares against the committed file without touching it.
- * @returns {Promise<{outfile: string, bytes: Uint8Array, modules: number}>}
+ * Bundle one single-file artifact, in memory.
+ * @returns {Promise<{file: string, bytes: Uint8Array, modules: number}>} `file` relative to `dist/`
  */
-async function buildTarget(target, write) {
-  const { outfile, entry, ...options } = target;
+async function buildTarget({ file, ...options }) {
   const result = await esbuild.build({
     ...SHARED,
     ...options,
-    entryPoints: [entry ? path.join(ROOT, entry) : ENTRY],
-    write,
-    outfile: path.join(ROOT, outfile)
+    entryPoints: [ENTRY],
+    write: false,
+    outfile: path.join(OUT_DIR, file)
   });
 
-  reportMessages(outfile, result.warnings, 'warning');
+  reportMessages(file, result.warnings, 'warning');
 
   const output = Object.values(result.metafile.outputs)[0];
-  const bytes = write ? fs.readFileSync(path.join(ROOT, outfile)) : result.outputFiles[0].contents;
-  return { outfile, bytes, modules: Object.keys(output.inputs).length };
+  return { file, bytes: result.outputFiles[0].contents, modules: Object.keys(output.inputs).length };
 }
 
 /**
- * Split the core and every public add-on into `dist/esm/`, minified, shared
- * code in content-hashed chunks. Always built in memory: the caller writes
- * the files, or compares them, so `--check` sees the same bytes a build would.
- * @returns {Promise<Array<{outfile: string, bytes: Uint8Array, modules: number}>>}
+ * Split the core and every public entry into `dist/esm/`, minified, shared
+ * code in content-hashed chunks, in memory like every other artifact.
+ * @returns {Promise<Array<{file: string, bytes: Uint8Array, modules: number}>>}
  */
 async function buildSplit() {
   const entries = publicEntries(pkg);
-  const entryPoints = Object.fromEntries(entries.map(({ name, file }) => [name, path.join(ROOT, file)]));
+  const entryPoints = Object.fromEntries(entries.map(({ name, file }) => [name, file]));
   const result = await esbuild.build({
     ...SHARED,
     entryPoints,
     format: 'esm',
     minify: true,
     splitting: true,
-    outdir: path.join(ROOT, ESM_DIR),
+    outdir: path.join(OUT_DIR, ESM_DIR),
     write: false
   });
 
-  reportMessages(ESM_DIR, result.warnings, 'warning');
+  reportMessages(`dist/${ESM_DIR}`, result.warnings, 'warning');
 
   const built = result.outputFiles.map(({ path: absolute, contents }) => {
-    const outfile = path.relative(ROOT, absolute);
-    const output = result.metafile.outputs[outfile];
-    return { outfile, bytes: contents, modules: Object.keys(output.inputs).length };
+    const output = result.metafile.outputs[path.relative(ROOT, absolute)];
+    return { file: path.relative(OUT_DIR, absolute), bytes: contents, modules: Object.keys(output.inputs).length };
   });
   return built.sort(byEntryThenChunk(entries.map(({ name }) => `${ESM_DIR}/${name}.js`)));
 }
 
 /** Report order: the entries as `exports` lists them, then the chunks by name. */
 function byEntryThenChunk(entryFiles) {
-  const rank = (outfile) => {
-    const index = entryFiles.indexOf(outfile);
+  const rank = (file) => {
+    const index = entryFiles.indexOf(file);
     return index === -1 ? entryFiles.length : index;
   };
-  return (a, b) => rank(a.outfile) - rank(b.outfile) || a.outfile.localeCompare(b.outfile);
+  return (a, b) => rank(a.file) - rank(b.file) || a.file.localeCompare(b.file);
 }
 
-/** Put the split output on disk, directories included. */
-function writeSplit(built) {
-  for (const { outfile, bytes } of built) {
-    const target = path.join(ROOT, outfile);
-    fs.mkdirSync(path.dirname(target), { recursive: true });
-    fs.writeFileSync(target, bytes);
+/** Every artifact, in report order. */
+async function buildAll() {
+  const built = [];
+  for (const target of TARGETS) built.push(await buildTarget(target));
+  built.push(...(await buildSplit()));
+  return built;
+}
+
+/**
+ * Replace `outDir` with exactly `built`: written to a staging directory beside
+ * it, then swapped in. A failure anywhere leaves `outDir` as it was.
+ * @param {Array<{file: string, bytes: Uint8Array}>} built `file` relative to `outDir`
+ */
+export function writeDist(built, outDir = OUT_DIR) {
+  const staging = fs.mkdtempSync(path.join(path.dirname(outDir), '.dist-staging-'));
+  try {
+    for (const { file, bytes } of built) {
+      const target = path.join(staging, file);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, bytes);
+    }
+    swapIn(staging, outDir);
+  } finally {
+    fs.rmSync(staging, { recursive: true, force: true });
   }
 }
 
-/** Every file under `dir` (relative to the root), recursively; none when it is absent. */
+/** Move `staging` to `outDir`, retiring the old one; restore it if the move fails. */
+function swapIn(staging, outDir) {
+  const retired = `${staging}-retired`;
+  if (fs.existsSync(outDir)) fs.renameSync(outDir, retired);
+  try {
+    fs.renameSync(staging, outDir);
+  } catch (error) {
+    if (fs.existsSync(retired)) fs.renameSync(retired, outDir);
+    throw error;
+  }
+  fs.rmSync(retired, { recursive: true, force: true });
+}
+
+/** Every file under `dir`, relative to it, recursively; none when it is absent. */
 function filesUnder(dir) {
-  const absolute = path.join(ROOT, dir);
-  if (!fs.existsSync(absolute)) return [];
-  return fs.readdirSync(absolute, { recursive: true, withFileTypes: true })
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir, { recursive: true, withFileTypes: true })
     .filter((entry) => entry.isFile())
-    .map((entry) => path.relative(ROOT, path.join(entry.parentPath, entry.name)));
+    .map((entry) => path.relative(dir, path.join(entry.parentPath, entry.name)));
 }
 
 /** Raw, gzip and (informational) module count for one artifact. */
-function measure({ outfile, bytes, modules }) {
+function measure({ file, bytes, modules }) {
   return {
-    outfile,
+    file,
     raw: bytes.length,
     gzip: zlib.gzipSync(bytes, { level: 9 }).length,
     modules
@@ -194,20 +227,20 @@ function measure({ outfile, bytes, modules }) {
 }
 
 /**
- * The artifacts whose committed bytes differ from a fresh build, plus any file
- * in the split directory the build no longer makes (a chunk whose hash moved);
- * empty is a pass.
+ * The artifacts whose committed bytes differ from a fresh build or are
+ * missing, plus every file anywhere under `outDir` the build does not make
+ * (a chunk whose hash moved, a stray); empty is a pass.
+ * @param {Array<{file: string, bytes: Uint8Array}>} built `file` relative to `outDir`
+ * @returns {string[]}
  */
-function findStale(built) {
-  const expected = new Set(built.map(({ outfile }) => outfile));
-  const stale = filesUnder(ESM_DIR).filter((file) => !expected.has(file)).map((file) => `${file}: not built`);
-  for (const { outfile, bytes } of built) {
-    const committed = path.join(ROOT, outfile);
-    if (!fs.existsSync(committed)) {
-      stale.push(`${outfile}: missing`);
-      continue;
-    }
-    if (!fs.readFileSync(committed).equals(Buffer.from(bytes))) stale.push(`${outfile}: differs`);
+export function findStale(built, outDir = OUT_DIR) {
+  const label = (file) => `${path.basename(outDir)}/${file}`;
+  const expected = new Set(built.map(({ file }) => file));
+  const stale = filesUnder(outDir).filter((file) => !expected.has(file)).map((file) => `${label(file)}: not built`);
+  for (const { file, bytes } of built) {
+    const committed = path.join(outDir, file);
+    if (!fs.existsSync(committed)) stale.push(`${label(file)}: missing`);
+    else if (!fs.readFileSync(committed).equals(Buffer.from(bytes))) stale.push(`${label(file)}: differs`);
   }
   return stale;
 }
@@ -232,7 +265,7 @@ function printReport(rows) {
   console.log(`${'artifact'.padEnd(30)}${'raw'.padStart(12)}${'gzip'.padStart(12)}   modules`);
 
   for (const row of rows) {
-    const name = path.relative(OUT_DIR, path.join(ROOT, row.outfile)).padEnd(30);
+    const name = row.file.padEnd(30);
     console.log(`${name}${kib(row.raw).padStart(12)}${kib(row.gzip).padStart(12)}   ${row.modules}`);
   }
 }
@@ -240,28 +273,20 @@ function printReport(rows) {
 async function main() {
   const flag = process.argv[2];
   if (flag !== undefined && flag !== '--check') throw new Error(`Unknown flag ${flag}; expected --check`);
-  const write = flag !== '--check';
 
-  if (write) {
-    fs.rmSync(OUT_DIR, { recursive: true, force: true });
-    fs.mkdirSync(OUT_DIR, { recursive: true });
-  }
-
-  const built = [];
-  for (const target of TARGETS) built.push(await buildTarget(target, write));
-  const split = await buildSplit();
-  if (write) writeSplit(split);
-  built.push(...split);
-
+  const built = await buildAll();
   printReport(built.map(measure));
-  if (!write) check(built);
+  if (flag === '--check') check(built);
+  else writeDist(built);
 }
 
-main().catch((error) => {
-  if (Array.isArray(error.errors) && error.errors.length > 0) {
-    console.error(esbuild.formatMessagesSync(error.errors, { kind: 'error', color: true }).join('\n'));
-  } else {
-    console.error(error);
-  }
-  process.exitCode = 1;
-});
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    if (Array.isArray(error.errors) && error.errors.length > 0) {
+      console.error(esbuild.formatMessagesSync(error.errors, { kind: 'error', color: true }).join('\n'));
+    } else {
+      console.error(error);
+    }
+    process.exitCode = 1;
+  });
+}
