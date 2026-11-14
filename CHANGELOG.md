@@ -21,7 +21,8 @@ the same subpath names, with `cloudcanvas` (`>=0.7.0 <0.8.0`) as a peer.
 ### Breaking
 
 - **`cloudcanvas` is the core.** Its entries are `.` and `./core` (`blit`, `type`), `./kernel`, `./log`,
-  `./theme`, `./tokens`, `./primitives`, `./element` and `./vectorizer`. Every other 0.6 subpath moved to
+  `./theme`, `./tokens`, `./primitives`, `./element`, `./vectorizer`, `./style-gates` and `./testing` (test seams:
+  `runFrame`, `loopStep`, `needsFrame`, `SPEC_KINDS`). Every other 0.6 subpath moved to
   `cloudcanvas-lib` (table below); `cloudcanvas/lib` is `cloudcanvas-lib` itself.
 - **The bundles are the core only**: `dist/cloudcanvas.{esm,esm.min,iife,iife.min}.js` (global `CloudCanvas`)
   and `dist/esm/<entry>.js` per entry. `cloudcanvas-ui.esm.js`, `cloudcanvas-graphics.esm.js` and

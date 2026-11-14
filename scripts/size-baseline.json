@@ -42,5 +42,13 @@
   "vectorizer": {
     "min": 2464,
     "gzip": 1212
+  },
+  "style-gates": {
+    "min": 2941,
+    "gzip": 1491
+  },
+  "testing": {
+    "min": 1230,
+    "gzip": 643
   }
 }

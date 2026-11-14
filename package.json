@@ -17,7 +17,8 @@
     "GUIDE.md",
     "SECURITY.md",
     "CHANGELOG.md",
-    "LICENSE"
+    "LICENSE",
+    "testing.js"
   ],
   "scripts": {
     "build": "node scripts/build.js",
@@ -58,6 +59,8 @@
     "./primitives": "./graphics/primitives/primitives.js",
     "./element": "./graphics/primitives/element.js",
     "./vectorizer": "./graphics/vectorizer.js",
+    "./style-gates": "./graphics/style-gates.js",
+    "./testing": "./testing.js",
     "./package.json": "./package.json"
   },
   "devDependencies": {

@@ -3,4 +3,4 @@
  * Written by Richard Christopher, Copyright 2026 NeoTec, LLC
  * MIT License. https://github.com/CloudsEcosys/cloudcanvas#readme
  */
-import{J as t,K as e}from"./chunk-OFTZDDPX.js";import"./chunk-XAYJMGUB.js";export{t as blit,e as type};
+import{l as t,m as e}from"./chunk-LXRIKGLO.js";import"./chunk-TGINIEQJ.js";import"./chunk-XAYJMGUB.js";export{t as blit,e as type};
