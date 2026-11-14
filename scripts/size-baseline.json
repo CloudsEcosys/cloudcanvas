@@ -1,0 +1,46 @@
+{
+  "full": {
+    "min": 20580,
+    "gzip": 8073
+  },
+  "minimal": {
+    "min": 19796,
+    "gzip": 7842
+  },
+  "bare": {
+    "min": 0,
+    "gzip": 20
+  },
+  "core": {
+    "min": 20580,
+    "gzip": 8074
+  },
+  "kernel": {
+    "min": 21265,
+    "gzip": 8401
+  },
+  "log": {
+    "min": 875,
+    "gzip": 519
+  },
+  "theme": {
+    "min": 1531,
+    "gzip": 639
+  },
+  "tokens": {
+    "min": 9425,
+    "gzip": 2430
+  },
+  "primitives": {
+    "min": 6758,
+    "gzip": 3091
+  },
+  "element": {
+    "min": 1397,
+    "gzip": 690
+  },
+  "vectorizer": {
+    "min": 2464,
+    "gzip": 1212
+  }
+}
