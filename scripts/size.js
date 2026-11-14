@@ -20,7 +20,8 @@
  * The add-on rows (`minimal+drag`, `defaults`, ...) are cloudcanvas-lib's.
  *
  *   node scripts/size.js            print the table
- *   node scripts/size.js --check    exit 1 if any row grew past the baseline
+ *   node scripts/size.js --check    exit 1 if any row grew past the baseline, or
+ *                                   the rows and the baseline name different entries
  *   node scripts/size.js --update   rewrite `scripts/size-baseline.json`
  *
  * Single dependency: esbuild, a devDependency.
@@ -29,6 +30,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
+import { fileURLToPath } from 'node:url';
 import * as esbuild from 'esbuild';
 import { ROOT, publicEntries } from './entries.js';
 
@@ -102,33 +104,41 @@ function writeBaseline(rows) {
 }
 
 /**
- * One line per metric that grew; an empty list is a pass. A row the baseline
- * does not know yet cannot have grown: it is reported, and `--update` ratchets it.
+ * One line per failure; an empty list is a pass. A metric that grew fails, and
+ * so does a row the baseline does not know or a baseline row nothing measures:
+ * the gate covers exactly the entries there are. `--update` ratchets both.
+ * @param {Array<{name: string, min: number, gzip: number}>} rows
+ * @param {Record<string, {min: number, gzip: number}>} baseline
+ * @returns {string[]}
  */
-function findGrowth(rows, baseline) {
-  const growth = [];
+export function findFailures(rows, baseline) {
+  const failures = [];
   for (const row of rows) {
     const base = baseline[row.name];
-    if (!base) {
-      console.warn(`${row.name}: no baseline yet; run with --update to ratchet it`);
-      continue;
-    }
-    for (const metric of ['min', 'gzip']) {
-      if (row[metric] > base[metric]) {
-        growth.push(`${row.name} ${metric}: ${base[metric]} -> ${row[metric]} (+${row[metric] - base[metric]} B)`);
-      }
-    }
+    if (!base) failures.push(`${row.name}: no baseline row`);
+    else failures.push(...growthOf(row, base));
   }
-  return growth;
+  const measured = new Set(rows.map(({ name }) => name));
+  for (const name of Object.keys(baseline)) {
+    if (!measured.has(name)) failures.push(`${name}: baseline row with no entry`);
+  }
+  return failures;
+}
+
+/** One line per metric of `row` that grew past `base`. */
+function growthOf(row, base) {
+  return ['min', 'gzip']
+    .filter((metric) => row[metric] > base[metric])
+    .map((metric) => `${row.name} ${metric}: ${base[metric]} -> ${row[metric]} (+${row[metric] - base[metric]} B)`);
 }
 
 function check(rows) {
-  const growth = findGrowth(rows, readBaseline());
-  if (growth.length === 0) {
-    console.log('\nSize check passed: no row grew.');
+  const failures = findFailures(rows, readBaseline());
+  if (failures.length === 0) {
+    console.log('\nSize check passed: every entry has a baseline row and none grew.');
     return;
   }
-  console.error(`\nSize check failed:\n  ${growth.join('\n  ')}`);
+  console.error(`\nSize check failed:\n  ${failures.join('\n  ')}`);
   console.error('Intentional? Re-run with --update.');
   process.exitCode = 1;
 }
@@ -144,11 +154,13 @@ async function main() {
   else if (flag !== undefined) throw new Error(`Unknown flag ${flag}; expected --check or --update`);
 }
 
-main().catch((error) => {
-  if (Array.isArray(error.errors) && error.errors.length > 0) {
-    console.error(esbuild.formatMessagesSync(error.errors, { kind: 'error', color: true }).join('\n'));
-  } else {
-    console.error(error.message ?? error);
-  }
-  process.exitCode = 1;
-});
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    if (Array.isArray(error.errors) && error.errors.length > 0) {
+      console.error(esbuild.formatMessagesSync(error.errors, { kind: 'error', color: true }).join('\n'));
+    } else {
+      console.error(error.message ?? error);
+    }
+    process.exitCode = 1;
+  });
+}
