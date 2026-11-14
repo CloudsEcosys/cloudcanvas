@@ -45,11 +45,25 @@ export function mountRoot(state) {
 }
 
 /**
+ * How long the camera stays still before the plane refocuses (ms). While it moves, the plane is one composited
+ * layer (`will-change: transform`), so a pan or zoom stays cheap; once it rests, the hint goes and the browser
+ * redraws the plane at the new scale, so text and lines are sharp at any zoom instead of a stretched bitmap.
+ */
+export const REFOCUS_MS = 150;
+
+/**
  * Rewrite the plane's transform on the frames the camera moved. A 3D camera writes the host's perspective and the
  * plane's `preserve-3d` (`root.wrote3d`); a flat one clears only what it wrote, so an author's own perspective stays.
  */
 function planePass(root, ctx) {
-  if (!ctx.cameraMoved) return;
+  if (!ctx.cameraMoved) {
+    // The camera has rested: drop the layer hint, so the plane redraws sharp at its scale.
+    if (root.refocusDue) {
+      root.refocusDue = false;
+      root.plane.style.willChange = '';
+    }
+    return;
+  }
   const camera = root.camera;
   const { x, y, scale } = camera;
   const flat = !camera.is3d;
@@ -58,9 +72,23 @@ function planePass(root, ctx) {
     root.plane.style.transformStyle = flat ? '' : 'preserve-3d';
     root.wrote3d = !flat;
   }
+  // While it moves, one composited layer keeps a pan or zoom cheap. Written before the transform, which stays last.
+  if (root.plane.style.willChange !== 'transform') root.plane.style.willChange = 'transform';
   root.plane.style.transform = flat
     ? formatTransform3D(x, y, 0, scale)
     : `matrix3d(${Array.from(camera.view(ctx.hostRect), (n) => +n.toFixed(6)).join(',')})`;
+  armRefocus(root);
+}
+
+/** After `REFOCUS_MS` without a camera move, mark the plane due and ask for a frame; its write phase refocuses. */
+function armRefocus(root) {
+  if (typeof setTimeout !== 'function') return;
+  clearTimeout(root.refocusTimer);
+  root.refocusTimer = setTimeout(() => {
+    root.refocusTimer = null;
+    root.refocusDue = true;
+    schedule(root);
+  }, REFOCUS_MS);
 }
 
 /** The host's client box, or the default framing box without one. */

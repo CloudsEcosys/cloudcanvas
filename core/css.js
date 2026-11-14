@@ -17,7 +17,7 @@ export const OVERLAY_ATTR = 'data-blit-overlay';
 function coreSheet(plane, overlay) {
   return `
 [data-blit-root] { position: relative; overflow: hidden; }
-[${plane}] { position: absolute; inset: 0; transform-origin: 0 0; will-change: transform; }
+[${plane}] { position: absolute; inset: 0; transform-origin: 0 0; }
 [${overlay}] { position: absolute; inset: 0; pointer-events: none; }
 [data-blit-root] [data-blit] { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 [data-blit] [data-scope] { position: relative; }
