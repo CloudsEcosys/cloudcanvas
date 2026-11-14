@@ -1,13 +1,10 @@
 {
-  "name": "cloudcanvas-base",
-  "version": "0.6.0",
-  "private": true,
-  "description": "Minimalist client-side GUI framework: blits, thin handles over DOM elements on an infinite canvas",
+  "name": "cloudcanvas",
+  "version": "0.7.0",
+  "description": "CloudCanvas core: blits, thin handles over DOM elements on an infinite canvas",
   "type": "module",
   "main": "index.js",
-  "sideEffects": [
-    "./defaults.js"
-  ],
+  "sideEffects": false,
   "keywords": [
     "canvas",
     "gui",
@@ -27,5 +24,16 @@
   "homepage": "https://github.com/CloudsEcosys/cloudcanvas#readme",
   "engines": {
     "node": ">=20"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./kernel": "./kernel.js",
+    "./log": "./log.js",
+    "./theme": "./graphics/theme.js",
+    "./tokens": "./graphics/tokens.js",
+    "./primitives": "./graphics/primitives/primitives.js",
+    "./element": "./graphics/primitives/element.js",
+    "./vectorizer": "./graphics/vectorizer.js",
+    "./package.json": "./package.json"
   }
 }
