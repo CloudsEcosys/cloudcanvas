@@ -18,10 +18,8 @@
  *     and counts as handled only when a listener prevents its default, Escape
  *     returns to the host. A roved-to blit is brought into view at its scale.
  *
- * Keys a text field, control or `contenteditable` owns are never taken. The
- * dispatch runs over an env of hooks (`targetOf`, `order`, `elementOf`,
- * `boundsOf`, `current`, `actions`); the trait passes a root's own, and
- * `installKeyboard` takes any others.
+ * Keys a text field, control, <summary> or contenteditable owns are never taken.
+ * Dispatch runs over root hooks; installKeyboard also accepts explicit hooks.
  */
 import { schedule } from '../core/frame.js';
 import { BLIT_ATTR, stateOf } from '../core/state.js';
@@ -81,8 +79,12 @@ export const KEY_BINDINGS = /* @__PURE__ */ table({
   }
 });
 
-/** Elements that own their own keys. */
-const KEY_OWNING_TAGS = /* @__PURE__ */ new Set(['INPUT', 'TEXTAREA', 'SELECT', 'OPTION', 'BUTTON']);
+/**
+ * Elements that own their own keys: the platform gives each a keyboard
+ * behaviour, and a key defaulted away here would take it. A `<summary>` is one:
+ * Enter and Space open and close its `<details>`.
+ */
+const KEY_OWNING_TAGS = /* @__PURE__ */ new Set(['INPUT', 'TEXTAREA', 'SELECT', 'OPTION', 'BUTTON', 'SUMMARY']);
 
 function ownsItsKeys(target) {
   if (!target || typeof target !== 'object') return false;

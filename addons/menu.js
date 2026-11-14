@@ -13,9 +13,8 @@
  * module-wide menu. `when` and `action` get the subject - the root's handle -
  * and the context `{target, x, y}`, `target` the blit under the click
  * (`closest('[data-blit]')`) or null on bare canvas. `installMenu` takes the
- * subject and `resolve(event)` as options, so a host that reads its clicks
- * another way passes its own. A submenu trigger opens a flyout beside itself; a chain keeps
- * to the side its first flyout took. Up/Down rove a panel, Right opens,
+ * subject and resolve(event) as options. A submenu opens beside its trigger;
+ * Up/Down rove, Enter runs on press and Space on release, Right opens,
  * Left and Escape step out, a press outside closes.
  *
  * When nothing applies the platform's menu opens; a right-click another
@@ -57,7 +56,9 @@ function mountMenu(m) {
     onOver: (event) => armHover(m, event),
     onOut: (event) => { if (itemOf(m, event.target)) clearHover(m); },
     onDocumentPointerDown: (event) => { if (!panelOf(m, event.target)) closeMenu(m); },
-    onDocumentKeyDown: (event) => onMenuKeyDown(m, event)
+    onDocumentKeyDown: (event) => onMenuKeyDown(m, event),
+    onDocumentKeyUp: (event) => onMenuKeyUp(m, event),
+    spaceTarget: null
   });
   panelListeners(m, element, true);
   m.overlay.appendChild(element);
@@ -93,6 +94,7 @@ export function closeMenu(m) {
   m.items.clear();
   m.panels = [];
   m.context = null;
+  m.spaceTarget = null;
   documentListeners(m, false);
   if (held && typeof m.host.focus === 'function') m.host.focus({ preventScroll: true });
   return true;
@@ -122,6 +124,7 @@ function documentListeners(m, on) {
   // Capture: a press another listener stops (orbit's, say) still closes the menu.
   document[method]('pointerdown', m.onDocumentPointerDown, true);
   document[method]('keydown', m.onDocumentKeyDown);
+  document[method]('keyup', m.onDocumentKeyUp);
 }
 
 /* ------------------ PANELS ------------------ */
@@ -175,7 +178,19 @@ function itemButton(m, doc, item) {
 /** `renderItem` runs on the built button: it decorates in place, or returns a replacement element. */
 function decorate(m, item, button) {
   const out = item.renderItem ? item.renderItem(button, item, m.context) : null;
-  return out && out !== button && out.nodeType === 1 ? out : button;
+  if (!out || out === button || out.nodeType !== 1) return button;
+  out.classList.add(MENU_ITEM_CLASS);
+  out.setAttribute(MENU_ITEM_ATTR, item.id);
+  out.setAttribute('role', 'menuitem');
+  if (out.localName === 'button') out.type = 'button';
+  if (typeof out.tabIndex !== 'number' || out.tabIndex < 0) out.setAttribute('tabindex', '0');
+  if (!out.textContent.trim() && !out.getAttribute('aria-label')) out.setAttribute('aria-label', item.label);
+  if (isTrigger(m, item)) {
+    out.classList.add(MENU_ITEM_SUBMENU_CLASS);
+    out.setAttribute('aria-haspopup', 'menu');
+    out.setAttribute('aria-expanded', 'false');
+  }
+  return out;
 }
 
 /**
@@ -287,8 +302,33 @@ function onMenuKeyDown(m, event) {
     handled = Boolean(item) && isTrigger(m, item) && openFlyout(m, item, active);
   } else if (event.key === 'ArrowLeft') {
     handled = stepOut(m, panelOf(m, active));
+  } else if (event.key === 'Enter') {
+    handled = isOpenItem(m, active) && runClickedItem(m, { target: active });
+  } else if (event.key === ' ') {
+    // Space runs on release, as a native button does. The press only claims the
+    // key, so the platform neither scrolls nor clicks the button a second time.
+    m.spaceTarget = isOpenItem(m, active) ? active : null;
+    handled = m.spaceTarget !== null;
   }
   if (handled && typeof event.preventDefault === 'function') event.preventDefault();
+}
+
+/**
+ * The release of a Space the menu claimed: runs the item it was pressed on, once.
+ * Cancelling the release as well is what stops a browser that activates a
+ * button on keyup (Firefox) from clicking it again.
+ */
+function onMenuKeyUp(m, event) {
+  if (event.key !== ' ' || !m.spaceTarget) return;
+  const target = m.spaceTarget;
+  m.spaceTarget = null;
+  if (typeof event.preventDefault === 'function') event.preventDefault();
+  if (target === m.element.ownerDocument.activeElement && isOpenItem(m, target)) runClickedItem(m, { target });
+}
+
+/** Whether `node` is a command in one of the open panels. */
+function isOpenItem(m, node) {
+  return Boolean(panelOf(m, node) && itemOf(m, node));
 }
 
 /** Close a flyout and step back to its trigger. @returns {boolean} there was a flyout */
@@ -350,6 +390,7 @@ export function menu(b, opts, root) {
     registry: options.registry ?? registryOf(options.items),
     subject: b,
     resolve: (event) => blitContext(b.el, event),
-    overlay: found.overlay
+    overlay: found.overlay,
+    insets: options.insets
   });
 }
