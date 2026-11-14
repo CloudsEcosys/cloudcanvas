@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<!-- Written by Richard Christopher, Copyright 2026 NeoTec, LLC -->
+<!--
+  The core fixture: a root over a host, one type, and three nested blits, built
+  with `blit` and `type` alone. The page owns its own look; the core only
+  places things. The suite reads real layout boxes out of Chromium and checks
+  them against what the handles claim.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>CloudCanvas - core fixture</title>
+  <style>
+    body { margin: 0; font-family: system-ui, sans-serif; }
+    #app { position: absolute; inset: 0; background: #0f1117; }
+    [data-type="card"] { background: #1e293b; color: #e2e8f0; padding: 8px; box-sizing: border-box; }
+    [data-type="card"] h3 { margin: 0 0 4px; font-size: 14px; }
+    [data-type="card"] p { margin: 0 0 8px; font-size: 12px; }
+    [data-type="card"] [data-scope] { min-height: 40px; outline: 1px dashed #475569; }
+    [data-type="chip"] { background: #38bdf8; color: #0f1117; font-size: 11px; padding: 2px 6px; box-sizing: border-box; }
+  </style>
+  <template data-type="chip" data-w="60" data-h="20"><span data-slot="label"></span></template>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script type="module">
+    import { blit, type } from '../../../core/index.js';
+    import { stateOf } from '../../../core/state.js';
+
+    type('card', {
+      html: '<h3 data-slot="title"></h3><p data-slot="body"></p><div data-scope></div>',
+      defaults: { w: 240, h: 160 }
+    });
+
+    const app = blit('#app');
+    const card = blit('#app').blit({ id: 'card', type: 'card', x: 100, y: 100, fill: { title: 'Card', body: 'Placed by the core.' } });
+    const kid = card.blit({ id: 'kid', type: 'chip', x: 10, y: 10, fill: { label: 'kid' } });
+    const grandkid = kid.blit({ id: 'grandkid', x: 5, y: 5, w: 10, h: 10 });
+
+    window.__core = { app, card, kid, grandkid, stateOf };
+    window.cloudcanvas = app;
+  </script>
+</body>
+</html>
