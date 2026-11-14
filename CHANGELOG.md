@@ -4,29 +4,132 @@
 All notable changes to CloudCanvas. Versions follow semantic versioning; this file
 records the migration surface, not the commit history.
 
-## Unreleased
+## 0.7.0
+
+The split release. CloudCanvas is four repositories, each with one concern, and the `cc-main` workspace is
+retired. This package, `cloudcanvas`, is the core alone: `blit`, `type`, the add-on kernel, theme, tokens and
+primitives. Every add-on, the UI kit, the widgets, the board and the add-on CSS are `cloudcanvas-lib`, under
+the same subpath names, with `cloudcanvas` (`>=0.7.0 <0.8.0`) as a peer.
+
+| Repository | Concern |
+|---|---|
+| `cloudcanvas` | The core: `blit`, `type`, the add-on kernel, theme, tokens and primitives |
+| `cloudcanvas-lib` | Every plugin, one entry each: the add-ons, the UI kit, the widgets and the board |
+| `cloudcanvas-site` (private) | The showcase site and sandbox builder |
+| `cloudcanvas-mcp` (private) | The MCP server, sync hub and web client |
+
+### Breaking
+
+- **`cloudcanvas` is the core.** Its entries are `.` and `./core` (`blit`, `type`), `./kernel`, `./log`,
+  `./theme`, `./tokens`, `./primitives`, `./element` and `./vectorizer`. Every other 0.6 subpath moved to
+  `cloudcanvas-lib` (table below); `cloudcanvas/lib` is `cloudcanvas-lib` itself.
+- **The bundles are the core only**: `dist/cloudcanvas.{esm,esm.min,iife,iife.min}.js` (global `CloudCanvas`)
+  and `dist/esm/<entry>.js` per entry. `cloudcanvas-ui.esm.js`, `cloudcanvas-graphics.esm.js` and
+  `cloudcanvas.board.iife.js` are no longer built here; cloudcanvas-lib builds its own. The `./dist/*` export is
+  gone.
+
+### Migration
+
+`node scripts/migrate-0.7.js <dir>` lists every import of a moved subpath in a codebase with its 0.7 specifier.
+
+| 0.6 | 0.7 |
+|---|---|
+| `cloudcanvas`, `cloudcanvas/core`, `/log`, `/theme`, `/primitives` | unchanged |
+| `cloudcanvas/<add-on>`: `drag`, `select`, `resize`, `focus`, `physics`, `connect`, `svg-state`, `cursors`, `pan`, `keyboard`, `menu`, `announce`, `observe`, `motion`, `types`, `widget`, `keyed-list`, `style`, `layout`, `edit`, `place`, `history`, `reactions`, `lazy`, `offload`, `gpu`, `orbit`, `mesh`, `svg-path`, `sprites`, `text`, `video`, `own-canvas`, `xml`, `html-canvas`, `panel` | `cloudcanvas-lib/<add-on>` |
+| `cloudcanvas/ui`, `cloudcanvas/ui/testing` | `cloudcanvas-lib/ui`, `cloudcanvas-lib/ui/testing` |
+| `cloudcanvas/forms`, `display`, `components`, `archetypes`, `sandbox` | `cloudcanvas-lib/forms`, `display`, `components`, `archetypes`, `sandbox` |
+| `cloudcanvas/defaults` | `cloudcanvas-lib/defaults` |
+| `cloudcanvas/graphics` (every add-on's CSS) | `cloudcanvas-lib/graphics` |
+| `cloudcanvas/lib` | `cloudcanvas-lib` |
 
 ### Added
 
-- `cloudcanvas/panel` (`addons/panel.js` and its parts `panel-place`, `panel-record`, `panel-layer`, `panel-frame`,
-  `panel-snap`, `panel-modal`, `panel-door`, `panel-window`): regions over a host that float, attach to an edge
-  (pinned, or over the content as a drawer), open as a modal, fill the host, fold away, share a frame as tabs and
-  move to a browser window of its own. `panels(host)` gives a positioned host one layer, a `[data-cc-panels]` root
-  of its own that lets presses through (a shown modal takes them), with `add`, `list`, `snapshot`, `apply`,
-  `insets` and `off`; the `panel` trait, `panelOf`, `setPanel`, `bodyOf`; the pure `placeOf`, `slotOf` and
+- `cloudcanvas/kernel`: the 37 core names a plugin is written against (the frame, the per-element state, the root
+  index, the default port, the spec codec, the camera, `injectStyle`), so add-ons reach the core through one
+  entry and nothing deeper.
+- `cloudcanvas/tokens`, `cloudcanvas/element` and `cloudcanvas/vectorizer` as entries of their own.
+- `scripts/migrate-0.7.js`: the table above as a scanner.
+- `cloudcanvas-lib/panel`: regions over a host that float, attach to an edge (pinned, or over the content as a
+  drawer), open as a modal, fill the host, fold away and share a frame as tabs. `panels(host)` gives a positioned
+  host one layer, a `[data-cc-panels]` root of its own that lets presses through, with `add`, `list`, `snapshot`,
+  `apply`, `insets` and `off`; the `panel` trait, `panelOf`, `setPanel`, `bodyOf`; the pure `placeOf`, `slotOf` and
   `insetsOf`; `PANEL_PLACES`, `PANEL_EDGES`, `PANEL_CONTROLS`, `PANEL_TAB_PX`. Options round-trip through
-  `data-panel`. Signals: `panel:change` (with `window`), `panel:refused`, `dismiss`, `panels:inset`.
-- The window module loads by `import()` only; the frame is parked (`park.js`) with its traits running while away.
-- `size` per axis (`{x, y}`; a number is both); opposite pinned strips leave the content at least 80px.
-- `graphics/css/panel.js`, the panel's chunk, in the whole sheet too; its `--cc-panel-*` tokens in `TOKENS`.
+  `data-panel`. The bar drags (the drag add-on's gesture), lifts a panel off an edge and snaps it to one with a
+  preview; the resize add-on sizes it; the bar's buttons (`collapse`, `pin`, `place`, `full`, `close`), the place
+  menu, the tab strip and a modal are keyboard-driven. Content makes room through `--cc-panels-top`, `-right`,
+  `-bottom` and `-left` on the host. Signals: `panel:change`, `panel:refused`, `dismiss`, `panels:inset`.
+- `at: 'window'`: the frame, bar included, in a browser window of its own with the page's stylesheets copied in;
+  its module (`panel-window.js`) loads by `import()` the first time, and is measured as its own size row
+  (`+panel-window`). Closing the window, its close control, setting `at` elsewhere, or the opener going away brings
+  each frame back to the place it came from; a window that cannot open is `panel:refused` and the panel stays.
+  `panel:change` carries `window`. Panels sharing `window:<group>` share one window as tabs.
+- After review: `size` per axis (`{x, y}`, a number is both); opposite pinned strips leave the content at least
+  80px; a floating box is held to the layer; a drawer never covers a bar; the snap preview shows the slot's size;
+  covered panels are `inert` under a modal or full one; the focus rule after a modal; a scrolling tab strip with
+  `tablist`/`tabpanel` roles; no browser drag from a handle or the bar over a text selection; `placeOf` refuses an
+  unusable layer size.
+- A modal takes every press outside itself: the layer is dimmed and the content beneath cannot be used until it
+  closes.
+- The panel's CSS chunk and its `--cc-panel-*` tokens, catalogued in `TOKENS`.
 
 ### Changed
 
-- `defaults.js` names `panel`.
-- The plane is one composited layer only while the camera moves. `core/root.js` writes `will-change: transform` on
-  the frames the camera moved and drops it once the camera has rested `REFOCUS_MS` (150 ms), so the plane redraws
-  at its scale and text and lines are sharp at any zoom. The core sheet (`core/css.js`) no longer sets
-  `will-change` on the plane.
+- `cloudcanvas-lib/defaults` names `panel`; the whole sheet (`injectCanvasStyles`) carries the panel chunk.
+- The plane is one composited layer only while the camera moves. The core writes `will-change: transform` on the
+  frames the camera moved and drops it 150 ms after the camera rests, so the plane redraws at its scale and text
+  and lines are sharp at any zoom. The core sheet no longer sets `will-change` on the plane.
+
+## 0.6.0 (2026-09-29)
+
+The GPU and 3D release. The core camera takes a perspective and a tilt; `cloudcanvas/gpu` draws blits on WebGPU
+or WebGL2 from one scene, each element kept as its hit proxy; content add-ons (sprites, text, meshes, SVG paths,
+video, your own canvas, XML) and compositing (punch, HTML-in-Canvas) build on it. 2D boards lay out exactly as in
+0.5.0, and the core is still `{blit, type}` at 7.8 KB gzipped.
+
+### Added
+
+- The core camera is 3D: `perspective`, `rotateX`, `rotateY`, `view()`, `projected()`, `project()`,
+  `unproject()`. A 3D camera writes `matrix3d` on the plane and the perspective on the host; pointer input
+  (`rootEnv.point`, `MotionCamera.screenToCanvas`) unprojects onto the canvas plane.
+- `cloudcanvas/gpu`: `gpu(app, {backend, layer})`, the named port `gpu`, `gpuContent`, `parseTint`. WebGPU and
+  WebGL2 backends behind `import()`; a custom `createBackend` function is accepted too.
+- `cloudcanvas/orbit`: the `orbit` root trait, `orbitBy`, `dollyBy`, `level`.
+- GPU content: `gpuContent` takes a list of parts and meshes (`{mesh, color, lit}` with `depth`/`rotate` or a
+  `viewBox`); both backends draw lit meshes, depth-tested among themselves. `cloudcanvas/mesh` (box, plane,
+  sphere), `cloudcanvas/svg-path` (the `svgPath` trait: path data to fill and stroke triangles), `cloudcanvas/sprites` (`sheet`, the `sprite` trait), `cloudcanvas/text`, `cloudcanvas/video`,
+  `cloudcanvas/own-canvas` (`ownCanvas`, `redraw`), `cloudcanvas/xml` (`fromXml`, `parseXml`).
+- Compositing: erasing quad runs in both backends; the `punch` trait (a DOM blit showing through an `over`
+  canvas); `paintedProxy`; `cloudcanvas/html-canvas` (`htmlCanvas`, `htmlCanvasSupported`), feature-detected.
+- A `sprite` may carry its sheet inline (`{src, grid | frames, animations}`), so a saved board holds it.
+
+### Changed
+
+- `app.root = b` schedules a frame, so passes that draw outside the DOM see the new view.
+- `project()` and `unproject()` answer null for what is behind the viewer (past a tilted board's horizon);
+  `MotionCamera.canvasToScreen`/`screenToCanvas` follow, and a pointer gesture holds its last point on the plane.
+- The cursors overlay encloses a blit's four projected corners, so reticles follow a tilted board;
+  `screenBoundsOf` answers null when every corner is behind the viewer.
+- The menu hears outside presses in the capture phase, so one another add-on stops still closes it.
+- A port that throws is dropped for the default port (logged), so it can never stop a root's frame loop.
+- A stand-in port holds the one it replaced in `state.heldPort`, and `spec` names the held one: a flow child of a
+  `layout` container saves its own port, not `flow`, and a held port that declares `inFlow` (the `gpu` port) keeps
+  running there.
+- `text` writes its value into a span of its own (`data-blit-text`) and removes it with the trait; the element's
+  other content is never replaced.
+- `set()` re-runs traits only when a key naming them changed (or an anonymous trait failed last time): a move
+  no longer walks and decodes every attribute.
+- Sandbox: a lasso, pencil or box pressed above a tilted board's horizon skips the points off the plane, and an
+  Insert or image drop there lands at the view centre, instead of throwing.
+- Board save: a blit's `tint` is saved (only `#rgb`, `#rrggbb` or `#rrggbbaa` loads; anything else is dropped with
+  a warning), and a `port` that is not registered is dropped with a warning.
+- A root observes its host's size: after a resize a tilted plane re-centres, and pointer input agrees with it.
+- Under a 3D camera a drag pan keeps the grabbed canvas point under the pointer, and a wheel, pinch or `+`/`-` zoom
+  the point under the cursor: `Camera.zoomAt(factor, x, y, hostRect)`; above the horizon neither moves.
+- `offload`: under a tilt the visible range is the unprojected host box (a horizon on screen opens it up to
+  `HORIZON_REACH` host lengths), so no blit drawn on screen stays parked.
+- A flat root leaves the host's own `perspective` alone: the root writes it and the plane's `preserve-3d` only
+  while the camera is 3D, and clears only what it wrote.
+- The core is 7.8 KB gzipped (was 6.9 KB): the 3D camera, the port fallback and the host resize watch.
 
 ## 0.5.0 (2026-09-29)
 
