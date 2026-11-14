@@ -106,6 +106,18 @@ stay on the `legacy/0.4` branch.
 
 - [CHANGELOG.md](CHANGELOG.md)
 
+## Repositories
+
+CloudCanvas is four repositories, each with one concern, gathered in the `cc-main` workspace.
+
+| Repository | Workspace path | Concern |
+|---|---|---|
+| [cloudcanvas](https://github.com/CloudsEcosys/cloudcanvas) | `.plugin/` | The engine: `blit`, `type` and the add-ons |
+| [cloudcanvas-lib](https://github.com/CloudsEcosys/cloudcanvas-lib) | `.addons/` | The widget kit, board components, archetypes and the board, on the engine's public entries |
+| [cloudcanvas-site](https://github.com/CloudsEcosys/cloudcanvas-site) (private) | `.site/` | The showcase site and sandbox builder |
+| [cloudcanvas-mcp](https://github.com/CloudsEcosys/cloudcanvas-mcp) (private) | `.mcp/` | The MCP server, sync hub and web client over the engine |
+| [cc-main](https://github.com/CloudsEcosys/cc-main) (private) | the root | The workspace: build, package `exports`, tests, bundles and docs |
+
 ## License
 
 MIT. Written by Richard Christopher, NeoTec, LLC.
